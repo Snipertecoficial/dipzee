@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Phase 1: POC - yfinance fetch (US+TSX) + dividend normalization + Opportunity Score unit tests",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Get design guidelines (Dipzee brand) + integration playbooks (Stripe, Resend)",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 2: Backend core (auth, models, scoring endpoint, asset refresh, watchlist CRUD)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend (landing, auth, dashboard, asset detail, search, settings, i18n 4 locales + currency)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End-to-end testing with testing agent",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 3: Alerts end-to-end + notifications inbox (Resend ready)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 4: APScheduler daily + intraday refresh",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 5: Stripe billing + feature gating + upgrade page (keys later)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 6: Screener + AI digest + final i18n polish + deploy",
+    "status": "pending"
+  }
+]
