@@ -18,7 +18,7 @@ export default function Register() {
   const location = useLocation();
   const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
-  const [currency, setCurrency] = useState('CAD');
+  const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(false);
   const locale = i18n.language?.slice(0, 2) || 'en';
 

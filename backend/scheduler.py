@@ -17,7 +17,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from database import db
 from asset_service import refresh_asset
-from alert_service import evaluate_alerts_for_asset
+from alert_service import evaluate_alerts_for_asset, evaluate_news_alerts
 
 logger = logging.getLogger(__name__)
 ET = pytz.timezone("America/New_York")
@@ -57,13 +57,13 @@ def _is_market_hours() -> bool:
     return (9 * 60 + 30) <= minutes <= (16 * 60)
 
 
-async def _refresh_set(tickers: set, label: str):
+async def _refresh_set(tickers: set, label: str, force_target: bool = False):
     if not tickers:
         return
     logger.info("[scheduler] %s refreshing %d tickers", label, len(tickers))
     for tk in tickers:
         try:
-            asset = await refresh_asset(tk)
+            asset = await refresh_asset(tk, force_target=force_target)
             if asset:
                 await evaluate_alerts_for_asset(asset)
         except Exception as e:  # noqa: BLE001
@@ -78,7 +78,8 @@ async def daily_refresh_job():
         tickers = tickers.union(set(UNIVERSE))
     except Exception:  # noqa: BLE001
         pass
-    await _refresh_set(tickers, "daily")
+    await _refresh_set(tickers, "daily", force_target=True)
+    await evaluate_news_alerts()
 
 
 async def intraday_refresh_job():
@@ -86,6 +87,13 @@ async def intraday_refresh_job():
         return
     tickers = await _intraday_tickers()
     await _refresh_set(tickers, "intraday")
+
+
+async def news_job():
+    try:
+        await evaluate_news_alerts()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[scheduler] news job failed: %s", e)
 
 
 def start_scheduler():
@@ -97,8 +105,10 @@ def start_scheduler():
     _scheduler.add_job(daily_refresh_job, CronTrigger(day_of_week="mon-fri", hour=16, minute=15, timezone=ET), id="daily_refresh", replace_existing=True)
     # Intraday every 15 minutes (the job itself checks market hours + investor users)
     _scheduler.add_job(intraday_refresh_job, IntervalTrigger(minutes=15), id="intraday_refresh", replace_existing=True)
+    # News monitoring every 20 minutes
+    _scheduler.add_job(news_job, IntervalTrigger(minutes=20), id="news_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min)")
     return _scheduler
 
 

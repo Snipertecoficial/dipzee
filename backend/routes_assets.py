@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from asset_service import refresh_asset
 from database import db
 from explain import build_explanation
-from providers import get_provider
+from providers import get_provider, get_company_news, get_market_news
 from scoring import compute_opportunity_score, SETTINGS
 from security import get_current_user
 from alert_service import evaluate_alerts_for_asset
@@ -25,6 +25,25 @@ def _with_explanation(asset: dict, locale: str) -> dict:
 async def search_assets(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
     provider = get_provider()
     return {"results": provider.search(q)}
+
+
+@router.get("/assets/{ticker}/news")
+async def asset_news(ticker: str, user: dict = Depends(get_current_user)):
+    return {"news": get_company_news(ticker, days=7, limit=15)}
+
+
+@router.get("/news/market")
+async def market_news(user: dict = Depends(get_current_user)):
+    return {"news": get_market_news(limit=20)}
+
+
+@router.get("/public/top-opportunities")
+async def public_top_opportunities(limit: int = 8):
+    """Public preview for the marketing/landing page (no auth)."""
+    assets = await db.assets.find(
+        {"score": {"$ne": None}}, {"_id": 0}
+    ).sort("score", -1).to_list(limit)
+    return {"results": assets}
 
 
 @router.get("/score/{ticker}")

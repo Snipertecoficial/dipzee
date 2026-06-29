@@ -63,6 +63,8 @@
     "navFeatures": "Fonctionnalit\u00e9s",
     "navPricing": "Tarifs",
     "navFaq": "FAQ",
+    "topTitle": "Opportunit\u00e9s en direct maintenant",
+    "topSubtitle": "De vrais scores d'opportunit\u00e9 \u00e0 partir de donn\u00e9es de march\u00e9 en direct \u2014 mis \u00e0 jour en continu.",
     "heroTitle": "Achetez bas. Encaissez des dividendes. Vendez haut \u2014 automatiquement.",
     "heroSubtitle": "Dipzee transforme quatre chiffres en un seul Score d'opportunit\u00e9 clair pour savoir quoi acheter, conserver ou vendre en quelques secondes.",
     "heroCta": "Commencer gratuitement",
@@ -145,7 +147,12 @@
     "addedToast": "Ajout\u00e9 \u00e0 votre liste de suivi",
     "removedToast": "Retir\u00e9 de votre liste de suivi",
     "notFound": "Aucune donn\u00e9e disponible pour ce symbole.",
-    "refresh": "Actualiser"
+    "refresh": "Actualiser",
+    "news": "Derni\u00e8res actualit\u00e9s",
+    "noNews": "Aucune actualit\u00e9 r\u00e9cente.",
+    "change": "Aujourd'hui",
+    "live": "En direct",
+    "analystTarget": "Objectif analystes"
   },
   "alerts": {
     "title": "Alertes",
@@ -170,7 +177,8 @@
       "price_above": "Prix sup\u00e9rieur \u00e0",
       "score_threshold": "Le score franchit",
       "dividend_change": "Le dividende change",
-      "daily_drop": "Baisse quotidienne \u2265"
+      "daily_drop": "Baisse quotidienne \u2265",
+      "news": "Actualit\u00e9 publi\u00e9e"
     },
     "valuePrice": "Prix ({{currency}})",
     "valueScore": "Score (0\u2013100)",

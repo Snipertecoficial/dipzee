@@ -85,6 +85,8 @@ async def evaluate_alerts_for_asset(asset: dict):
     ticker = asset.get("ticker")
     alerts = await db.alerts.find({"ticker": ticker, "active": True}).to_list(1000)
     for alert in alerts:
+        if alert.get("type") == "news":
+            continue  # handled by evaluate_news_alerts
         try:
             met, extra = _condition_met(alert, asset)
             if not met:
@@ -120,3 +122,62 @@ async def evaluate_alerts_for_asset(asset: dict):
                 send_email(user["email"], subject, html)
         except Exception as e:  # noqa: BLE001
             logger.warning("Alert evaluation failed for alert %s: %s", alert.get("id"), e)
+
+
+
+NEWS_PREFIX = {
+    "en": "News on {ticker}: ",
+    "fr": "Actualit\u00e9 sur {ticker} : ",
+    "pt": "Not\u00edcia sobre {ticker}: ",
+    "es": "Noticia sobre {ticker}: ",
+}
+
+
+async def evaluate_news_alerts():
+    """Fire news alerts when company news newer than the alert's checkpoint appears."""
+    from providers import get_company_news
+
+    alerts = await db.alerts.find({"type": "news", "active": True}).to_list(1000)
+    # group by ticker to minimize API calls
+    by_ticker: dict = {}
+    for a in alerts:
+        by_ticker.setdefault(a["ticker"], []).append(a)
+
+    for ticker, ticker_alerts in by_ticker.items():
+        try:
+            news = get_company_news(ticker, days=3, limit=20)
+        except Exception:  # noqa: BLE001
+            news = []
+        if not news:
+            continue
+        for alert in ticker_alerts:
+            params = alert.get("params") or {}
+            since = params.get("since", 0)
+            fresh = [n for n in news if (n.get("datetime") or 0) > since]
+            if not fresh:
+                continue
+            fresh.sort(key=lambda n: n.get("datetime") or 0)
+            user = await db.users.find_one({"id": alert["user_id"]})
+            locale = (user or {}).get("locale", "en")
+            prefix = NEWS_PREFIX.get(locale, NEWS_PREFIX["en"]).format(ticker=ticker)
+            newest_ts = since
+            for n in fresh:
+                newest_ts = max(newest_ts, n.get("datetime") or 0)
+                event = {
+                    "id": str(uuid.uuid4()),
+                    "user_id": alert["user_id"],
+                    "alert_id": alert["id"],
+                    "ticker": ticker,
+                    "type": "news",
+                    "message": prefix + (n.get("headline") or ""),
+                    "payload": {"url": n.get("url"), "source": n.get("source"), "datetime": n.get("datetime")},
+                    "read": False,
+                    "created_at": _now_iso(),
+                }
+                await db.alert_events.insert_one(event)
+                prefs = (user or {}).get("default_alert_prefs", {}) or {}
+                if prefs.get("email", True) and user and user.get("email"):
+                    html = f"<div style='font-family:Inter,Arial,sans-serif'><h2 style='color:#1A1F4D'>Dipzee</h2><p>{event['message']}</p><p><a href='{n.get('url')}'>{n.get('source')}</a></p></div>"
+                    send_email(user["email"], f"Dipzee \u2022 {ticker} news", html)
+            # advance checkpoint so each article fires once (edge-triggered)
+            await db.alerts.update_one({"id": alert["id"]}, {"$set": {"params.since": newest_ts, "last_triggered_at": _now_iso()}})

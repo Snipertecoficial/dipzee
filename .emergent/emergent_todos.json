@@ -1,30 +1,26 @@
 [
   {
-    "content": "Phase 1: POC",
+    "content": "Finnhub provider (real-time quote/52w/dividend/sector) + yfinance target hybrid",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Backend + Frontend V1 + E2E test (97%)",
+    "content": "News per asset + news alert type + scheduler news job",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Alerts end-to-end + notifications inbox",
+    "content": "Public Top Opportunities on landing/contratação",
     "status": "completed"
   },
   {
-    "content": "Phase 4: APScheduler daily + intraday refresh",
+    "content": "Superadmin user (douglas) + role + default currency USD",
     "status": "completed"
   },
   {
-    "content": "Phase 5: Stripe billing (test mode) + feature gating + upgrade page",
+    "content": "Asset Detail: news section + real-time polling + change% + logo",
     "status": "completed"
   },
   {
-    "content": "Phase 6: Screener (TSX+US universe) + filters + page",
-    "status": "completed"
-  },
-  {
-    "content": "Test new features: Screener, Stripe, scheduler (100%)",
-    "status": "completed"
+    "content": "Test new Finnhub/news/superadmin/USD features with testing agent",
+    "status": "in_progress"
   }
 ]

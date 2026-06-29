@@ -63,6 +63,8 @@
     "navFeatures": "Caracter\u00edsticas",
     "navPricing": "Precios",
     "navFaq": "FAQ",
+    "topTitle": "Oportunidades en vivo ahora",
+    "topSubtitle": "Opportunity Scores reales a partir de datos de mercado en vivo \u2014 actualizados continuamente.",
     "heroTitle": "Compra barato. Cobra dividendos. Vende caro \u2014 autom\u00e1ticamente.",
     "heroSubtitle": "Dipzee convierte cuatro n\u00fameros en un solo Opportunity Score claro para que sepas qu\u00e9 comprar, mantener o vender en segundos.",
     "heroCta": "Empezar gratis",
@@ -145,7 +147,12 @@
     "addedToast": "A\u00f1adida a tu lista",
     "removedToast": "Quitada de tu lista",
     "notFound": "No hay datos disponibles para este ticker.",
-    "refresh": "Actualizar"
+    "refresh": "Actualizar",
+    "news": "\u00daltimas noticias",
+    "noNews": "Sin noticias recientes.",
+    "change": "Hoy",
+    "live": "En vivo",
+    "analystTarget": "Objetivo de analistas"
   },
   "alerts": {
     "title": "Alertas",
@@ -170,7 +177,8 @@
       "price_above": "Precio por encima de",
       "score_threshold": "El puntaje cruza",
       "dividend_change": "El dividendo cambia",
-      "daily_drop": "Ca\u00edda diaria \u2265"
+      "daily_drop": "Ca\u00edda diaria \u2265",
+      "news": "Noticia publicada"
     },
     "valuePrice": "Precio ({{currency}})",
     "valueScore": "Puntaje (0\u2013100)",

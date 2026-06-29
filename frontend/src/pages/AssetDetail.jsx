@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Star, BellPlus, RefreshCw, Loader2 } from 'lucide-react';
+import { Star, BellPlus, RefreshCw, Loader2, Newspaper, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -22,6 +22,7 @@ export default function AssetDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [inWatch, setInWatch] = useState(false);
   const [error, setError] = useState(false);
+  const [news, setNews] = useState([]);
   const locale = i18n.language?.slice(0, 2) || 'en';
   const cur = asset?.currency || user?.currency || 'USD';
 
@@ -43,7 +44,20 @@ export default function AssetDetail() {
     } catch (e) { /* noop */ }
   }, [ticker]);
 
-  useEffect(() => { load(); loadWatch(); }, [load, loadWatch]);
+  const loadNews = useCallback(async () => {
+    try {
+      const { data } = await api.get(`/assets/${encodeURIComponent(ticker)}/news`);
+      setNews(data.news || []);
+    } catch (e) { /* noop */ }
+  }, [ticker]);
+
+  useEffect(() => { load(); loadWatch(); loadNews(); }, [load, loadWatch, loadNews]);
+
+  // Real-time: poll the quote every 20s while the page is open.
+  useEffect(() => {
+    const id = setInterval(() => load(true), 20000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const toggleWatch = async () => {
     try {
@@ -86,10 +100,24 @@ export default function AssetDetail() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
+            {asset.logo && <img src={asset.logo} alt="" className="h-8 w-8 rounded-md object-contain bg-white border border-[var(--dz-border)]" onError={(e) => { e.target.style.display = 'none'; }} />}
             <h1 className="font-heading font-bold text-2xl sm:text-3xl">{asset.ticker}</h1>
             <span className="text-xs uppercase rounded px-1.5 py-0.5 bg-white text-[var(--dz-muted)] border border-[var(--dz-border)]">{asset.exchange}</span>
+            {asset.source === 'finnhub' && (
+              <span className="inline-flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5 bg-[rgba(22,224,163,0.15)] text-[var(--dz-buy-deep)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--dz-buy)] animate-pulse" />{t('asset.live')}
+              </span>
+            )}
           </div>
           <p className="text-[var(--dz-muted)]">{asset.name}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-heading font-semibold tnum">{formatCurrency(asset.price, cur, locale)}</span>
+            {asset.change_pct != null && (
+              <span className="text-sm tnum" style={{ color: asset.change_pct >= 0 ? 'var(--dz-buy)' : 'var(--dz-sell)' }}>
+                {asset.change_pct >= 0 ? '+' : ''}{asset.change_pct.toFixed(2)}% · {t('asset.change')}
+              </span>
+            )}
+          </div>
         </div>
         <Button variant="ghost" size="icon" onClick={() => load(true)} disabled={refreshing} aria-label={t('asset.refresh')}>
           <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
@@ -152,6 +180,26 @@ export default function AssetDetail() {
           </div>
         </Card>
       )}
+      {/* News */}
+      <Card className="p-6" data-testid="asset-news-section">
+        <h2 className="font-heading font-semibold mb-4 flex items-center gap-2"><Newspaper size={18} />{t('asset.news')}</h2>
+        {news.length === 0 ? (
+          <p className="text-sm text-[var(--dz-muted)]">{t('asset.noNews')}</p>
+        ) : (
+          <div className="space-y-3">
+            {news.slice(0, 8).map((n, i) => (
+              <a key={n.id || i} href={n.url} target="_blank" rel="noopener noreferrer" data-testid="asset-news-item"
+                className="flex items-start gap-3 rounded-lg p-2 -mx-2 hover:bg-[rgba(15,20,36,0.03)] transition-colors">
+                {n.image ? <img src={n.image} alt="" className="h-14 w-20 rounded-md object-cover shrink-0" onError={(e) => { e.target.style.display = 'none'; }} /> : null}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[var(--dz-fg)] leading-snug">{n.headline}</p>
+                  <p className="text-xs text-[var(--dz-muted)] mt-1 flex items-center gap-1">{n.source} <ExternalLink size={11} /></p>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

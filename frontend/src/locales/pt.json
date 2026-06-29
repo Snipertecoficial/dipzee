@@ -63,6 +63,8 @@
     "navFeatures": "Recursos",
     "navPricing": "Pre\u00e7os",
     "navFaq": "FAQ",
+    "topTitle": "Oportunidades ao vivo agora",
+    "topSubtitle": "Opportunity Scores reais a partir de dados de mercado ao vivo \u2014 atualizados continuamente.",
     "heroTitle": "Compre na baixa. Receba dividendos. Venda na alta \u2014 automaticamente.",
     "heroSubtitle": "A Dipzee transforma quatro n\u00fameros em um \u00fanico Opportunity Score claro para voc\u00ea saber o que comprar, manter ou vender em segundos.",
     "heroCta": "Come\u00e7ar gr\u00e1tis",
@@ -145,7 +147,12 @@
     "addedToast": "Adicionada \u00e0 sua lista",
     "removedToast": "Removida da sua lista",
     "notFound": "Nenhum dado dispon\u00edvel para este ticker.",
-    "refresh": "Atualizar"
+    "refresh": "Atualizar",
+    "news": "\u00daltimas not\u00edcias",
+    "noNews": "Sem not\u00edcias recentes.",
+    "change": "Hoje",
+    "live": "Ao vivo",
+    "analystTarget": "Alvo dos analistas"
   },
   "alerts": {
     "title": "Alertas",
@@ -170,7 +177,8 @@
       "price_above": "Pre\u00e7o acima de",
       "score_threshold": "Score cruza",
       "dividend_change": "Dividendo muda",
-      "daily_drop": "Queda di\u00e1ria \u2265"
+      "daily_drop": "Queda di\u00e1ria \u2265",
+      "news": "Not\u00edcia publicada"
     },
     "valuePrice": "Pre\u00e7o ({{currency}})",
     "valueScore": "Score (0\u2013100)",

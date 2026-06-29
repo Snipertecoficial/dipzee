@@ -47,7 +47,7 @@ export function LanguageSwitcher({ compact = false }) {
 
 export function CurrencySwitcher() {
   const { user, updateProfile } = useAuth() || {};
-  const current = user?.currency || 'CAD';
+  const current = user?.currency || 'USD';
 
   const change = async (cur) => {
     if (user && updateProfile) {

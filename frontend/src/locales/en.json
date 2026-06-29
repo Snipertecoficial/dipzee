@@ -63,6 +63,8 @@
     "navFeatures": "Features",
     "navPricing": "Pricing",
     "navFaq": "FAQ",
+    "topTitle": "Live opportunities right now",
+    "topSubtitle": "Real Opportunity Scores from live market data \u2014 updated continuously.",
     "heroTitle": "Buy low. Earn dividends. Sell high \u2014 automatically.",
     "heroSubtitle": "Dipzee turns four numbers into one clear Opportunity Score so you know what to buy, hold or sell in seconds.",
     "heroCta": "Start free",
@@ -145,7 +147,12 @@
     "addedToast": "Added to your watchlist",
     "removedToast": "Removed from your watchlist",
     "notFound": "No data available for this ticker.",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "news": "Latest news",
+    "noNews": "No recent news.",
+    "change": "Today",
+    "live": "Live",
+    "analystTarget": "Analyst target"
   },
   "alerts": {
     "title": "Alerts",
@@ -170,7 +177,8 @@
       "price_above": "Price above",
       "score_threshold": "Score crosses",
       "dividend_change": "Dividend changes",
-      "daily_drop": "Daily drop \u2265"
+      "daily_drop": "Daily drop \u2265",
+      "news": "News published"
     },
     "valuePrice": "Price ({{currency}})",
     "valueScore": "Score (0\u2013100)",

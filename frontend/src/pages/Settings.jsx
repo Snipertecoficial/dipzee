@@ -15,7 +15,7 @@ export default function Settings() {
   const { t } = useTranslation();
   const { user, updateProfile } = useAuth();
   const [language, setLanguage] = useState(user?.locale || 'en');
-  const [currency, setCurrency] = useState(user?.currency || 'CAD');
+  const [currency, setCurrency] = useState(user?.currency || 'USD');
   const [prefs, setPrefs] = useState(user?.default_alert_prefs || { email: true, in_app: true });
   const [saving, setSaving] = useState(false);
 

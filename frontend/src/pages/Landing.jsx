@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, Bell, ListChecks, Coins, Globe, Wallet, Check, ArrowRight } from 'lucide-react';
@@ -10,8 +10,11 @@ import { Logo } from '../components/Logo';
 import { LanguageSwitcher } from '../components/Switchers';
 import { ScoreDial } from '../components/ScoreDial';
 import { RangeGauge52w } from '../components/RangeGauge';
+import { SignalBadge } from '../components/SignalBadge';
 import { PricingCards } from './Upgrade';
 import { useAuth } from '../context/AuthContext';
+import { formatCurrency, formatPercent, SIGNAL_COLORS } from '../lib/format';
+import api from '../lib/api';
 
 // TELUS reference example
 const TELUS = { price: 11.10, low_52w: 11.04, high_52w: 16.74, target_mean: 17.33, dividend_yield: 0.108, currency: 'CAD', score: 96 };
@@ -21,7 +24,14 @@ export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth() || {};
   const [email, setEmail] = useState('');
+  const [topOps, setTopOps] = useState([]);
   const locale = i18n.language?.slice(0, 2) || 'en';
+
+  useEffect(() => {
+    api.get('/public/top-opportunities', { params: { limit: 8 } })
+      .then(({ data }) => setTopOps(data.results || []))
+      .catch(() => {});
+  }, []);
 
   const startFree = (e) => {
     e?.preventDefault?.();
@@ -128,6 +138,43 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Live Top Opportunities */}
+      {topOps.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14">
+          <div className="text-center">
+            <h2 className="font-heading font-bold text-2xl sm:text-3xl">{t('landing.topTitle')}</h2>
+            <p className="mt-2 text-[var(--dz-muted)] max-w-2xl mx-auto">{t('landing.topSubtitle')}</p>
+          </div>
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {topOps.map((a) => {
+              const color = SIGNAL_COLORS[a.classification] || 'var(--dz-slate)';
+              const upside = (a.target_mean && a.price) ? (a.target_mean - a.price) / a.price : null;
+              return (
+                <Card key={a.ticker} data-testid="landing-top-opportunity-card" className="p-4 hover:shadow-[var(--dz-elev-2)] transition-shadow">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-heading font-semibold truncate">{a.ticker}</p>
+                      <p className="text-[11px] text-[var(--dz-muted)] truncate">{a.name}</p>
+                    </div>
+                    <div className="h-11 w-11 shrink-0 rounded-full flex items-center justify-center font-heading font-bold tnum" style={{ border: `3px solid ${color}`, color: 'var(--dz-fg)' }}>{a.score}</div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <SignalBadge classification={a.classification} size="sm" />
+                    <span className="text-xs tnum text-[var(--dz-muted)]">{formatCurrency(a.price, a.currency, locale)}</span>
+                  </div>
+                  {upside != null && (
+                    <p className="mt-2 text-[11px] text-[var(--dz-muted)]">{t('asset.subUpside')}: <span className="tnum" style={{ color: upside > 0 ? 'var(--dz-buy)' : 'var(--dz-muted)' }}>{formatPercent(upside, locale, 0)}</span></p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+          <div className="mt-8 text-center">
+            <Button onClick={() => navigate('/register')} className="bg-[var(--dz-primary)] text-white h-11 px-6">{t('landing.heroCta')} <ArrowRight size={16} className="ml-2" /></Button>
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section id="features" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14">

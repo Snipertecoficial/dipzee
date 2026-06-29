@@ -50,7 +50,7 @@ export function PricingCards({ onChoose, busyPlan }) {
               <h3 className="font-heading font-bold text-xl">{t(`plans.${p.id}`)}</h3>
               <p className="text-sm text-[var(--dz-muted)] mt-1">{t(`plans.${p.id}Desc`)}</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="font-heading font-bold text-3xl tnum">CAD ${price.amount}</span>
+                <span className="font-heading font-bold text-3xl tnum">US${price.amount}</span>
                 <span className="text-sm text-[var(--dz-muted)]">{price.suffix}</span>
               </div>
               <ul className="mt-5 space-y-2 flex-1">

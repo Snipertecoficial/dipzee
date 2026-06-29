@@ -25,7 +25,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     locale: str = "en"
-    currency: str = "CAD"
+    currency: str = "USD"
 
 
 class LoginIn(BaseModel):
@@ -50,7 +50,7 @@ async def register(body: RegisterIn):
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     locale = body.locale if body.locale in VALID_LOCALES else "en"
-    currency = body.currency if body.currency in VALID_CURRENCIES else "CAD"
+    currency = body.currency if body.currency in VALID_CURRENCIES else "USD"
     user = {
         "id": str(uuid.uuid4()),
         "email": email,
@@ -58,6 +58,7 @@ async def register(body: RegisterIn):
         "locale": locale,
         "currency": currency,
         "plan": "free",
+        "role": "user",
         "stripe_customer_id": None,
         "default_alert_prefs": {"email": True, "in_app": True},
         "created_at": datetime.now(timezone.utc).isoformat(),

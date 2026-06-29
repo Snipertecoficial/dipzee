@@ -68,9 +68,48 @@ async def on_startup():
     except Exception as e:  # noqa: BLE001
         logger.warning("ensure_indexes failed: %s", e)
     try:
+        await seed_superadmin()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("seed_superadmin failed: %s", e)
+    try:
         start_scheduler()
     except Exception as e:  # noqa: BLE001
         logger.warning("scheduler start failed: %s", e)
+
+
+async def seed_superadmin():
+    """Create/upgrade the configured superadmin account (idempotent)."""
+    import os
+    import uuid
+    from datetime import datetime, timezone
+    from database import db
+    from security import hash_password
+
+    email = (os.environ.get("SUPERADMIN_EMAIL") or "").lower()
+    password = os.environ.get("SUPERADMIN_PASSWORD")
+    if not email or not password:
+        return
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"role": "superadmin", "plan": "investor", "hashed_password": hash_password(password)}},
+        )
+        logger.info("Superadmin ensured: %s", email)
+        return
+    await db.users.insert_one({
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "hashed_password": hash_password(password),
+        "locale": "pt",
+        "currency": "USD",
+        "plan": "investor",
+        "role": "superadmin",
+        "stripe_customer_id": None,
+        "default_alert_prefs": {"email": True, "in_app": True},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    logger.info("Superadmin created: %s", email)
 
 
 @app.on_event("shutdown")

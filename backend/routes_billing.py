@@ -25,7 +25,7 @@ PACKAGES = {
     "investor_monthly": {"amount": 24.99, "plan": "investor", "billing": "monthly"},
     "investor_annual": {"amount": 239.90, "plan": "investor", "billing": "annual"},
 }
-CURRENCY = "cad"
+CURRENCY = "usd"
 
 
 def _get_checkout(request: Request):

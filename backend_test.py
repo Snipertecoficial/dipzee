@@ -690,6 +690,201 @@ class DipzeeAPITester:
         if result:
             print(f"  ✓ Manual refresh triggered: {result}")
 
+    def test_finnhub_integration(self):
+        """Test Finnhub integration features (NEW)"""
+        print("\n" + "="*60)
+        print("TESTING FINNHUB INTEGRATION (NEW)")
+        print("="*60)
+
+        # Test 1: Superadmin login
+        print("\n--- Testing Superadmin Account ---")
+        superadmin_email = "douglas@snipertec.com.br"
+        superadmin_password = "Admin213021#"
+        
+        result = self.test_endpoint(
+            "FINNHUB", "POST /auth/login (superadmin)",
+            "POST", "auth/login", 200,
+            data={
+                "email": superadmin_email,
+                "password": superadmin_password
+            },
+            check_response=lambda r: "access_token" in r and "user" in r
+        )
+        
+        superadmin_token = None
+        if result:
+            superadmin_token = result.get("access_token")
+            user = result.get("user", {})
+            print(f"  ✓ Superadmin logged in: {user.get('email')}")
+            print(f"  Role: {user.get('role')}, Plan: {user.get('plan')}, Currency: {user.get('currency')}")
+        
+        # Test GET /auth/me for superadmin
+        if superadmin_token:
+            old_token = self.token
+            self.token = superadmin_token
+            
+            result = self.test_endpoint(
+                "FINNHUB", "GET /auth/me (superadmin)",
+                "GET", "auth/me", 200,
+                check_response=lambda r: (
+                    r.get("role") == "superadmin" and
+                    r.get("plan") == "investor" and
+                    r.get("currency") == "USD"
+                )
+            )
+            
+            if result:
+                print(f"  ✓ Superadmin verified: role={result.get('role')}, plan={result.get('plan')}, currency={result.get('currency')}")
+            
+            self.token = old_token
+
+        # Test 2: POST /assets/refresh/AAPL with Finnhub data
+        print("\n--- Testing Finnhub Asset Refresh (AAPL) ---")
+        result = self.test_endpoint(
+            "FINNHUB", "POST /assets/refresh/AAPL",
+            "POST", "assets/refresh/AAPL", 200,
+            check_response=lambda r: (
+                r.get("ticker") == "AAPL" and
+                r.get("source") == "finnhub" and
+                "change_pct" in r and
+                isinstance(r.get("change_pct"), (int, float)) and
+                "price" in r and
+                "low_52w" in r and
+                "high_52w" in r and
+                "dividend_yield" in r and
+                "target_mean" in r and
+                "score" in r and
+                "classification" in r
+            )
+        )
+        
+        if result:
+            print(f"  ✓ AAPL data from Finnhub:")
+            print(f"    Source: {result.get('source')}")
+            print(f"    Price: {result.get('price')}")
+            print(f"    Change %: {result.get('change_pct')}")
+            print(f"    52w Low: {result.get('low_52w')}, High: {result.get('high_52w')}")
+            print(f"    Dividend Yield: {result.get('dividend_yield')} (decimal)")
+            print(f"    Target Mean: {result.get('target_mean')} (from yfinance)")
+            print(f"    Score: {result.get('score')}, Classification: {result.get('classification')}")
+
+        # Test 3: GET /assets/MSFT/news
+        print("\n--- Testing Company News (MSFT) ---")
+        result = self.test_endpoint(
+            "FINNHUB", "GET /assets/MSFT/news",
+            "GET", "assets/MSFT/news", 200,
+            check_response=lambda r: (
+                "news" in r and
+                isinstance(r.get("news"), list) and
+                len(r.get("news", [])) > 0
+            )
+        )
+        
+        if result:
+            news = result.get("news", [])
+            print(f"  ✓ Found {len(news)} news items for MSFT")
+            if news:
+                first = news[0]
+                print(f"    First headline: {first.get('headline', '')[:60]}...")
+                print(f"    URL: {first.get('url', '')[:60]}...")
+                print(f"    Source: {first.get('source')}")
+
+        # Test 4: GET /news/market
+        print("\n--- Testing Market News ---")
+        result = self.test_endpoint(
+            "FINNHUB", "GET /news/market",
+            "GET", "news/market", 200,
+            check_response=lambda r: (
+                "news" in r and
+                isinstance(r.get("news"), list) and
+                len(r.get("news", [])) > 0
+            )
+        )
+        
+        if result:
+            news = result.get("news", [])
+            print(f"  ✓ Found {len(news)} market news items")
+            if news:
+                first = news[0]
+                print(f"    First headline: {first.get('headline', '')[:60]}...")
+
+        # Test 5: GET /public/top-opportunities (NO AUTH)
+        print("\n--- Testing Public Top Opportunities ---")
+        old_token = self.token
+        self.token = None  # No auth for public endpoint
+        
+        result = self.test_endpoint(
+            "FINNHUB", "GET /public/top-opportunities?limit=8",
+            "GET", "public/top-opportunities", 200,
+            params={"limit": 8},
+            check_response=lambda r: (
+                "results" in r and
+                isinstance(r.get("results"), list)
+            )
+        )
+        
+        if result:
+            results = result.get("results", [])
+            print(f"  ✓ Found {len(results)} top opportunities (public, no auth)")
+            if len(results) > 1:
+                # Check if sorted by score desc
+                scores = [r.get("score") for r in results if r.get("score") is not None]
+                is_sorted = all(scores[i] >= scores[i+1] for i in range(len(scores)-1))
+                if is_sorted:
+                    print(f"  ✓ Results sorted by score descending")
+                    print(f"    Top 3 scores: {scores[:3]}")
+                else:
+                    print(f"  ⚠️  Results may not be sorted correctly")
+        
+        self.token = old_token
+
+        # Test 6: Create 'news' type alert
+        print("\n--- Testing News Alert Creation ---")
+        result = self.test_endpoint(
+            "FINNHUB", "POST /alerts (news type)",
+            "POST", "alerts", 200,
+            data={
+                "ticker": "AAPL",
+                "type": "news",
+                "params": {}
+            },
+            check_response=lambda r: (
+                r.get("type") == "news" and
+                r.get("ticker") == "AAPL" and
+                r.get("active") == True and
+                "params" in r and
+                "since" in r.get("params", {})
+            )
+        )
+        
+        if result:
+            print(f"  ✓ News alert created for AAPL")
+            print(f"    Alert ID: {result.get('id')}")
+            print(f"    Params.since: {result.get('params', {}).get('since')} (timestamp)")
+
+        # Test 7: New-user registration defaults currency to USD
+        print("\n--- Testing Registration Currency Default ---")
+        test_email_usd = f"test_usd_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+        result = self.test_endpoint(
+            "FINNHUB", "POST /auth/register (no currency)",
+            "POST", "auth/register", 200,
+            data={
+                "email": test_email_usd,
+                "password": "TestPass123!",
+                "locale": "en"
+                # Note: no currency field
+            },
+            check_response=lambda r: (
+                "user" in r and
+                r.get("user", {}).get("currency") == "USD"
+            )
+        )
+        
+        if result:
+            user = result.get("user", {})
+            print(f"  ✓ New user registered without currency field")
+            print(f"    Default currency: {user.get('currency')} (expected: USD)")
+
     def print_summary(self):
         """Print test summary"""
         print("\n" + "="*60)
@@ -742,6 +937,9 @@ def main():
         tester.test_screener()
         tester.test_billing()
         tester.test_scheduler()
+        
+        # NEW: Finnhub integration tests
+        tester.test_finnhub_integration()
         
         # Print summary
         tester.print_summary()

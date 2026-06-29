@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
-const TYPES = ['buy_zone', 'sell_zone', 'target_reached', 'price_below', 'price_above', 'score_threshold', 'dividend_change', 'daily_drop'];
+const TYPES = ['buy_zone', 'sell_zone', 'target_reached', 'price_below', 'price_above', 'score_threshold', 'dividend_change', 'daily_drop', 'news'];
 const NEEDS_PRICE = ['price_below', 'price_above'];
 const NEEDS_SCORE = ['score_threshold'];
 const NEEDS_PCT = ['daily_drop'];

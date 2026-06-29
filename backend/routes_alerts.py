@@ -15,7 +15,7 @@ router = APIRouter(tags=["alerts"])
 
 VALID_TYPES = {
     "buy_zone", "sell_zone", "target_reached", "price_below", "price_above",
-    "score_threshold", "dividend_change", "daily_drop",
+    "score_threshold", "dividend_change", "daily_drop", "news",
 }
 
 
@@ -55,12 +55,18 @@ async def create_alert(body: AlertIn, user: dict = Depends(get_current_user)):
     # Ensure the asset exists so the engine can evaluate it.
     await refresh_asset(ticker)
 
+    params = body.params or {}
+    if body.type == "news":
+        # Only notify about news published after the alert is created.
+        params = dict(params)
+        params["since"] = int(datetime.now(timezone.utc).timestamp())
+
     alert = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
         "ticker": ticker,
         "type": body.type,
-        "params": body.params or {},
+        "params": params,
         "active": True,
         "last_triggered_at": None,
         "created_at": datetime.now(timezone.utc).isoformat(),

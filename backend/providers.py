@@ -8,8 +8,12 @@ Financial Modeling Prep (FMP) or Finnhub. The DataProvider abstraction below is
 designed so the source can be swapped without touching the rest of the app.
 """
 import logging
+import os
 from abc import ABC, abstractmethod
+from datetime import date, timedelta
 from typing import Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +145,150 @@ class YFinanceProvider(DataProvider):
 _provider: Optional[DataProvider] = None
 
 
+FINNHUB_BASE = "https://finnhub.io/api/v1"
+
+
+class FinnhubProvider(DataProvider):
+    """Primary provider: real-time quote + 52w range + dividend + sector + news.
+
+    Analyst price target is a premium Finnhub endpoint, so the target is filled
+    by yfinance (see get_yf_target) inside the asset service when missing.
+    """
+
+    name = "finnhub"
+
+    def _key(self):
+        return os.environ.get("FINNHUB_API_KEY")
+
+    def _get(self, path: str, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["token"] = key
+        try:
+            r = requests.get(f"{FINNHUB_BASE}{path}", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("finnhub %s failed: %s", path, e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        quote = self._get("/quote", {"symbol": symbol})
+        if not quote or not quote.get("c"):
+            return None
+        price = quote.get("c")
+        profile = self._get("/stock/profile2", {"symbol": symbol}) or {}
+        metric = (self._get("/stock/metric", {"symbol": symbol, "metric": "all"}) or {}).get("metric", {}) or {}
+
+        low = metric.get("52WeekLow")
+        high = metric.get("52WeekHigh")
+        dy_raw = metric.get("dividendYieldIndicatedAnnual")
+        if dy_raw is None:
+            dy_raw = metric.get("currentDividendYieldTTM")
+        # Finnhub returns dividend yield in PERCENT units (e.g. 0.38 = 0.38%).
+        div = (float(dy_raw) / 100.0) if dy_raw is not None else 0.0
+
+        return {
+            "ticker": symbol,
+            "exchange": profile.get("exchange") or _derive_exchange(symbol, {}),
+            "name": profile.get("name") or symbol,
+            "currency": profile.get("currency") or "USD",
+            "price": price,
+            "low_52w": low,
+            "high_52w": high,
+            "target_mean": None,  # premium on Finnhub -> filled by yfinance
+            "dividend_yield": div,
+            "sector": profile.get("finnhubIndustry"),
+            "change_pct": quote.get("dp"),
+            "prev_close": quote.get("pc"),
+            "logo": profile.get("logo"),
+            "source": "finnhub",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get("/search", {"q": query}) or {}
+        results = []
+        for r in (d.get("result", []) or [])[:10]:
+            sym = r.get("symbol")
+            if not sym:
+                continue
+            results.append({"ticker": sym, "name": r.get("description") or sym, "exchange": r.get("type") or ""})
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+def get_company_news(symbol: str, days: int = 7, limit: int = 15) -> list:
+    key = os.environ.get("FINNHUB_API_KEY")
+    if not key:
+        return []
+    symbol = symbol.strip().upper()
+    to = date.today()
+    frm = to - timedelta(days=days)
+    try:
+        r = requests.get(
+            f"{FINNHUB_BASE}/company-news",
+            params={"symbol": symbol, "from": frm.isoformat(), "to": to.isoformat(), "token": key},
+            timeout=12,
+        )
+        if r.status_code >= 400:
+            return []
+        data = r.json() or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("finnhub company-news failed for %s: %s", symbol, e)
+        return []
+    out = []
+    for a in data[:limit]:
+        out.append({
+            "id": a.get("id"),
+            "headline": a.get("headline"),
+            "summary": a.get("summary"),
+            "url": a.get("url"),
+            "source": a.get("source"),
+            "image": a.get("image"),
+            "datetime": a.get("datetime"),
+        })
+    return out
+
+
+def get_market_news(limit: int = 20) -> list:
+    key = os.environ.get("FINNHUB_API_KEY")
+    if not key:
+        return []
+    try:
+        r = requests.get(f"{FINNHUB_BASE}/news", params={"category": "general", "token": key}, timeout=12)
+        if r.status_code >= 400:
+            return []
+        data = r.json() or []
+    except Exception:  # noqa: BLE001
+        return []
+    return [{
+        "id": a.get("id"), "headline": a.get("headline"), "summary": a.get("summary"),
+        "url": a.get("url"), "source": a.get("source"), "image": a.get("image"), "datetime": a.get("datetime"),
+    } for a in data[:limit]]
+
+
+def get_yf_target(symbol: str):
+    """Best-effort analyst mean target via yfinance (Finnhub target is premium)."""
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol.strip().upper()).info or {}
+        t = info.get("targetMeanPrice")
+        return float(t) if t else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def get_provider() -> DataProvider:
     global _provider
     if _provider is None:
-        _provider = YFinanceProvider()
+        if os.environ.get("FINNHUB_API_KEY"):
+            _provider = FinnhubProvider()
+            logger.info("Using FinnhubProvider as primary market-data source.")
+        else:
+            _provider = YFinanceProvider()
     return _provider
