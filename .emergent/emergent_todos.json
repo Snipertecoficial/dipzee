@@ -1,6 +1,6 @@
 [
   {
-    "content": "Finnhub provider (real-time quote/52w/dividend/sector) + yfinance target hybrid",
+    "content": "Finnhub provider (real-time) + yfinance target hybrid",
     "status": "completed"
   },
   {
@@ -8,19 +8,19 @@
     "status": "completed"
   },
   {
-    "content": "Public Top Opportunities on landing/contratação",
+    "content": "Public Top Opportunities on landing",
     "status": "completed"
   },
   {
-    "content": "Superadmin user (douglas) + role + default currency USD",
+    "content": "Superadmin user + role + default currency USD",
     "status": "completed"
   },
   {
-    "content": "Asset Detail: news section + real-time polling + change% + logo",
+    "content": "Asset Detail: news + real-time polling + change% + logo",
     "status": "completed"
   },
   {
-    "content": "Test new Finnhub/news/superadmin/USD features with testing agent",
-    "status": "in_progress"
+    "content": "Testing new features (backend 7/8 expected, frontend 100%)",
+    "status": "completed"
   }
 ]
