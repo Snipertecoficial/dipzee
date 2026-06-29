@@ -1,38 +1,34 @@
 [
   {
-    "content": "Phase 1: POC - yfinance fetch + dividend normalization + Opportunity Score unit tests",
+    "content": "Phase 1: POC",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Get design guidelines + integration playbooks",
+    "content": "Phase 2: Backend + Frontend V1 + E2E test (97%)",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Backend core (auth, models, scoring endpoint, asset refresh, watchlist CRUD)",
+    "content": "Phase 3: Alerts end-to-end + notifications inbox",
     "status": "completed"
-  },
-  {
-    "content": "Phase 2: Frontend (landing, auth, dashboard, asset detail, search, settings, i18n 4 locales + currency)",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 2: End-to-end testing with testing agent",
-    "status": "in_progress"
-  },
-  {
-    "content": "Phase 3: Alerts end-to-end + notifications inbox (Resend ready)",
-    "status": "pending"
   },
   {
     "content": "Phase 4: APScheduler daily + intraday refresh",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Phase 5: Stripe billing + feature gating + upgrade page (keys later)",
-    "status": "pending"
+    "content": "Phase 5: Stripe billing (test mode) + feature gating + upgrade page",
+    "status": "completed"
   },
   {
-    "content": "Phase 6: Screener + AI digest + final i18n polish + deploy",
+    "content": "Phase 6: Screener (TSX+US universe) + filters + page",
+    "status": "completed"
+  },
+  {
+    "content": "Test new features: Screener, Stripe checkout, scheduler endpoint",
+    "status": "in_progress"
+  },
+  {
+    "content": "Final polish + deployment readiness",
     "status": "pending"
   }
 ]

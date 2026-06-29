@@ -519,6 +519,177 @@ class DipzeeAPITester:
             check_response=lambda r: r.get("ok") == True
         )
 
+    def test_screener(self):
+        """Test screener endpoints (Phase 3)"""
+        print("\n" + "="*60)
+        print("TESTING SCREENER (Phase 3)")
+        print("="*60)
+
+        # Test POST /screener/refresh with limit
+        result = self.test_endpoint(
+            "SCREENER", "POST /screener/refresh?limit=8",
+            "POST", "screener/refresh", 200,
+            params={"limit": 8},
+            check_response=lambda r: "refreshed" in r and r.get("refreshed", 0) > 0
+        )
+        
+        if result:
+            print(f"  Refreshed {result.get('refreshed')} tickers")
+
+        # Wait a moment for refresh to complete
+        time.sleep(2)
+
+        # Test GET /screener (no filters)
+        result = self.test_endpoint(
+            "SCREENER", "GET /screener (no filters)",
+            "GET", "screener", 200,
+            check_response=lambda r: "results" in r and "count" in r
+        )
+        
+        if result:
+            results = result.get("results", [])
+            count = result.get("count", 0)
+            print(f"  Found {count} results")
+            if len(results) > 1:
+                # Check if sorted by score desc
+                scores = [r.get("score") for r in results if r.get("score") is not None]
+                is_sorted = all(scores[i] >= scores[i+1] for i in range(len(scores)-1))
+                if is_sorted:
+                    print(f"  ✓ Results sorted by score descending")
+                else:
+                    print(f"  ⚠️  Results may not be sorted correctly")
+
+        # Test GET /screener with min_dividend filter
+        result = self.test_endpoint(
+            "SCREENER", "GET /screener?min_dividend=0.03",
+            "GET", "screener", 200,
+            params={"min_dividend": 0.03},
+            check_response=lambda r: "results" in r and "count" in r
+        )
+        
+        if result:
+            results = result.get("results", [])
+            print(f"  Found {len(results)} results with min_dividend=0.03")
+            # Verify filter works
+            if results:
+                dividends = [r.get("dividend_yield") for r in results if r.get("dividend_yield") is not None]
+                if dividends and all(d >= 0.03 for d in dividends):
+                    print(f"  ✓ All results have dividend_yield >= 0.03")
+
+        # Test GET /screener with classification filter
+        result = self.test_endpoint(
+            "SCREENER", "GET /screener?classification=buy",
+            "GET", "screener", 200,
+            params={"classification": "buy"},
+            check_response=lambda r: "results" in r and "count" in r
+        )
+        
+        if result:
+            results = result.get("results", [])
+            print(f"  Found {len(results)} results with classification=buy")
+            # Verify filter works
+            if results:
+                classifications = [r.get("classification") for r in results]
+                if all(c == "buy" for c in classifications):
+                    print(f"  ✓ All results have classification=buy")
+
+        # Test GET /screener/sectors
+        result = self.test_endpoint(
+            "SCREENER", "GET /screener/sectors",
+            "GET", "screener/sectors", 200,
+            check_response=lambda r: "sectors" in r and isinstance(r.get("sectors"), list)
+        )
+        
+        if result:
+            sectors = result.get("sectors", [])
+            print(f"  Found {len(sectors)} sectors: {sectors[:5]}")
+
+    def test_billing(self):
+        """Test Stripe billing endpoints (Phase 3)"""
+        print("\n" + "="*60)
+        print("TESTING BILLING (Phase 3 - Stripe)")
+        print("="*60)
+
+        # Test GET /billing/config
+        result = self.test_endpoint(
+            "BILLING", "GET /billing/config",
+            "GET", "billing/config", 200,
+            check_response=lambda r: (
+                "configured" in r and 
+                "packages" in r and 
+                "currency" in r and
+                len(r.get("packages", {})) == 4
+            )
+        )
+        
+        if result:
+            configured = result.get("configured")
+            packages = result.get("packages", {})
+            currency = result.get("currency")
+            print(f"  Configured: {configured}, Currency: {currency}")
+            print(f"  Packages: {list(packages.keys())}")
+
+        # Test POST /billing/checkout with valid package
+        result = self.test_endpoint(
+            "BILLING", "POST /billing/checkout (pro_monthly)",
+            "POST", "billing/checkout", 200,
+            data={
+                "package_id": "pro_monthly",
+                "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
+            },
+            check_response=lambda r: (
+                "url" in r and 
+                "session_id" in r and
+                r.get("session_id", "").startswith("cs_test_")
+            )
+        )
+        
+        session_id = None
+        if result:
+            session_id = result.get("session_id")
+            url = result.get("url")
+            print(f"  ✓ Checkout session created: {session_id}")
+            print(f"  ✓ Checkout URL: {url[:60]}...")
+
+        # Test POST /billing/checkout with invalid package
+        self.test_endpoint(
+            "BILLING", "POST /billing/checkout (invalid package)",
+            "POST", "billing/checkout", 400,
+            data={
+                "package_id": "invalid_package",
+                "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
+            }
+        )
+
+        # Test GET /billing/status/{session_id}
+        if session_id:
+            result = self.test_endpoint(
+                "BILLING", f"GET /billing/status/{session_id}",
+                "GET", f"billing/status/{session_id}", 200,
+                check_response=lambda r: "payment_status" in r and "status" in r
+            )
+            
+            if result:
+                payment_status = result.get("payment_status")
+                status = result.get("status")
+                print(f"  Payment status: {payment_status}, Status: {status}")
+
+    def test_scheduler(self):
+        """Test scheduler manual trigger (Phase 3)"""
+        print("\n" + "="*60)
+        print("TESTING SCHEDULER (Phase 3)")
+        print("="*60)
+
+        # Check if admin endpoint exists
+        result = self.test_endpoint(
+            "SCHEDULER", "POST /admin/run-daily-refresh",
+            "POST", "admin/run-daily-refresh", 200,
+            check_response=lambda r: "ok" in r or "refreshed" in r or "message" in r
+        )
+        
+        if result:
+            print(f"  ✓ Manual refresh triggered: {result}")
+
     def print_summary(self):
         """Print test summary"""
         print("\n" + "="*60)
@@ -566,6 +737,11 @@ def main():
         tester.test_alerts()
         tester.test_alert_triggering()
         tester.test_notifications()
+        
+        # Phase 3 tests
+        tester.test_screener()
+        tester.test_billing()
+        tester.test_scheduler()
         
         # Print summary
         tester.print_summary()

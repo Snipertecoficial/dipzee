@@ -202,6 +202,23 @@
     "currentPlan": "Current plan",
     "saved": "Settings saved"
   },
+  "screener": {
+    "title": "Screener",
+    "subtitle": "Top opportunities across TSX and US stocks.",
+    "refresh": "Refresh universe",
+    "refreshing": "Refreshing...",
+    "filters": "Filters",
+    "sector": "Sector",
+    "allSectors": "All sectors",
+    "minDividend": "Min dividend %",
+    "maxRange": "Max range position %",
+    "minUpside": "Min upside %",
+    "classification": "Signal",
+    "anySignal": "Any signal",
+    "reset": "Reset",
+    "empty": "No results yet. Refresh the universe or relax the filters.",
+    "upside": "Upside"
+  },
   "plans": {
     "free": "Free",
     "pro": "Pro",

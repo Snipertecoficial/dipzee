@@ -1,0 +1,109 @@
+"""APScheduler jobs for Dipzee.
+
+- Daily job: refresh all monitored tickers after the North-American market close.
+- Intraday job: every 15 minutes during market hours, refresh monitored tickers
+  that belong to at least one Investor-plan user (intraday is an Investor feature).
+
+A "monitored" ticker is any ticker present in a watchlist item or an active alert.
+Alert rules are evaluated on every refresh (edge-triggered inside alert_service).
+"""
+import logging
+from datetime import datetime
+
+import pytz
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
+from database import db
+from asset_service import refresh_asset
+from alert_service import evaluate_alerts_for_asset
+
+logger = logging.getLogger(__name__)
+ET = pytz.timezone("America/New_York")
+
+_scheduler: AsyncIOScheduler | None = None
+
+
+async def _monitored_tickers() -> set:
+    tickers = set()
+    async for item in db.watchlist_items.find({}, {"ticker": 1}):
+        if item.get("ticker"):
+            tickers.add(item["ticker"])
+    async for alert in db.alerts.find({"active": True}, {"ticker": 1}):
+        if alert.get("ticker"):
+            tickers.add(alert["ticker"])
+    return tickers
+
+
+async def _intraday_tickers() -> set:
+    """Tickers monitored by at least one Investor-plan user."""
+    investor_ids = [u["id"] async for u in db.users.find({"plan": "investor"}, {"id": 1})]
+    if not investor_ids:
+        return set()
+    tickers = set()
+    async for item in db.watchlist_items.find({"user_id": {"$in": investor_ids}}, {"ticker": 1}):
+        tickers.add(item["ticker"])
+    async for alert in db.alerts.find({"user_id": {"$in": investor_ids}, "active": True}, {"ticker": 1}):
+        tickers.add(alert["ticker"])
+    return tickers
+
+
+def _is_market_hours() -> bool:
+    now = datetime.now(ET)
+    if now.weekday() >= 5:  # Sat/Sun
+        return False
+    minutes = now.hour * 60 + now.minute
+    return (9 * 60 + 30) <= minutes <= (16 * 60)
+
+
+async def _refresh_set(tickers: set, label: str):
+    if not tickers:
+        return
+    logger.info("[scheduler] %s refreshing %d tickers", label, len(tickers))
+    for tk in tickers:
+        try:
+            asset = await refresh_asset(tk)
+            if asset:
+                await evaluate_alerts_for_asset(asset)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[scheduler] refresh failed for %s: %s", tk, e)
+
+
+async def daily_refresh_job():
+    tickers = await _monitored_tickers()
+    # Also keep the screener universe fresh for the daily batch.
+    try:
+        from screener_service import UNIVERSE
+        tickers = tickers.union(set(UNIVERSE))
+    except Exception:  # noqa: BLE001
+        pass
+    await _refresh_set(tickers, "daily")
+
+
+async def intraday_refresh_job():
+    if not _is_market_hours():
+        return
+    tickers = await _intraday_tickers()
+    await _refresh_set(tickers, "intraday")
+
+
+def start_scheduler():
+    global _scheduler
+    if _scheduler is not None:
+        return _scheduler
+    _scheduler = AsyncIOScheduler(timezone=ET)
+    # Daily after NA market close (16:15 ET) on weekdays
+    _scheduler.add_job(daily_refresh_job, CronTrigger(day_of_week="mon-fri", hour=16, minute=15, timezone=ET), id="daily_refresh", replace_existing=True)
+    # Intraday every 15 minutes (the job itself checks market hours + investor users)
+    _scheduler.add_job(intraday_refresh_job, IntervalTrigger(minutes=15), id="intraday_refresh", replace_existing=True)
+    _scheduler.start()
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min)")
+    return _scheduler
+
+
+def shutdown_scheduler():
+    global _scheduler
+    if _scheduler is not None:
+        _scheduler.shutdown(wait=False)
+        _scheduler = None

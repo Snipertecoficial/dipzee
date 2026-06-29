@@ -202,6 +202,23 @@
     "currentPlan": "Plan actual",
     "saved": "Ajustes guardados"
   },
+  "screener": {
+    "title": "Screener",
+    "subtitle": "Mejores oportunidades en acciones de TSX y EE.UU.",
+    "refresh": "Actualizar universo",
+    "refreshing": "Actualizando...",
+    "filters": "Filtros",
+    "sector": "Sector",
+    "allSectors": "Todos los sectores",
+    "minDividend": "Dividendo m\u00edn %",
+    "maxRange": "Posici\u00f3n m\u00e1x en el rango %",
+    "minUpside": "Potencial m\u00edn %",
+    "classification": "Se\u00f1al",
+    "anySignal": "Cualquier se\u00f1al",
+    "reset": "Restablecer",
+    "empty": "Sin resultados. Actualiza el universo o relaja los filtros.",
+    "upside": "Potencial"
+  },
   "plans": {
     "free": "Gratis",
     "pro": "Pro",

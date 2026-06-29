@@ -14,6 +14,7 @@ import Alerts from './pages/Alerts';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import Upgrade from './pages/Upgrade';
+import Screener from './pages/Screener';
 
 const Protected = ({ children }) => (
   <ProtectedRoute><AppShell>{children}</AppShell></ProtectedRoute>
@@ -29,6 +30,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/app/dashboard" element={<Protected><Dashboard /></Protected>} />
+            <Route path="/app/screener" element={<Protected><Screener /></Protected>} />
             <Route path="/app/asset/:ticker" element={<Protected><AssetDetail /></Protected>} />
             <Route path="/app/alerts" element={<Protected><Alerts /></Protected>} />
             <Route path="/app/notifications" element={<Protected><Notifications /></Protected>} />

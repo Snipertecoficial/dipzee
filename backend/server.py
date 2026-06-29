@@ -7,10 +7,13 @@ import os
 
 from database import client, ensure_indexes
 from scoring import SETTINGS
+from scheduler import start_scheduler, shutdown_scheduler, daily_refresh_job
 import routes_auth
 import routes_assets
 import routes_watchlist
 import routes_alerts
+import routes_screener
+import routes_billing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -31,11 +34,20 @@ async def scoring_settings():
     return SETTINGS
 
 
+@api_router.post("/admin/run-daily-refresh")
+async def run_daily_refresh():
+    """Manually trigger the daily refresh job (useful for testing the scheduler)."""
+    await daily_refresh_job()
+    return {"ok": True}
+
+
 # Mount feature routers under /api
 api_router.include_router(routes_auth.router)
 api_router.include_router(routes_assets.router)
 api_router.include_router(routes_watchlist.router)
 api_router.include_router(routes_alerts.router)
+api_router.include_router(routes_screener.router)
+api_router.include_router(routes_billing.router)
 
 app.include_router(api_router)
 
@@ -55,8 +67,13 @@ async def on_startup():
         logger.info("Indexes ensured.")
     except Exception as e:  # noqa: BLE001
         logger.warning("ensure_indexes failed: %s", e)
+    try:
+        start_scheduler()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("scheduler start failed: %s", e)
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    shutdown_scheduler()
     client.close()

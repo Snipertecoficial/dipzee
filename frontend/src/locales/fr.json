@@ -202,6 +202,23 @@
     "currentPlan": "Forfait actuel",
     "saved": "Param\u00e8tres enregistr\u00e9s"
   },
+  "screener": {
+    "title": "Filtre",
+    "subtitle": "Meilleures opportunit\u00e9s parmi les actions du TSX et des \u00c9.-U.",
+    "refresh": "Actualiser l'univers",
+    "refreshing": "Actualisation...",
+    "filters": "Filtres",
+    "sector": "Secteur",
+    "allSectors": "Tous les secteurs",
+    "minDividend": "Dividende min %",
+    "maxRange": "Position max dans la fourchette %",
+    "minUpside": "Potentiel min %",
+    "classification": "Signal",
+    "anySignal": "Tout signal",
+    "reset": "R\u00e9initialiser",
+    "empty": "Aucun r\u00e9sultat. Actualisez l'univers ou assouplissez les filtres.",
+    "upside": "Potentiel"
+  },
   "plans": {
     "free": "Gratuit",
     "pro": "Pro",
