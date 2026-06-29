@@ -1,23 +1,23 @@
 [
   {
-    "content": "Phase 1: POC - yfinance fetch (US+TSX) + dividend normalization + Opportunity Score unit tests",
+    "content": "Phase 1: POC - yfinance fetch + dividend normalization + Opportunity Score unit tests",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Get design guidelines (Dipzee brand) + integration playbooks (Stripe, Resend)",
-    "status": "in_progress"
+    "content": "Phase 2: Get design guidelines + integration playbooks",
+    "status": "completed"
   },
   {
     "content": "Phase 2: Backend core (auth, models, scoring endpoint, asset refresh, watchlist CRUD)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 2: Frontend (landing, auth, dashboard, asset detail, search, settings, i18n 4 locales + currency)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 2: End-to-end testing with testing agent",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
     "content": "Phase 3: Alerts end-to-end + notifications inbox (Resend ready)",

@@ -1,0 +1,11 @@
+"""Per-plan feature limits (enforced via helpers / middleware)."""
+
+PLAN_LIMITS = {
+    "free": {"watchlist": 10, "alerts": 3, "locales": ["en"], "intraday": False},
+    "pro": {"watchlist": None, "alerts": None, "locales": ["en", "fr", "pt", "es"], "intraday": False},
+    "investor": {"watchlist": None, "alerts": None, "locales": ["en", "fr", "pt", "es"], "intraday": True},
+}
+
+
+def limit_for(plan: str, key: str):
+    return PLAN_LIMITS.get(plan or "free", PLAN_LIMITS["free"]).get(key)
