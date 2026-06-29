@@ -24,11 +24,7 @@
     "status": "completed"
   },
   {
-    "content": "Test new features: Screener, Stripe checkout, scheduler endpoint",
-    "status": "in_progress"
-  },
-  {
-    "content": "Final polish + deployment readiness",
-    "status": "pending"
+    "content": "Test new features: Screener, Stripe, scheduler (100%)",
+    "status": "completed"
   }
 ]

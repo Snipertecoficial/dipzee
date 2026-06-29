@@ -123,9 +123,8 @@
 - Hardening: cache simples, retries, validações.
 
 ## 3) Next Actions
-1. Executar **Phase 1 POC**: websearch + script yfinance + unit tests do score.
-2. Confirmar 2 tickers de referência TSX/US para smoke test (ex.: `T.TO`, `AAPL`).
-3. Iniciar Phase 2 (V1) somente após POC estável.
+- DONE: POC, V1 (auth/i18n/landing/dashboard/asset/watchlist/settings), alerts+notifications, scheduler, Stripe (test mode), screener.
+- Pending (user-driven / later): provide real Stripe + Resend keys; connect GitHub via Emergent UI; deploy + custom domain via Emergent UI; replace yfinance with a licensed provider (FMP/Finnhub) before charging; optional AI daily digest email.
 
 ## 4) Success Criteria
 - POC: yfinance retorna campos essenciais (ou fallback) e os 2 unit tests do score passam.
