@@ -34,6 +34,15 @@
     --dz-elev-1: 0 1px 2px var(--dz-shadow);
     --dz-elev-2: 0 10px 24px var(--dz-shadow);
     --dz-elev-3: 0 18px 40px var(--dz-shadow-strong);
+
+    /* Derived institutional tokens (do not change base palette) */
+    --dz-surface-2: color-mix(in srgb, var(--dz-surface) 94%, var(--dz-primary));
+    --dz-primary-8: rgba(26, 31, 77, 0.08);
+    --dz-primary-12: rgba(26, 31, 77, 0.12);
+    --dz-mint-10: rgba(22, 224, 163, 0.10);
+    --dz-mint-16: rgba(22, 224, 163, 0.16);
+    --dz-shadow-card: 0 1px 2px rgba(15, 20, 36, 0.06), 0 12px 28px rgba(15, 20, 36, 0.08);
+    --dz-shadow-float: 0 18px 40px rgba(15, 20, 36, 0.14);
 }
 
 @layer base {

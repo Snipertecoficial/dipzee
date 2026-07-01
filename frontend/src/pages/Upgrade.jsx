@@ -158,6 +158,15 @@ export default function Upgrade() {
 
   return (
     <div className="max-w-5xl mx-auto">
+      {!['starter', 'pro', 'investor'].includes(user?.plan) && (
+        <div data-testid="onboarding-notice" className="mb-8 flex items-start gap-3 rounded-[var(--dz-radius-md,14px)] border border-[var(--dz-mint)] bg-[var(--dz-mint-10)] p-4">
+          <Sparkles size={18} className="text-[var(--dz-buy-deep)] mt-0.5 shrink-0" />
+          <div>
+            <p className="font-heading font-semibold text-[var(--dz-fg)]">{t('plans.onboardingTitle')}</p>
+            <p className="text-sm text-[var(--dz-muted)] mt-0.5">{t('plans.onboardingNotice')}</p>
+          </div>
+        </div>
+      )}
       <div className="text-center max-w-2xl mx-auto">
         <h1 className="font-heading font-bold text-2xl sm:text-3xl tracking-tight" data-testid="upgrade-title">{t('plans.upgradeTitle')}</h1>
         <p className="mt-2 text-[var(--dz-muted)]">{t('plans.upgradeSubtitle')}</p>

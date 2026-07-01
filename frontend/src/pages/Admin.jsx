@@ -155,7 +155,7 @@ export default function Admin() {
               <Metric label={t('admin.metrics.activeAlerts')} value={stats.active_alerts} icon={BellRing} accent="var(--dz-hold)" />
               <Metric label={t('admin.metrics.events')} value={stats.events_total} icon={Bell} />
               <Metric label={t('admin.metrics.watchlist')} value={stats.watchlist_total} icon={LineChart} />
-              <Metric label={t('admin.planFree')} value={stats.plan_counts?.free ?? 0} icon={Users} />
+              <Metric label={t('admin.planStarter')} value={stats.plan_counts?.starter ?? 0} icon={Users} />
               <Metric label={t('admin.planPro')} value={stats.plan_counts?.pro ?? 0} icon={Users} accent="var(--dz-mint)" />
               <Metric label={t('admin.metrics.revenue')} value={`US$${(stats.revenue || 0).toFixed(2)}`} icon={CreditCard} accent="var(--dz-buy)" />
             </div>
@@ -215,7 +215,8 @@ export default function Admin() {
                       <Select value={u.plan} onValueChange={(v) => updateUser(u.id, { plan: v })}>
                         <SelectTrigger className="h-8 w-32" data-testid="admin-user-plan-select"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="free">{t('admin.planFree')}</SelectItem>
+                          <SelectItem value="none">{t('admin.planNone')}</SelectItem>
+                          <SelectItem value="starter">{t('admin.planStarter')}</SelectItem>
                           <SelectItem value="pro">{t('admin.planPro')}</SelectItem>
                           <SelectItem value="investor">{t('admin.planInvestor')}</SelectItem>
                         </SelectContent>

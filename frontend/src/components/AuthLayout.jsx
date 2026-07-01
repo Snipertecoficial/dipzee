@@ -58,8 +58,13 @@ export function AuthLayout({ children }) {
             </div>
           </div>
         )}
-        <div className="relative z-10 flex items-center gap-2 text-xs text-[rgba(255,255,255,0.6)] mt-8">
-          <ShieldCheck size={14} /> {t('landing.emailPrivacy')}
+        <div className="relative z-10 mt-8 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.7)]">
+            <ShieldCheck size={14} className="text-[var(--dz-mint)]" /> {t('landing.sec1')}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.7)]">
+            <ShieldCheck size={14} className="text-[var(--dz-mint)]" /> {t('auth.secureCheckout')}
+          </div>
         </div>
         <div className="absolute -right-24 -bottom-24 h-80 w-80 rounded-full bg-[var(--dz-mint)] opacity-10 blur-2xl" />
       </div>

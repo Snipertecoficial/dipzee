@@ -24,7 +24,7 @@
     "upgrade": "Mejorar plan",
     "logout": "Cerrar sesión",
     "login": "Iniciar sesión",
-    "signup": "Empezar gratis",
+    "signup": "Prueba gratis",
     "language": "Idioma",
     "currency": "Moneda",
     "menu": "Menú",
@@ -48,7 +48,7 @@
   "auth": {
     "loginTitle": "Bienvenido de nuevo",
     "loginSubtitle": "Inicia sesión para ver tus oportunidades.",
-    "registerTitle": "Crea tu cuenta gratuita",
+    "registerTitle": "Crea tu cuenta",
     "registerSubtitle": "Compra barato, cobra dividendos, vende caro.",
     "email": "Correo",
     "password": "Contraseña",
@@ -61,7 +61,8 @@
     "invalidCreds": "Correo o contraseña inválidos",
     "emailTaken": "Este correo ya está registrado",
     "genericError": "Algo salió mal. Inténtalo de nuevo.",
-    "passwordHint": "Al menos 6 caracteres"
+    "passwordHint": "Al menos 6 caracteres",
+    "secureCheckout": "Pago seguro"
   },
   "landing": {
     "navFeatures": "Características",
@@ -71,7 +72,7 @@
     "topSubtitle": "Opportunity Scores reales a partir de datos de mercado en vivo — actualizados continuamente.",
     "heroTitle": "Compra barato. Cobra dividendos. Vende caro — automáticamente.",
     "heroSubtitle": "Dipzee convierte cuatro números en un solo Opportunity Score claro para que sepas qué comprar, mantener o vender en segundos.",
-    "heroCta": "Empezar gratis",
+    "heroCta": "Iniciar prueba gratis de 7 días",
     "heroSecondary": "Ver cómo funciona",
     "emailPlaceholder": "Ingresa tu correo",
     "emailCta": "Empezar gratis",
@@ -109,8 +110,36 @@
     "faq4Q": "¿Puedo cancelar cuando quiera?",
     "faq4A": "Sí, puedes cancelar o cambiar de plan en cualquier momento.",
     "ctaTitle": "Empieza a encontrar oportunidades hoy",
-    "ctaSubtitle": "Gratis para siempre hasta 10 acciones. Mejora cuando quieras.",
-    "disclaimer": "Dipzee ofrece información educativa y señales automatizadas, no asesoría financiera personalizada. No es un asesor de inversiones registrado. Haz tu propia investigación."
+    "ctaSubtitle": "Empieza con 7 días gratis y ve oportunidades en vivo. Cancela cuando quieras.",
+    "disclaimer": "Dipzee ofrece información educativa y señales automatizadas, no asesoría financiera personalizada. No es un asesor de inversiones registrado. Haz tu propia investigación.",
+    "secondaryCta": "Ver precios",
+    "microTrial": "7 días gratis • Tarjeta requerida • Cancela cuando quieras",
+    "navHow": "Cómo funciona",
+    "navOpportunities": "Oportunidades",
+    "navSecurity": "Seguridad",
+    "proof1": "Actualización en tiempo real",
+    "proof2": "Cobertura multimercado",
+    "proof3": "Señales claras: Comprar / Mantener / Reducir / Vender",
+    "proof4": "Infraestructura monitoreada 24/7",
+    "secTitle": "Tus datos y pagos, protegidos",
+    "secSubtitle": "Seguimos prácticas del mercado para mantener tu información segura.",
+    "sec1": "Cifrado en tránsito (TLS) y en reposo",
+    "sec2": "Acceso de mínimo privilegio",
+    "sec3": "Monitoreo y registros",
+    "sec4": "Privacidad y control de datos",
+    "sec5": "Pago seguro y cancelación fácil",
+    "colTicker": "Activo",
+    "colScore": "Score",
+    "colSignal": "Señal",
+    "colYield": "Dividendo",
+    "colPrice": "Precio",
+    "refresh": "Actualizar",
+    "footerProduct": "Producto",
+    "footerCompany": "Empresa",
+    "footerContact": "Contacto",
+    "footerPrivacy": "Privacidad",
+    "footerTerms": "Términos",
+    "trustedBy": "Hecho para inversores minoristas disciplinados"
   },
   "dashboard": {
     "title": "Oportunidades de hoy",
@@ -269,6 +298,14 @@
     "starterF1": "Hasta 25 activos en lista",
     "starterF2": "10 alertas",
     "starterF3": "Alertas por correo",
-    "starterF4": "Los 4 idiomas"
+    "starterF4": "Los 4 idiomas",
+    "startTrial": "Prueba gratis de 7 días",
+    "onboardingNotice": "Elige un plan para iniciar tu prueba gratis de 7 días y desbloquear Dipzee.",
+    "onboardingTitle": "Comienza tu prueba gratis",
+    "none": "Sin plan"
+  },
+  "admin": {
+    "planStarter": "Principiante",
+    "planNone": "Sin plan"
   }
 }

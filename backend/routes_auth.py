@@ -57,7 +57,7 @@ async def register(body: RegisterIn):
         "hashed_password": hash_password(body.password),
         "locale": locale,
         "currency": currency,
-        "plan": "free",
+        "plan": "none",
         "role": "user",
         "stripe_customer_id": None,
         "default_alert_prefs": {"email": True, "in_app": True},

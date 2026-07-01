@@ -1,0 +1,56 @@
+{
+  "summary": "Completed comprehensive testing of Dipzee paywall implementation and landing page redesign. All backend APIs and frontend flows working correctly. Free plan removed, new users created with plan='none', paywall blocks access until subscription, superadmin access verified.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: POST /api/auth/register creates user with plan='none'",
+    "Backend: GET /api/billing/config returns 6 packages (starter/pro/investor monthly+annual) with currency USD",
+    "Backend: Prices correct - starter: $4.97/$47.71, pro: $12.97/$124.51, investor: $24.99/$239.90",
+    "Backend: POST /api/billing/checkout accepts valid packages (starter_monthly, pro_monthly, investor_monthly, annual variants)",
+    "Backend: POST /api/billing/checkout rejects invalid packages (free_monthly, pro_weekly) with 400",
+    "Backend: Superadmin login works (douglas@snipertec.com.br)",
+    "Backend: GET /api/admin/stats returns plan_counts with keys: none, starter, pro, investor",
+    "Backend: Regression - /api/screener, /api/news/market, /api/watchlist, /api/alerts work for superadmin",
+    "Frontend: Landing page (/) loads without console errors",
+    "Frontend: Hero section contains ScoreDial component",
+    "Frontend: Top opportunities table present (data-testid=home-top-opportunities-table)",
+    "Frontend: Security & trust section present (data-testid=home-security-trust)",
+    "Frontend: Pricing section with 3 plan cards (starter, pro, investor)",
+    "Frontend: 'One number. A clear decision.' section correctly removed",
+    "Frontend: Footer present with institutional content",
+    "Frontend: Register new user redirects to /app/upgrade",
+    "Frontend: Onboarding banner shown on /app/upgrade (data-testid=onboarding-notice)",
+    "Frontend: Upgrade page shows 3 pricing cards with correct prices (US$4.97, US$12.97, US$24.99)",
+    "Frontend: Monthly/Annual billing toggle present and functional",
+    "Frontend: Paywall blocks access - trying to access /app/dashboard redirects to /app/upgrade for users with plan='none'",
+    "Frontend: Superadmin (investor plan) can access /app/dashboard normally",
+    "Frontend: Sidebar shows 'Investidor' plan for superadmin",
+    "Frontend: Login and Register pages load correctly with AuthLayout split-screen design",
+    "Frontend: Trial CTA and security microcopy present on auth pages"
+  ],
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/.screenshots/01_landing_page.png",
+    "/app/.screenshots/02_after_register_upgrade.png",
+    "/app/.screenshots/03_superadmin_dashboard.png",
+    "/app/.screenshots/04_register_page.png",
+    "/app/.screenshots/05_upgrade_prices.png"
+  ],
+  "success_percentage": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "updated_files": [
+    "/app/backend_test.py"
+  ],
+  "action_item_for_main_agent": "",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

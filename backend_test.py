@@ -131,9 +131,9 @@ class DipzeeAPITester:
             self.test_password = self.demo_password
         else:
             print("  Demo account not found, creating new test account...")
-            # Test registration
+            # Test registration - MUST create user with plan='none'
             result = self.test_endpoint(
-                "AUTH", "POST /auth/register",
+                "AUTH", "POST /auth/register (check plan='none')",
                 "POST", "auth/register", 200,
                 data={
                     "email": self.test_email,
@@ -141,12 +141,18 @@ class DipzeeAPITester:
                     "locale": "en",
                     "currency": "CAD"
                 },
-                check_response=lambda r: "access_token" in r and "user" in r
+                check_response=lambda r: (
+                    "access_token" in r and 
+                    "user" in r and 
+                    r.get("user", {}).get("plan") == "none"
+                )
             )
             
             if result:
                 self.token = result.get("access_token")
                 self.user_id = result.get("user", {}).get("id")
+                user_plan = result.get("user", {}).get("plan")
+                print(f"  ✓ New user created with plan='{user_plan}' (expected: 'none')")
 
         # Test duplicate registration
         self.test_endpoint(
@@ -610,7 +616,7 @@ class DipzeeAPITester:
         print("TESTING BILLING (3 Paid Plans: Starter, Pro, Investor)")
         print("="*60)
 
-        # Test GET /billing/config - should return 6 packages (3 plans x 2 billing cycles)
+        # Test GET /billing/config - should return 6 packages (3 plans x 2 billing cycles) with currency USD
         result = self.test_endpoint(
             "BILLING", "GET /billing/config",
             "GET", "billing/config", 200,
@@ -618,6 +624,7 @@ class DipzeeAPITester:
                 "configured" in r and 
                 "packages" in r and 
                 "currency" in r and
+                r.get("currency") == "USD" and
                 len(r.get("packages", {})) == 6
             )
         )
@@ -626,7 +633,7 @@ class DipzeeAPITester:
             configured = result.get("configured")
             packages = result.get("packages", {})
             currency = result.get("currency")
-            print(f"  Configured: {configured}, Currency: {currency}")
+            print(f"  Configured: {configured}, Currency: {currency} (expected: USD)")
             print(f"  Packages ({len(packages)}): {list(packages.keys())}")
             
             # Verify exact prices
@@ -685,28 +692,39 @@ class DipzeeAPITester:
             )
 
     def test_regression_endpoints(self):
-        """Test regression - ensure existing endpoints still work"""
+        """Test regression - ensure existing endpoints still work for superadmin (investor plan)"""
         print("\n" + "="*60)
-        print("TESTING REGRESSION (Existing Endpoints)")
+        print("TESTING REGRESSION (Superadmin with Investor Plan)")
         print("="*60)
 
-        # Test GET /watchlist
-        self.test_endpoint(
-            "REGRESSION", "GET /watchlist",
-            "GET", "watchlist", 200,
-            check_response=lambda r: isinstance(r, list)
-        )
-
-        # Test GET /alerts
-        self.test_endpoint(
-            "REGRESSION", "GET /alerts",
-            "GET", "alerts", 200,
-            check_response=lambda r: isinstance(r, list)
-        )
-
-        # Test GET /screener (top opportunities)
+        # Login as superadmin for regression tests
+        superadmin_email = "douglas@snipertec.com.br"
+        superadmin_password = "Admin213021#"
+        
         result = self.test_endpoint(
-            "REGRESSION", "GET /screener?limit=10",
+            "REGRESSION", "POST /auth/login (superadmin)",
+            "POST", "auth/login", 200,
+            data={
+                "email": superadmin_email,
+                "password": superadmin_password
+            },
+            check_response=lambda r: "access_token" in r and "user" in r
+        )
+        
+        if not result:
+            print("  ⚠️  Could not login as superadmin, skipping regression tests")
+            return
+        
+        # Save current token and switch to superadmin
+        old_token = self.token
+        self.token = result.get("access_token")
+        user = result.get("user", {})
+        print(f"  ✓ Superadmin logged in: {user.get('email')}")
+        print(f"    Role: {user.get('role')}, Plan: {user.get('plan')}")
+
+        # Test GET /screener/top (or /screener with limit)
+        result = self.test_endpoint(
+            "REGRESSION", "GET /screener?limit=10 (superadmin)",
             "GET", "screener", 200,
             params={"limit": 10},
             check_response=lambda r: "results" in r and "count" in r
@@ -717,13 +735,30 @@ class DipzeeAPITester:
 
         # Test GET /news/market
         result = self.test_endpoint(
-            "REGRESSION", "GET /news/market",
+            "REGRESSION", "GET /news/market (superadmin)",
             "GET", "news/market", 200,
             check_response=lambda r: "news" in r and isinstance(r.get("news"), list)
         )
         
         if result:
             print(f"  ✓ Market news returned {len(result.get('news', []))} items")
+
+        # Test GET /watchlist
+        self.test_endpoint(
+            "REGRESSION", "GET /watchlist (superadmin)",
+            "GET", "watchlist", 200,
+            check_response=lambda r: isinstance(r, list)
+        )
+
+        # Test GET /alerts
+        self.test_endpoint(
+            "REGRESSION", "GET /alerts (superadmin)",
+            "GET", "alerts", 200,
+            check_response=lambda r: isinstance(r, list)
+        )
+
+        # Restore original token
+        self.token = old_token
 
     def test_admin_endpoints(self):
         """Test admin endpoints with superadmin credentials"""
@@ -756,7 +791,7 @@ class DipzeeAPITester:
         print(f"  ✓ Superadmin logged in: {user.get('email')}")
         print(f"    Role: {user.get('role')}, Plan: {user.get('plan')}")
 
-        # Test GET /admin/stats
+        # Test GET /admin/stats - must return plan_counts with keys: none, starter, pro, investor
         result = self.test_endpoint(
             "ADMIN", "GET /admin/stats",
             "GET", "admin/stats", 200,
@@ -764,14 +799,23 @@ class DipzeeAPITester:
                 "users_total" in r and
                 "plan_counts" in r and
                 "assets_total" in r and
-                "alerts_total" in r
+                "alerts_total" in r and
+                "none" in r.get("plan_counts", {}) and
+                "starter" in r.get("plan_counts", {}) and
+                "pro" in r.get("plan_counts", {}) and
+                "investor" in r.get("plan_counts", {})
             )
         )
         
         if result:
+            plan_counts = result.get('plan_counts', {})
             print(f"  ✓ Admin stats:")
             print(f"    Users: {result.get('users_total')}")
-            print(f"    Plan counts: {result.get('plan_counts')}")
+            print(f"    Plan counts: {plan_counts}")
+            print(f"      - none: {plan_counts.get('none', 0)}")
+            print(f"      - starter: {plan_counts.get('starter', 0)}")
+            print(f"      - pro: {plan_counts.get('pro', 0)}")
+            print(f"      - investor: {plan_counts.get('investor', 0)}")
             print(f"    Assets: {result.get('assets_total')}")
             print(f"    Alerts: {result.get('alerts_total')}")
 

@@ -2,6 +2,8 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const PAID_PLANS = ['starter', 'pro', 'investor'];
+
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -15,6 +17,12 @@ export default function ProtectedRoute({ children }) {
   }
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Paywall: users without an active (paid/trialing) plan must pick a plan first.
+  const hasAccess = PAID_PLANS.includes(user.plan) || user.role === 'superadmin';
+  if (!hasAccess && location.pathname !== '/app/upgrade') {
+    return <Navigate to="/app/upgrade" replace />;
   }
   return children;
 }

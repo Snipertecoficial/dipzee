@@ -24,7 +24,7 @@
     "upgrade": "Upgrade",
     "logout": "Log out",
     "login": "Log in",
-    "signup": "Start free",
+    "signup": "Start free trial",
     "language": "Language",
     "currency": "Currency",
     "menu": "Menu",
@@ -48,7 +48,7 @@
   "auth": {
     "loginTitle": "Welcome back",
     "loginSubtitle": "Log in to see your opportunities.",
-    "registerTitle": "Create your free account",
+    "registerTitle": "Create your account",
     "registerSubtitle": "Buy low, earn dividends, sell high.",
     "email": "Email",
     "password": "Password",
@@ -61,7 +61,8 @@
     "invalidCreds": "Invalid email or password",
     "emailTaken": "This email is already registered",
     "genericError": "Something went wrong. Please try again.",
-    "passwordHint": "At least 6 characters"
+    "passwordHint": "At least 6 characters",
+    "secureCheckout": "Secure checkout"
   },
   "landing": {
     "navFeatures": "Features",
@@ -71,7 +72,7 @@
     "topSubtitle": "Real Opportunity Scores from live market data — updated continuously.",
     "heroTitle": "Buy low. Earn dividends. Sell high — automatically.",
     "heroSubtitle": "Dipzee turns four numbers into one clear Opportunity Score so you know what to buy, hold or sell in seconds.",
-    "heroCta": "Start free",
+    "heroCta": "Start 7-day free trial",
     "heroSecondary": "See how it works",
     "emailPlaceholder": "Enter your email",
     "emailCta": "Start free",
@@ -109,8 +110,36 @@
     "faq4Q": "Can I cancel anytime?",
     "faq4A": "Yes, you can cancel or change your plan at any time.",
     "ctaTitle": "Start finding opportunities today",
-    "ctaSubtitle": "Free forever for up to 10 stocks. Upgrade anytime.",
-    "disclaimer": "Dipzee provides educational information and automated signals, not personalized financial advice. Not a registered investment adviser. Do your own research."
+    "ctaSubtitle": "Start with 7 days free and see live opportunities. Cancel anytime.",
+    "disclaimer": "Dipzee provides educational information and automated signals, not personalized financial advice. Not a registered investment adviser. Do your own research.",
+    "secondaryCta": "See pricing",
+    "microTrial": "7 days free • Card required • Cancel anytime",
+    "navHow": "How it works",
+    "navOpportunities": "Opportunities",
+    "navSecurity": "Security",
+    "proof1": "Real-time updates",
+    "proof2": "Multi-market coverage",
+    "proof3": "Clear signals: Buy / Hold / Reduce / Sell",
+    "proof4": "Infrastructure monitored 24/7",
+    "secTitle": "Your data and payments, protected",
+    "secSubtitle": "We follow market-standard practices to keep your information safe.",
+    "sec1": "Encryption in transit (TLS) and at rest",
+    "sec2": "Least-privilege access",
+    "sec3": "Monitoring and logs",
+    "sec4": "Privacy and data control",
+    "sec5": "Secure checkout and easy cancellation",
+    "colTicker": "Asset",
+    "colScore": "Score",
+    "colSignal": "Signal",
+    "colYield": "Dividend",
+    "colPrice": "Price",
+    "refresh": "Refresh",
+    "footerProduct": "Product",
+    "footerCompany": "Company",
+    "footerContact": "Contact",
+    "footerPrivacy": "Privacy",
+    "footerTerms": "Terms",
+    "trustedBy": "Built for disciplined retail investors"
   },
   "dashboard": {
     "title": "Opportunities today",
@@ -317,7 +346,9 @@
     "upsideCap": "Upside cap",
     "incomeCap": "Income cap (div)",
     "settingsSaved": "Scoring settings saved",
-    "noData": "No data."
+    "noData": "No data.",
+    "planStarter": "Starter",
+    "planNone": "No plan"
   },
   "plans": {
     "free": "Free",
@@ -359,6 +390,9 @@
     "starterF1": "Up to 25 watchlist assets",
     "starterF2": "10 alerts",
     "starterF3": "Email alerts",
-    "starterF4": "All 4 languages"
+    "starterF4": "All 4 languages",
+    "onboardingNotice": "Choose a plan to start your 7-day free trial and unlock Dipzee.",
+    "onboardingTitle": "Start your free trial",
+    "none": "No plan"
   }
 }

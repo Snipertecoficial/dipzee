@@ -24,7 +24,7 @@
     "upgrade": "Fazer upgrade",
     "logout": "Sair",
     "login": "Entrar",
-    "signup": "Começar grátis",
+    "signup": "Iniciar teste grátis",
     "language": "Idioma",
     "currency": "Moeda",
     "menu": "Menu",
@@ -48,7 +48,7 @@
   "auth": {
     "loginTitle": "Bem-vindo de volta",
     "loginSubtitle": "Entre para ver suas oportunidades.",
-    "registerTitle": "Crie sua conta gratuita",
+    "registerTitle": "Crie sua conta",
     "registerSubtitle": "Compre na baixa, receba dividendos, venda na alta.",
     "email": "E-mail",
     "password": "Senha",
@@ -61,7 +61,8 @@
     "invalidCreds": "E-mail ou senha inválidos",
     "emailTaken": "Este e-mail já está cadastrado",
     "genericError": "Algo deu errado. Tente novamente.",
-    "passwordHint": "Pelo menos 6 caracteres"
+    "passwordHint": "Pelo menos 6 caracteres",
+    "secureCheckout": "Checkout seguro"
   },
   "landing": {
     "navFeatures": "Recursos",
@@ -71,7 +72,7 @@
     "topSubtitle": "Opportunity Scores reais a partir de dados de mercado ao vivo — atualizados continuamente.",
     "heroTitle": "Compre na baixa. Receba dividendos. Venda na alta — automaticamente.",
     "heroSubtitle": "A Dipzee transforma quatro números em um único Opportunity Score claro para você saber o que comprar, manter ou vender em segundos.",
-    "heroCta": "Começar grátis",
+    "heroCta": "Iniciar teste grátis de 7 dias",
     "heroSecondary": "Veja como funciona",
     "emailPlaceholder": "Digite seu e-mail",
     "emailCta": "Começar grátis",
@@ -109,8 +110,36 @@
     "faq4Q": "Posso cancelar a qualquer momento?",
     "faq4A": "Sim, você pode cancelar ou mudar de plano a qualquer momento.",
     "ctaTitle": "Comece a encontrar oportunidades hoje",
-    "ctaSubtitle": "Grátis para sempre até 10 ações. Faça upgrade quando quiser.",
-    "disclaimer": "A Dipzee fornece informações educativas e sinais automatizados, não consultoria financeira personalizada. Não é consultor de investimentos registrado. Faça sua própria pesquisa."
+    "ctaSubtitle": "Comece com 7 dias grátis e veja oportunidades ao vivo. Cancele quando quiser.",
+    "disclaimer": "A Dipzee fornece informações educativas e sinais automatizados, não consultoria financeira personalizada. Não é consultor de investimentos registrado. Faça sua própria pesquisa.",
+    "secondaryCta": "Ver preços",
+    "microTrial": "7 dias grátis • Cartão obrigatório • Cancele quando quiser",
+    "navHow": "Como funciona",
+    "navOpportunities": "Oportunidades",
+    "navSecurity": "Segurança",
+    "proof1": "Atualização em tempo real",
+    "proof2": "Cobertura multimercado",
+    "proof3": "Sinais claros: Comprar / Manter / Reduzir / Vender",
+    "proof4": "Infraestrutura monitorada 24/7",
+    "secTitle": "Seus dados e pagamentos, protegidos",
+    "secSubtitle": "Seguimos práticas de mercado para manter suas informações seguras.",
+    "sec1": "Criptografia em trânsito (TLS) e em repouso",
+    "sec2": "Acesso com menor privilégio",
+    "sec3": "Monitoramento e logs",
+    "sec4": "Privacidade e controle de dados",
+    "sec5": "Checkout seguro e cancelamento fácil",
+    "colTicker": "Ativo",
+    "colScore": "Score",
+    "colSignal": "Sinal",
+    "colYield": "Dividendo",
+    "colPrice": "Preço",
+    "refresh": "Atualizar",
+    "footerProduct": "Produto",
+    "footerCompany": "Empresa",
+    "footerContact": "Contato",
+    "footerPrivacy": "Privacidade",
+    "footerTerms": "Termos",
+    "trustedBy": "Feito para investidores de varejo disciplinados"
   },
   "dashboard": {
     "title": "Oportunidades de hoje",
@@ -317,7 +346,9 @@
     "upsideCap": "Teto do potencial",
     "incomeCap": "Teto da renda (div)",
     "settingsSaved": "Configurações do score salvas",
-    "noData": "Sem dados."
+    "noData": "Sem dados.",
+    "planStarter": "Iniciante",
+    "planNone": "Sem plano"
   },
   "plans": {
     "free": "Grátis",
@@ -330,7 +361,7 @@
     "annualSave": "Economize ~20%",
     "trialBadge": "7 dias grátis",
     "trialNote": "É necessário cartão para ativar o teste grátis. Cancele quando quiser.",
-    "startTrial": "Começar teste grátis de 7 dias",
+    "startTrial": "Iniciar teste grátis de 7 dias",
     "mostPopular": "Mais popular",
     "current": "Plano atual",
     "choose": "Escolher {{plan}}",
@@ -359,6 +390,9 @@
     "starterF1": "Até 25 ações na lista",
     "starterF2": "10 alertas",
     "starterF3": "Alertas por e-mail",
-    "starterF4": "Todos os 4 idiomas"
+    "starterF4": "Todos os 4 idiomas",
+    "onboardingNotice": "Escolha um plano para iniciar seu teste grátis de 7 dias e liberar o Dipzee.",
+    "onboardingTitle": "Comece seu teste grátis",
+    "none": "Sem plano"
   }
 }

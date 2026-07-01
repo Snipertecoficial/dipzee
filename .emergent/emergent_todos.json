@@ -1,34 +1,34 @@
 [
   {
-    "content": "Obter diretrizes de design (design_agent) para a home pública + login/registro com ar de empresa grande, mantendo a marca",
-    "status": "in_progress"
+    "content": "Obter diretrizes de design (design_agent) para home + auth",
+    "status": "completed"
   },
   {
-    "content": "Remover a seção 'Um número. Uma decisão clara.' (scoreExplainer) da landing",
-    "status": "pending"
+    "content": "Remover a seção 'Um número. Uma decisão clara.'",
+    "status": "completed"
   },
   {
-    "content": "Redesign da Landing (home pública) premium/enterprise (hero, prova social, segurança, seções de confiança)",
-    "status": "pending"
+    "content": "Redesign da Landing (home pública) premium/enterprise",
+    "status": "completed"
   },
   {
     "content": "Redesign/polish das telas de Login e Registro (AuthLayout)",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Limpeza de copy 'grátis/free': CTAs -> 'Iniciar teste grátis de 7 dias'; remover 'Grátis para sempre'; registerTitle -> 'Crie sua conta' (4 idiomas)",
-    "status": "pending"
+    "content": "Limpeza de copy 'grátis/free' + CTAs 'Iniciar teste grátis de 7 dias' (4 idiomas)",
+    "status": "completed"
   },
   {
-    "content": "Remover plano grátis do backend (gating) + onboarding com paywall: registro -> escolher plano + cartão (checkout) antes de acessar; gating em ProtectedRoute",
-    "status": "pending"
+    "content": "Remover plano grátis do backend + paywall onboarding (ProtectedRoute + Register + Upgrade banner)",
+    "status": "completed"
   },
   {
-    "content": "Verificar/validar rotas de pagamento e upgrade (testing_agent_v3) + compilação e screenshots",
-    "status": "pending"
+    "content": "Validar rotas de pagamento/onboarding com testing_agent_v3",
+    "status": "in_progress"
   },
   {
-    "content": "Escrever avaliação crítica final ('eu assinaria?' + o que falta em tech/design/features)",
+    "content": "Escrever avaliação crítica final ('eu assinaria?' + o que falta)",
     "status": "pending"
   }
 ]

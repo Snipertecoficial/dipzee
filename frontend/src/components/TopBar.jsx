@@ -17,7 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
-const PLAN_LABEL_KEY = { free: 'plans.free', starter: 'plans.starter', pro: 'plans.pro', investor: 'plans.investor' };
+const PLAN_LABEL_KEY = { none: 'plans.none', free: 'plans.none', starter: 'plans.starter', pro: 'plans.pro', investor: 'plans.investor' };
 
 function useNavSections() {
   const { t } = useTranslation();

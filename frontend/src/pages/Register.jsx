@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register({ email, password, locale, currency });
-      navigate('/app/dashboard', { replace: true });
+      navigate('/app/upgrade', { replace: true });
     } catch (err) {
       const detail = err?.response?.data?.detail;
       toast.error(typeof detail === 'string' && detail.includes('registered') ? t('auth.emailTaken') : t('auth.genericError'));
@@ -60,8 +61,11 @@ export default function Register() {
               </Select>
             </div>
             <Button type="submit" disabled={loading} data-testid="auth-submit-button" className="w-full bg-[var(--dz-primary)] text-white">
-              {loading ? t('common.loading') : t('auth.registerCta')}
+              {loading ? t('common.loading') : t('plans.startTrial')}
             </Button>
+            <p data-testid="register-trial-notice" className="flex items-center justify-center gap-1.5 text-xs text-[var(--dz-muted)]">
+              <ShieldCheck size={13} className="text-[var(--dz-buy)]" /> {t('landing.microTrial')}
+            </p>
           </form>
           <p className="mt-5 text-sm text-center text-[var(--dz-muted)]">
             {t('auth.haveAccount')} <Link to="/login" className="text-[var(--dz-primary)] font-medium">{t('auth.loginLink')}</Link>

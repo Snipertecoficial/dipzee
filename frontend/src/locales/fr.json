@@ -24,7 +24,7 @@
     "upgrade": "Passer à supérieur",
     "logout": "Déconnexion",
     "login": "Connexion",
-    "signup": "Commencer gratuitement",
+    "signup": "Essai gratuit",
     "language": "Langue",
     "currency": "Devise",
     "menu": "Menu",
@@ -48,7 +48,7 @@
   "auth": {
     "loginTitle": "Bon retour",
     "loginSubtitle": "Connectez-vous pour voir vos opportunités.",
-    "registerTitle": "Créez votre compte gratuit",
+    "registerTitle": "Créez votre compte",
     "registerSubtitle": "Achetez bas, encaissez des dividendes, vendez haut.",
     "email": "Courriel",
     "password": "Mot de passe",
@@ -61,7 +61,8 @@
     "invalidCreds": "Courriel ou mot de passe invalide",
     "emailTaken": "Ce courriel est déjà utilisé",
     "genericError": "Une erreur s'est produite. Veuillez réessayer.",
-    "passwordHint": "Au moins 6 caractères"
+    "passwordHint": "Au moins 6 caractères",
+    "secureCheckout": "Paiement sécurisé"
   },
   "landing": {
     "navFeatures": "Fonctionnalités",
@@ -71,7 +72,7 @@
     "topSubtitle": "De vrais scores d'opportunité à partir de données de marché en direct — mis à jour en continu.",
     "heroTitle": "Achetez bas. Encaissez des dividendes. Vendez haut — automatiquement.",
     "heroSubtitle": "Dipzee transforme quatre chiffres en un seul Score d'opportunité clair pour savoir quoi acheter, conserver ou vendre en quelques secondes.",
-    "heroCta": "Commencer gratuitement",
+    "heroCta": "Démarrer l'essai gratuit de 7 jours",
     "heroSecondary": "Voir comment ça marche",
     "emailPlaceholder": "Entrez votre courriel",
     "emailCta": "Commencer gratuitement",
@@ -109,8 +110,36 @@
     "faq4Q": "Puis-je annuler à tout moment ?",
     "faq4A": "Oui, vous pouvez annuler ou changer de forfait à tout moment.",
     "ctaTitle": "Commencez à trouver des opportunités dès aujourd'hui",
-    "ctaSubtitle": "Gratuit pour toujours jusqu'à 10 actions. Mise à niveau à tout moment.",
-    "disclaimer": "Dipzee fournit des informations éducatives et des signaux automatisés, pas de conseils financiers personnalisés. Non inscrit comme conseiller en placement. Faites vos propres recherches."
+    "ctaSubtitle": "Commencez avec 7 jours gratuits et voyez les opportunités en direct. Annulez à tout moment.",
+    "disclaimer": "Dipzee fournit des informations éducatives et des signaux automatisés, pas de conseils financiers personnalisés. Non inscrit comme conseiller en placement. Faites vos propres recherches.",
+    "secondaryCta": "Voir les tarifs",
+    "microTrial": "7 jours gratuits • Carte requise • Annulez à tout moment",
+    "navHow": "Comment ça marche",
+    "navOpportunities": "Opportunités",
+    "navSecurity": "Sécurité",
+    "proof1": "Mises à jour en temps réel",
+    "proof2": "Couverture multi-marchés",
+    "proof3": "Signaux clairs : Acheter / Conserver / Réduire / Vendre",
+    "proof4": "Infrastructure surveillée 24/7",
+    "secTitle": "Vos données et paiements, protégés",
+    "secSubtitle": "Nous suivons les pratiques du marché pour protéger vos informations.",
+    "sec1": "Chiffrement en transit (TLS) et au repos",
+    "sec2": "Accès au moindre privilège",
+    "sec3": "Surveillance et journaux",
+    "sec4": "Confidentialité et contrôle des données",
+    "sec5": "Paiement sécurisé et annulation facile",
+    "colTicker": "Actif",
+    "colScore": "Score",
+    "colSignal": "Signal",
+    "colYield": "Dividende",
+    "colPrice": "Prix",
+    "refresh": "Actualiser",
+    "footerProduct": "Produit",
+    "footerCompany": "Entreprise",
+    "footerContact": "Contact",
+    "footerPrivacy": "Confidentialité",
+    "footerTerms": "Conditions",
+    "trustedBy": "Conçu pour les investisseurs particuliers disciplinés"
   },
   "dashboard": {
     "title": "Opportunités du jour",
@@ -269,6 +298,14 @@
     "starterF1": "Jusqu'à 25 actifs en liste",
     "starterF2": "10 alertes",
     "starterF3": "Alertes par e-mail",
-    "starterF4": "Les 4 langues"
+    "starterF4": "Les 4 langues",
+    "startTrial": "Essai gratuit de 7 jours",
+    "onboardingNotice": "Choisissez un forfait pour démarrer votre essai gratuit de 7 jours et débloquer Dipzee.",
+    "onboardingTitle": "Démarrez votre essai gratuit",
+    "none": "Sans forfait"
+  },
+  "admin": {
+    "planStarter": "Débutant",
+    "planNone": "Sans forfait"
   }
 }
