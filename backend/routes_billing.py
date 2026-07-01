@@ -18,11 +18,13 @@ from security import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["billing"])
 
-# Server-side price packages in USD. Entry plan starts at $4.97/mo with a
-# 7-day free trial (card required to activate).
+# Server-side price packages in USD. Three paid tiers, each with a 7-day free
+# trial (card required to activate). Annual pricing ~= 20% off (10 months).
 PACKAGES = {
-    "pro_monthly": {"amount": 4.97, "plan": "pro", "billing": "monthly", "trial_days": 7},
-    "pro_annual": {"amount": 47.71, "plan": "pro", "billing": "annual", "trial_days": 7},
+    "starter_monthly": {"amount": 4.97, "plan": "starter", "billing": "monthly", "trial_days": 7},
+    "starter_annual": {"amount": 47.71, "plan": "starter", "billing": "annual", "trial_days": 7},
+    "pro_monthly": {"amount": 12.97, "plan": "pro", "billing": "monthly", "trial_days": 7},
+    "pro_annual": {"amount": 124.51, "plan": "pro", "billing": "annual", "trial_days": 7},
     "investor_monthly": {"amount": 24.99, "plan": "investor", "billing": "monthly", "trial_days": 7},
     "investor_annual": {"amount": 239.90, "plan": "investor", "billing": "annual", "trial_days": 7},
 }

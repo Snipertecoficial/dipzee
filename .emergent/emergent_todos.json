@@ -1,22 +1,26 @@
 [
   {
-    "content": "Backend: routes_admin (stats, users CRUD, assets, alerts, transactions, scoring settings) guarded by superadmin role",
+    "content": "Backend: adicionar plano 'starter' em plans.py + PACKAGES em routes_billing.py",
+    "status": "completed"
+  },
+  {
+    "content": "Frontend: redesenhar Upgrade.jsx com 3 cards pagos (Iniciante/Pro/Investidor)",
+    "status": "completed"
+  },
+  {
+    "content": "i18n: adicionar strings do plano starter (Iniciante) em en/fr/pt/es",
+    "status": "completed"
+  },
+  {
+    "content": "Criar novo AppShell com sidebar persistente colapsável (desktop) + Sheet (mobile) + topbar refinada",
+    "status": "completed"
+  },
+  {
+    "content": "Redesign Dashboard + verificar consistência das demais páginas no novo shell",
+    "status": "completed"
+  },
+  {
+    "content": "Rodar testing_agent_v3 (backend billing/planos + frontend navegação logada/upgrade) e corrigir bugs",
     "status": "in_progress"
-  },
-  {
-    "content": "Backend: persist + load scoring settings; integration config status endpoint",
-    "status": "pending"
-  },
-  {
-    "content": "Frontend: Admin panel page with tabs (Overview, Users, Assets, Alerts, Billing, Settings)",
-    "status": "pending"
-  },
-  {
-    "content": "Frontend: superadmin-only nav link + route guard + i18n",
-    "status": "pending"
-  },
-  {
-    "content": "Test admin panel end-to-end",
-    "status": "pending"
   }
 ]

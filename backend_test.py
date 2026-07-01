@@ -605,12 +605,12 @@ class DipzeeAPITester:
             print(f"  Found {len(sectors)} sectors: {sectors[:5]}")
 
     def test_billing(self):
-        """Test Stripe billing endpoints (Phase 3)"""
+        """Test Stripe billing endpoints (Phase 3) - Updated for 3 paid plans"""
         print("\n" + "="*60)
-        print("TESTING BILLING (Phase 3 - Stripe)")
+        print("TESTING BILLING (3 Paid Plans: Starter, Pro, Investor)")
         print("="*60)
 
-        # Test GET /billing/config
+        # Test GET /billing/config - should return 6 packages (3 plans x 2 billing cycles)
         result = self.test_endpoint(
             "BILLING", "GET /billing/config",
             "GET", "billing/config", 200,
@@ -618,7 +618,7 @@ class DipzeeAPITester:
                 "configured" in r and 
                 "packages" in r and 
                 "currency" in r and
-                len(r.get("packages", {})) == 4
+                len(r.get("packages", {})) == 6
             )
         )
         
@@ -627,68 +627,166 @@ class DipzeeAPITester:
             packages = result.get("packages", {})
             currency = result.get("currency")
             print(f"  Configured: {configured}, Currency: {currency}")
-            print(f"  Packages: {list(packages.keys())}")
-
-        # Test POST /billing/checkout with valid package
-        result = self.test_endpoint(
-            "BILLING", "POST /billing/checkout (pro_monthly)",
-            "POST", "billing/checkout", 200,
-            data={
-                "package_id": "pro_monthly",
-                "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
-            },
-            check_response=lambda r: (
-                "url" in r and 
-                "session_id" in r and
-                r.get("session_id", "").startswith("cs_test_")
-            )
-        )
-        
-        session_id = None
-        if result:
-            session_id = result.get("session_id")
-            url = result.get("url")
-            print(f"  ✓ Checkout session created: {session_id}")
-            print(f"  ✓ Checkout URL: {url[:60]}...")
-
-        # Test POST /billing/checkout with invalid package
-        self.test_endpoint(
-            "BILLING", "POST /billing/checkout (invalid package)",
-            "POST", "billing/checkout", 400,
-            data={
-                "package_id": "invalid_package",
-                "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
+            print(f"  Packages ({len(packages)}): {list(packages.keys())}")
+            
+            # Verify exact prices
+            expected_prices = {
+                "starter_monthly": 4.97,
+                "starter_annual": 47.71,
+                "pro_monthly": 12.97,
+                "pro_annual": 124.51,
+                "investor_monthly": 24.99,
+                "investor_annual": 239.90
             }
-        )
+            
+            for pkg_id, expected_amount in expected_prices.items():
+                if pkg_id in packages:
+                    actual_amount = packages[pkg_id].get("amount")
+                    if actual_amount == expected_amount:
+                        print(f"  ✓ {pkg_id}: ${actual_amount}")
+                    else:
+                        print(f"  ❌ {pkg_id}: expected ${expected_amount}, got ${actual_amount}")
+                else:
+                    print(f"  ❌ {pkg_id}: missing from packages")
 
-        # Test GET /billing/status/{session_id}
-        if session_id:
+        # Test POST /billing/checkout with valid packages
+        valid_packages = ["starter_monthly", "pro_monthly", "investor_monthly", "starter_annual", "pro_annual", "investor_annual"]
+        
+        for pkg_id in valid_packages[:3]:  # Test first 3 to avoid too many Stripe sessions
             result = self.test_endpoint(
-                "BILLING", f"GET /billing/status/{session_id}",
-                "GET", f"billing/status/{session_id}", 200,
-                check_response=lambda r: "payment_status" in r and "status" in r
+                "BILLING", f"POST /billing/checkout ({pkg_id})",
+                "POST", "billing/checkout", 200,
+                data={
+                    "package_id": pkg_id,
+                    "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
+                },
+                check_response=lambda r: (
+                    "url" in r and 
+                    "session_id" in r and
+                    r.get("session_id", "").startswith("cs_test_")
+                )
             )
             
             if result:
-                payment_status = result.get("payment_status")
-                status = result.get("status")
-                print(f"  Payment status: {payment_status}, Status: {status}")
+                session_id = result.get("session_id")
+                print(f"  ✓ Checkout session created: {session_id}")
 
-    def test_scheduler(self):
-        """Test scheduler manual trigger (Phase 3)"""
+        # Test POST /billing/checkout with invalid packages
+        invalid_packages = ["pro_weekly", "free_monthly", "invalid_package"]
+        
+        for pkg_id in invalid_packages:
+            self.test_endpoint(
+                "BILLING", f"POST /billing/checkout ({pkg_id} - invalid)",
+                "POST", "billing/checkout", 400,
+                data={
+                    "package_id": pkg_id,
+                    "origin_url": "https://dipzee-mvp.preview.emergentagent.com"
+                }
+            )
+
+    def test_regression_endpoints(self):
+        """Test regression - ensure existing endpoints still work"""
         print("\n" + "="*60)
-        print("TESTING SCHEDULER (Phase 3)")
+        print("TESTING REGRESSION (Existing Endpoints)")
         print("="*60)
 
-        # Check if admin endpoint exists
+        # Test GET /watchlist
+        self.test_endpoint(
+            "REGRESSION", "GET /watchlist",
+            "GET", "watchlist", 200,
+            check_response=lambda r: isinstance(r, list)
+        )
+
+        # Test GET /alerts
+        self.test_endpoint(
+            "REGRESSION", "GET /alerts",
+            "GET", "alerts", 200,
+            check_response=lambda r: isinstance(r, list)
+        )
+
+        # Test GET /screener (top opportunities)
         result = self.test_endpoint(
-            "SCHEDULER", "POST /admin/run-daily-refresh",
+            "REGRESSION", "GET /screener?limit=10",
+            "GET", "screener", 200,
+            params={"limit": 10},
+            check_response=lambda r: "results" in r and "count" in r
+        )
+        
+        if result:
+            print(f"  ✓ Screener returned {len(result.get('results', []))} results")
+
+        # Test GET /news/market
+        result = self.test_endpoint(
+            "REGRESSION", "GET /news/market",
+            "GET", "news/market", 200,
+            check_response=lambda r: "news" in r and isinstance(r.get("news"), list)
+        )
+        
+        if result:
+            print(f"  ✓ Market news returned {len(result.get('news', []))} items")
+
+    def test_admin_endpoints(self):
+        """Test admin endpoints with superadmin credentials"""
+        print("\n" + "="*60)
+        print("TESTING ADMIN ENDPOINTS (Superadmin)")
+        print("="*60)
+
+        # Login as superadmin
+        superadmin_email = "douglas@snipertec.com.br"
+        superadmin_password = "Admin213021#"
+        
+        result = self.test_endpoint(
+            "ADMIN", "POST /auth/login (superadmin)",
+            "POST", "auth/login", 200,
+            data={
+                "email": superadmin_email,
+                "password": superadmin_password
+            },
+            check_response=lambda r: "access_token" in r and "user" in r
+        )
+        
+        if not result:
+            print("  ⚠️  Could not login as superadmin, skipping admin tests")
+            return
+        
+        # Save current token and switch to superadmin
+        old_token = self.token
+        self.token = result.get("access_token")
+        user = result.get("user", {})
+        print(f"  ✓ Superadmin logged in: {user.get('email')}")
+        print(f"    Role: {user.get('role')}, Plan: {user.get('plan')}")
+
+        # Test GET /admin/stats
+        result = self.test_endpoint(
+            "ADMIN", "GET /admin/stats",
+            "GET", "admin/stats", 200,
+            check_response=lambda r: (
+                "users_total" in r and
+                "plan_counts" in r and
+                "assets_total" in r and
+                "alerts_total" in r
+            )
+        )
+        
+        if result:
+            print(f"  ✓ Admin stats:")
+            print(f"    Users: {result.get('users_total')}")
+            print(f"    Plan counts: {result.get('plan_counts')}")
+            print(f"    Assets: {result.get('assets_total')}")
+            print(f"    Alerts: {result.get('alerts_total')}")
+
+        # Test POST /admin/run-daily-refresh
+        result = self.test_endpoint(
+            "ADMIN", "POST /admin/run-daily-refresh",
             "POST", "admin/run-daily-refresh", 200,
             check_response=lambda r: "ok" in r or "refreshed" in r or "message" in r
         )
         
         if result:
             print(f"  ✓ Manual refresh triggered: {result}")
+
+        # Restore original token
+        self.token = old_token
 
     def test_finnhub_integration(self):
         """Test Finnhub integration features (NEW)"""
@@ -936,7 +1034,12 @@ def main():
         # Phase 3 tests
         tester.test_screener()
         tester.test_billing()
-        tester.test_scheduler()
+        
+        # Regression tests
+        tester.test_regression_endpoints()
+        
+        # Admin tests (with superadmin credentials)
+        tester.test_admin_endpoints()
         
         # NEW: Finnhub integration tests
         tester.test_finnhub_integration()

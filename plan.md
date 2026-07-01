@@ -1,134 +1,125 @@
-# Dipzee — plan.md
+# Dipzee — plan.md (Correção de Planos + Redesign Áreas Logadas)
 
 ## 1) Objectives
-- Provar e estabilizar o **core**: obter dados via **yfinance/Yahoo** (TSX/US) + normalizar dividend yield + calcular **Opportunity Score** com classificação/flags.
-- Construir o SaaS web **multilíngue (EN/FR/PT/ES)** com **React (CRA) + FastAPI + MongoDB**, UI seguindo a marca Dipzee.
-- Entregar fluxo completo: **buscar ativo → ver score/detalhes → watchlist → alertas → notificações (email + inbox) → assinaturas Stripe** com feature-gating por plano.
-- Deixar **Resend + Stripe prontos** (chaves depois) e orientar **conexão GitHub via UI do Emergent**.
+- Corrigir **estrutura de preços** para 3 planos pagos: **Iniciante (US$ 4,97)**, **Pro (US$ 12,97)**, **Investidor (US$ 24,99 — mantém)**, preservando trial/gating e evitando regressões.
+- Executar **redesign completo das áreas logadas** (App Shell + páginas internas) conforme `/app/design_guidelines.md`, mantendo identidade Dipzee e reutilizando componentes existentes.
+- Garantir consistência de i18n (EN/FR/PT/ES), estados (loading/empty/error) e qualidade de UX.
+
+---
 
 ## 2) Implementation Steps
 
-### Phase 1 — POC do Core (dados Yahoo/yfinance + score) [não avançar sem passar]
+### Phase 1 — POC (Isolado) do Core de Billing/Planos (Stripe + Packages)
 **User stories**
-1. Como usuário, quero consultar um ticker (US/TSX) e receber preço/52w low/high/target/div yield confiáveis.
-2. Como usuário, quero que dividend yield seja consistente (decimal) para não distorcer o score.
-3. Como usuário, quero que o Opportunity Score bata com exemplos (TELUS/NVDA) para confiar na lógica.
-4. Como dev, quero uma interface DataProvider trocável para migrar depois para provider licenciado.
-5. Como dev, quero tratamento de erro (campo ausente/rate limit) sem quebrar a API.
+1. Como usuário, quero ver 3 planos claros e coerentes (Iniciante/Pro/Investidor) com preços corretos.
+2. Como usuário, quero iniciar checkout do plano escolhido sem risco de manipulação de preço no client.
+3. Como sistema, quero mapear `package_id → plan` corretamente e atualizar `users.plan` ao pagamento.
+4. Como sistema, quero manter compatibilidade com trial de 7 dias com cartão (quando habilitado).
+5. Como superadmin/dev, quero validar rapidamente os pacotes do backend e o retorno de `/billing/config`.
 
 **Steps**
-- Websearch rápido: melhores práticas/pegadinhas do **yfinance** (campos, rate limit, TSX “.TO”, dividendYield inconsistências).
-- Criar script Python isolado: 
-  - fetch yfinance para 2 tickers (1 US, 1 TSX), imprimir campos brutos.
-  - normalizar `dividendYield` (percent vs decimal vs None).
-  - rodar função pura `compute_opportunity_score()`.
-  - validar unit tests (2 casos fornecidos) e logar discrepâncias.
-- Definir `DataProvider` + `YFinanceProvider` (contrato de saída padronizado).
-- Critérios de “go”: ambos testes passam e ao menos 1 ticker TSX + 1 US retornam dados suficientes.
+- Websearch rápido: boas práticas para “multiple subscription tiers + trial requiring card” em Stripe Checkout (sem alterar a integração emergentintegrations).
+- Criar script Python mínimo (ex.: `/app/backend/poc_billing_plans.py`) para validar:
+  - `GET /api/billing/config` retorna 3 planos pagos + moeda USD.
+  - `POST /api/billing/checkout` aceita `starter_monthly`, `pro_monthly`, `investor_monthly` (e annual) e rejeita inválidos.
+  - Verificar que `amount` é 100% server-side.
+- Critério de “go”: config e validação de package_id funcionando; nenhum package antigo inválido quebrando o frontend.
 
-### Phase 2 — V1 App (sem Stripe/Resend ativos; sem scheduler avançado)
+---
+
+### Phase 2 — V1 App Development (Planos + App Shell com Sidebar)
 **User stories**
-1. Como visitante, quero ver uma landing page em EN/FR/PT/ES explicando Dipzee e começar grátis.
-2. Como usuário, quero me cadastrar/logar e acessar um dashboard protegido.
-3. Como usuário, quero buscar um ticker e abrir a página do ativo com score, badge e explicação.
-4. Como usuário, quero adicionar/remover ativos da minha watchlist e ver cards ordenados por score.
-5. Como usuário, quero alternar idioma e moeda (CAD/USD/BRL) e ver formatação correta.
+1. Como usuário logado, quero navegar com facilidade por um **menu lateral persistente** (desktop) e um menu mobile (Sheet).
+2. Como usuário, quero um **topbar** consistente com busca global e quick actions.
+3. Como usuário, quero ver os preços e nomes corretos dos planos no Upgrade e no gating.
+4. Como usuário, quero que todas as páginas logadas tenham estados de **loading/empty/error** elegantes.
+5. Como usuário multilíngue, quero que a UI continue natural e responsiva mesmo com textos longos.
 
-**Backend (FastAPI + MongoDB)**
-- Estrutura modular: `routers/`, `services/`, `providers/`, `models/`.
-- Modelos + índices:
-  - `users` (locale/currency/plan), `assets` (upsert por ticker), `watchlist_items`.
-- Endpoints:
-  - `GET /api/score/{ticker}` (retorna score + breakdown + flags + explicação).
-  - `POST /api/assets/refresh/{ticker}` (usa provider + upsert asset).
-  - Watchlist CRUD: list/create/delete.
-- Auth email/senha (sessions/JWT do template) + rotas protegidas.
-- Feature-gating básico por plano: Free (10 watchlist, 1 idioma, EOD flag) já preparado.
+**Backend (planos + gating)**
+- Atualizar `routes_billing.py`:
+  - Trocar `PACKAGES`: `starter_monthly/annual` (plan `starter`), `pro_monthly/annual` (plan `pro`), `investor_monthly/annual` (plan `investor`).
+  - Preços: 4.97 / 12.97 / 24.99 (annual conforme regra atual do app ou definição explícita).
+  - Manter `CURRENCY='usd'`.
+- Atualizar `plans.py`:
+  - Introduzir plano `starter` (ou renomear corretamente conforme decisão final) e ajustar limites.
+  - Garantir compatibilidade com usuários existentes (`free`/`pro`/`investor`).
 
-**Frontend (React CRA)**
-- Setup: `react-router`, `react-i18next`, tema (Indigo/Mint/neutros), fontes Sora/Inter.
-- Componentes:
-  - Language switcher, currency switcher.
-  - Search (ticker/nome) → chama refresh → navega para Asset Detail.
-  - Asset Detail: dial circular score (cores semânticas), gauge 52w, stats, botões watchlist/alert.
-  - Dashboard “Oportunidades hoje”: cards watchlist ordenados por score + filtros (Buy zone / Income>=4%).
-  - Settings (persistir locale/currency no perfil).
-- Traduções completas (EN/FR/PT/ES) para todas as telas V1.
+**Frontend (Upgrade + App Shell)**
+- Atualizar `Upgrade.jsx`:
+  - Pricing cards: `starter`, `pro`, `investor` (3 cards pagos + eventualmente Free se continuar existindo no app).
+  - Ajustar `BASE_PRICES` e `package_id` (`starter_monthly`, etc.).
+- Atualizar i18n (EN/FR/PT/ES):
+  - Adicionar chaves para `plans.starter` + descrição/features coerentes.
+  - Revisar textos de trial (cartão obrigatório) e labels.
+- Implementar novo **AppShell**:
+  - Sidebar responsiva (persistente/colapsável em desktop; Sheet em mobile).
+  - Topbar com breadcrumb/título, search, language/currency, notificações e user menu.
+  - Migrar rotas logadas para o novo shell sem quebrar navegação existente.
 
-**Teste ao fim da fase**
-- Rodar 1 ciclo E2E: cadastrar → buscar ticker → ver score → adicionar watchlist → filtros → trocar idioma/moeda.
+**Checkpoint**
+- Rodar 1 teste E2E básico manual: login → navegar (dashboard/screener/news/upgrade/admin) → abrir search → trocar idioma/moeda.
 
-### Phase 3 — Alertas end-to-end (com Resend “ready”, chave depois)
+---
+
+### Phase 3 — Redesign das Páginas Logadas (Layouts + Estados)
 **User stories**
-1. Como usuário, quero criar alertas (buy zone/sell zone/target/price/score/dividend/daily drop).
-2. Como usuário, quero receber eventos no inbox in-app quando um alerta dispara.
-3. Como usuário, quero receber email localizado quando um alerta dispara (quando a chave existir).
-4. Como usuário Free, quero limite de 3 alertas ativos e mensagens claras ao exceder.
-5. Como usuário, quero editar/desativar alertas sem perder histórico.
+1. Como usuário, quero um Dashboard em “bento grid” que destaque oportunidades (3 segundos para decidir).
+2. Como usuário, quero um Screener com filtros à esquerda e resultados densos à direita (tabela).
+3. Como usuário, quero uma página de ativo com tabs (Overview/Dividends/Target/News) e CTAs claros.
+4. Como usuário, quero ver Notícias em feed com filtros + trilho lateral de trending.
+5. Como usuário, quero gerenciar alertas/notificações/configurações em layouts consistentes e rápidos.
 
 **Steps**
-- Modelos `alerts` + `alert_events` + índices.
-- Endpoints: CRUD de alerts, list inbox, marcar como lido.
-- Motor de avaliação:
-  - “edge-trigger” (não disparar repetido) via `last_triggered_at` + estado anterior relevante no payload.
-  - Execução no refresh do ativo.
-- Integração Resend: serviço encapsulado; se sem chave, log + apenas inbox.
-- UI: modal “Create alert”, lista de alertas por ticker, inbox notificações.
-- Teste E2E: criar alerta de `price_above` baixo (forçando) → gerar evento.
+- Dashboard: reorganizar em grid 12 col (main + right rail) + watchlist tabela em desktop.
+- Screener: implementar two-panel (filters sticky + results table) com skeleton/empty/error.
+- AssetDetail: header forte + tabs + right rail (alertas + news) com skeleton/empty/error.
+- News: feed + filtros/trending.
+- Alerts / Notifications / Settings / Admin: alinhar com blueprint (tabs, tabelas densas, split view quando aplicável).
 
-### Phase 4 — Scheduler e refresh intraday (APScheduler)
+---
+
+### Phase 4 — Polish, Consistência, Acessibilidade
 **User stories**
-1. Como usuário, quero que meus tickers acompanhados atualizem automaticamente.
-2. Como usuário Investor, quero refresh intraday (15 min horário de mercado).
-3. Como usuário Free/Pro, quero refresh diário (pós-fechamento) confiável.
-4. Como usuário, quero que erros de provider não quebrem o app.
-5. Como dev, quero observar logs/metrics simples do scheduler.
+1. Como usuário, quero micro-interações suaves (sem “UI travada” ou saltos).
+2. Como usuário, quero números alinhados e formatação consistente (tnum, moeda/percent).
+3. Como usuário, quero que dark mode continue legível.
+4. Como usuário, quero tooltips/ajudas para métricas sem poluir a tela.
+5. Como usuário, quero performance boa (sem re-renders excessivos em listas/tabelas).
 
 **Steps**
-- APScheduler:
-  - job diário (after close NA) para tickers em watchlist/alert.
-  - job intraday (15 min, market hours) condicionado a existir usuário Investor relevante.
-- Rate-limit/backoff simples no provider.
-- Teste: simular execução manual do job e verificar atualização de `assets.updated_at`.
+- Garantir `data-testid` onde necessário (conforme guidelines).
+- Revisar componentes para `transition-*` (evitar `transition: all`).
+- Ajustar responsividade (mobile-first) e tolerância i18n.
 
-### Phase 5 — Assinaturas Stripe + feature gating completo (chaves depois)
+---
+
+### Phase 5 — Testes (Backend + Frontend) e Regressão
 **User stories**
-1. Como usuário, quero fazer upgrade para Pro/Investor via Stripe Checkout.
-2. Como usuário, quero gerenciar/cancelar assinatura no Customer Portal.
-3. Como sistema, quero atualizar `users.plan` via webhooks.
-4. Como usuário Free, quero ver paywall claro ao exceder limites (watchlist/alertas/idiomas).
-5. Como usuário, quero alternar mensal/anual com desconto.
+1. Como usuário, quero conseguir fazer upgrade sem erros de package_id.
+2. Como usuário, quero navegar em todas as páginas logadas sem layout quebrado.
+3. Como superadmin, quero acessar /admin sem erros e ver dados carregando.
+4. Como usuário, quero criar/editar alertas e ver notificações.
+5. Como usuário, quero buscar e abrir tickers via search sem travar.
 
 **Steps**
-- Estruturar produtos/preços (CAD base; preparar multi-moeda).
-- Checkout + Portal endpoints (com placeholders até chave).
-- Webhook handler (verificação assinatura) → atualizar plano.
-- Middleware de gating: watchlist limit, alert limit, idiomas, intraday.
-- UI Upgrade page + Pricing table.
-- Teste em modo Stripe test quando chaves forem fornecidas.
+- Rodar `testing_agent_v3` cobrindo:
+  - `/login`, `/app/dashboard`, `/app/screener`, `/app/news`, `/app/asset/:ticker`, `/app/alerts`, `/app/notifications`, `/app/settings`, `/app/upgrade`, `/app/admin`.
+- Ajustar bugs encontrados e repetir até passar.
 
-### Phase 6 — Screener + digest (opcional) + polimento final
-**User stories**
-1. Como usuário Pro/Investor, quero ver um screener com top oportunidades por score.
-2. Como usuário, quero filtrar por setor/dividend/min upside/range position.
-3. Como usuário, quero “Top oportunidades do dia” em email (quando habilitado).
-4. Como usuário, quero UX consistente com a marca e responsivo.
-5. Como usuário, quero disclaimers visíveis (não é recomendação personalizada).
-
-**Steps**
-- Screener backend (batch diário) + endpoint paginado.
-- UI screener.
-- (Opcional) Digest por idioma (Resend).
-- Revisão i18n (zero strings hardcoded).
-- Hardening: cache simples, retries, validações.
+---
 
 ## 3) Next Actions
-- DONE: POC, V1 (auth/i18n/landing/dashboard/asset/watchlist/settings), alerts+notifications, scheduler, Stripe (test mode), screener.
-- Pending (user-driven / later): provide real Stripe + Resend keys; connect GitHub via Emergent UI; deploy + custom domain via Emergent UI; replace yfinance with a licensed provider (FMP/Finnhub) before charging; optional AI daily digest email.
+1. Confirmar decisão de nomenclatura no código: manter `free` + 3 pagos, ou converter `free → starter`.
+2. Implementar Phase 1 (POC billing) e corrigir backend/Upgrade/i18n.
+3. Implementar novo AppShell com sidebar (Phase 2) e migrar rotas.
+4. Redesign incremental das páginas começando por Dashboard + Upgrade.
+5. Rodar `testing_agent_v3` ao final de cada fase.
+
+---
 
 ## 4) Success Criteria
-- POC: yfinance retorna campos essenciais (ou fallback) e os 2 unit tests do score passam.
-- V1: fluxo completo (login → search → asset detail → watchlist → dashboard → i18n/currency) funcionando e traduzido.
-- Alertas: cria/avalia/dispara com inbox; email pronto (ativar quando chave Resend chegar).
-- Stripe: checkout/portal/webhooks implementados e prontos para chaves; gating por plano efetivo.
-- Deploy: app estável no Emergent; instruções para **Save/Connect to GitHub** via UI entregues.
+- Preços corretos e coerentes em **backend + frontend + i18n**: Iniciante 4,97; Pro 12,97; Investidor 24,99 (USD).
+- `package_id`/checkout funcionando e impossível de manipular preço via client.
+- App Shell com sidebar responsiva implementado sem quebrar rotas/logged-in UX.
+- Dashboard/Screener/Asset/News/Alerts/Notifications/Settings/Admin com estados loading/empty/error e layout conforme guidelines.
+- `testing_agent_v3` passa sem erros críticos e sem regressões visuais/funcionais.

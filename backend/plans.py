@@ -2,6 +2,7 @@
 
 PLAN_LIMITS = {
     "free": {"watchlist": 10, "alerts": 3, "locales": ["en"], "intraday": False},
+    "starter": {"watchlist": 25, "alerts": 10, "locales": ["en", "fr", "pt", "es"], "intraday": False},
     "pro": {"watchlist": None, "alerts": None, "locales": ["en", "fr", "pt", "es"], "intraday": False},
     "investor": {"watchlist": None, "alerts": None, "locales": ["en", "fr", "pt", "es"], "intraday": True},
 }

@@ -15,7 +15,7 @@ from asset_service import refresh_asset
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-VALID_PLANS = {"free", "pro", "investor"}
+VALID_PLANS = {"free", "starter", "pro", "investor"}
 VALID_ROLES = {"user", "superadmin"}
 
 
