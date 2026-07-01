@@ -272,6 +272,31 @@ def get_market_news(limit: int = 20) -> list:
     } for a in data[:limit]]
 
 
+def get_fmp_news(limit: int = 20) -> list:
+    """Optional secondary news source: Financial Modeling Prep (needs FMP_API_KEY)."""
+    key = os.environ.get("FMP_API_KEY")
+    if not key:
+        return []
+    try:
+        r = requests.get(
+            "https://financialmodelingprep.com/api/v3/stock_news",
+            params={"limit": limit, "apikey": key}, timeout=12,
+        )
+        if r.status_code >= 400:
+            return []
+        data = r.json() or []
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for a in data[:limit]:
+        out.append({
+            "id": a.get("url"), "headline": a.get("title"), "summary": a.get("text"),
+            "url": a.get("url"), "source": a.get("site"), "image": a.get("image"),
+            "datetime": a.get("publishedDate"),
+        })
+    return out
+
+
 def get_yf_target(symbol: str):
     """Best-effort analyst mean target via yfinance (Finnhub target is premium)."""
     try:

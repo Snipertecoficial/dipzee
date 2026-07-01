@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from asset_service import refresh_asset
 from database import db
 from explain import build_explanation
-from providers import get_provider, get_company_news, get_market_news
+from providers import get_provider, get_company_news, get_market_news, get_fmp_news
 from scoring import compute_opportunity_score, SETTINGS
 from security import get_current_user
 from alert_service import evaluate_alerts_for_asset
@@ -34,7 +34,9 @@ async def asset_news(ticker: str, user: dict = Depends(get_current_user)):
 
 @router.get("/news/market")
 async def market_news(user: dict = Depends(get_current_user)):
-    return {"news": get_market_news(limit=20)}
+    news = get_market_news(limit=20)
+    news += get_fmp_news(limit=15)  # optional secondary source (if FMP_API_KEY set)
+    return {"news": news}
 
 
 @router.get("/public/top-opportunities")

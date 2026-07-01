@@ -1,26 +1,22 @@
 [
   {
-    "content": "Finnhub provider (real-time) + yfinance target hybrid",
-    "status": "completed"
+    "content": "Backend: routes_admin (stats, users CRUD, assets, alerts, transactions, scoring settings) guarded by superadmin role",
+    "status": "in_progress"
   },
   {
-    "content": "News per asset + news alert type + scheduler news job",
-    "status": "completed"
+    "content": "Backend: persist + load scoring settings; integration config status endpoint",
+    "status": "pending"
   },
   {
-    "content": "Public Top Opportunities on landing",
-    "status": "completed"
+    "content": "Frontend: Admin panel page with tabs (Overview, Users, Assets, Alerts, Billing, Settings)",
+    "status": "pending"
   },
   {
-    "content": "Superadmin user + role + default currency USD",
-    "status": "completed"
+    "content": "Frontend: superadmin-only nav link + route guard + i18n",
+    "status": "pending"
   },
   {
-    "content": "Asset Detail: news + real-time polling + change% + logo",
-    "status": "completed"
-  },
-  {
-    "content": "Testing new features (backend 7/8 expected, frontend 100%)",
-    "status": "completed"
+    "content": "Test admin panel end-to-end",
+    "status": "pending"
   }
 ]

@@ -14,6 +14,7 @@ import routes_watchlist
 import routes_alerts
 import routes_screener
 import routes_billing
+import routes_admin
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -34,13 +35,6 @@ async def scoring_settings():
     return SETTINGS
 
 
-@api_router.post("/admin/run-daily-refresh")
-async def run_daily_refresh():
-    """Manually trigger the daily refresh job (useful for testing the scheduler)."""
-    await daily_refresh_job()
-    return {"ok": True}
-
-
 # Mount feature routers under /api
 api_router.include_router(routes_auth.router)
 api_router.include_router(routes_assets.router)
@@ -48,6 +42,7 @@ api_router.include_router(routes_watchlist.router)
 api_router.include_router(routes_alerts.router)
 api_router.include_router(routes_screener.router)
 api_router.include_router(routes_billing.router)
+api_router.include_router(routes_admin.router)
 
 app.include_router(api_router)
 
@@ -71,6 +66,10 @@ async def on_startup():
         await seed_superadmin()
     except Exception as e:  # noqa: BLE001
         logger.warning("seed_superadmin failed: %s", e)
+    try:
+        await routes_admin.load_scoring_settings()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("load_scoring_settings failed: %s", e)
     try:
         start_scheduler()
     except Exception as e:  # noqa: BLE001

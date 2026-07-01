@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Logo } from '../components/Logo';
-import { LanguageSwitcher } from '../components/Switchers';
+import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
@@ -37,13 +36,8 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--dz-bg)] flex flex-col">
-      <div className="h-16 px-4 sm:px-6 lg:px-8 flex items-center justify-between border-b border-[var(--dz-border)] bg-white">
-        <Link to="/"><Logo /></Link>
-        <LanguageSwitcher />
-      </div>
-      <div className="flex-1 flex items-center justify-center px-4 py-10">
-        <Card className="w-full max-w-md p-8">
+    <AuthLayout>
+      <Card className="w-full p-8">
           <h1 className="font-heading font-bold text-2xl">{t('auth.registerTitle')}</h1>
           <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.registerSubtitle')}</p>
           <form onSubmit={submit} data-testid="register-form" className="mt-6 space-y-4">
@@ -73,7 +67,6 @@ export default function Register() {
             {t('auth.haveAccount')} <Link to="/login" className="text-[var(--dz-primary)] font-medium">{t('auth.loginLink')}</Link>
           </p>
         </Card>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

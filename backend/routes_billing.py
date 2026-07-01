@@ -18,12 +18,13 @@ from security import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["billing"])
 
-# Server-side price packages in CAD (annual = ~20% off 12 months).
+# Server-side price packages in USD. Entry plan starts at $4.97/mo with a
+# 7-day free trial (card required to activate).
 PACKAGES = {
-    "pro_monthly": {"amount": 12.99, "plan": "pro", "billing": "monthly"},
-    "pro_annual": {"amount": 124.70, "plan": "pro", "billing": "annual"},
-    "investor_monthly": {"amount": 24.99, "plan": "investor", "billing": "monthly"},
-    "investor_annual": {"amount": 239.90, "plan": "investor", "billing": "annual"},
+    "pro_monthly": {"amount": 4.97, "plan": "pro", "billing": "monthly", "trial_days": 7},
+    "pro_annual": {"amount": 47.71, "plan": "pro", "billing": "annual", "trial_days": 7},
+    "investor_monthly": {"amount": 24.99, "plan": "investor", "billing": "monthly", "trial_days": 7},
+    "investor_annual": {"amount": 239.90, "plan": "investor", "billing": "annual", "trial_days": 7},
 }
 CURRENCY = "usd"
 

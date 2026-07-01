@@ -117,6 +117,8 @@
     "emptyDesc": "Search for a stock to see its Opportunity Score and add it here.",
     "emptyCta": "Search stocks",
     "noMatch": "No stocks match the selected filters.",
+    "discoverTitle": "Discover opportunities",
+    "discoverSubtitle": "Trending stocks with strong Opportunity Scores \u2014 add them to your watchlist in one tap.",
     "count_one": "{{count}} stock",
     "count_other": "{{count}} stocks"
   },
@@ -210,6 +212,13 @@
     "currentPlan": "Current plan",
     "saved": "Settings saved"
   },
+  "news": {
+    "title": "News",
+    "subtitle": "Latest market news, in real time.",
+    "market": "Market news",
+    "empty": "No news right now.",
+    "source": "Source"
+  },
   "screener": {
     "title": "Screener",
     "subtitle": "Top opportunities across TSX and US stocks.",
@@ -227,6 +236,27 @@
     "empty": "No results yet. Refresh the universe or relax the filters.",
     "upside": "Upside"
   },
+  "admin": {
+    "title": "Admin Panel",
+    "subtitle": "Manage the whole Dipzee platform.",
+    "tabs": { "overview": "Overview", "users": "Users", "assets": "Assets", "alerts": "Alerts", "billing": "Billing", "settings": "Scoring" },
+    "metrics": { "users": "Users", "assets": "Assets tracked", "alerts": "Alerts", "activeAlerts": "Active alerts", "events": "Notifications sent", "watchlist": "Watchlist items", "revenue": "Revenue", "paid": "Paid transactions" },
+    "planFree": "Free", "planPro": "Pro", "planInvestor": "Investor",
+    "recentUsers": "Recent users", "topAssets": "Top assets by score",
+    "colEmail": "Email", "colPlan": "Plan", "colRole": "Role", "colWatch": "Watchlist", "colAlerts": "Alerts", "colCreated": "Joined", "colActions": "Actions",
+    "colTicker": "Ticker", "colName": "Name", "colPrice": "Price", "colScore": "Score", "colSignal": "Signal", "colUser": "User", "colType": "Type", "colActive": "Active", "colDate": "Date", "colMessage": "Message", "colAmount": "Amount", "colStatus": "Status",
+    "save": "Save", "delete": "Delete", "refresh": "Refresh", "search": "Search",
+    "confirmDeleteUser": "Delete this user and all their data?",
+    "confirmDeleteAsset": "Delete this asset from the database?",
+    "userUpdated": "User updated", "userDeleted": "User deleted", "assetDeleted": "Asset deleted",
+    "refreshUniverse": "Refresh universe", "runDaily": "Run daily refresh", "jobDone": "Job completed",
+    "role_user": "User", "role_superadmin": "Superadmin",
+    "integrations": "Integrations", "configured": "Configured", "notConfigured": "Not configured", "provider": "Data provider",
+    "scoringTitle": "Opportunity Score settings", "scoringHelp": "Weights must reflect the 0.45/0.35/0.20 model. Changes apply immediately and persist.",
+    "weights": "Weights", "wBuy": "Price position (buy)", "wUpside": "Upside", "wIncome": "Income",
+    "thresholds": "Flag thresholds", "buyZone": "Buy zone (R \u2264)", "sellZone": "Sell zone (R \u2265)", "incomeFlag": "Income (div \u2265)", "upsideCap": "Upside cap", "incomeCap": "Income cap (div)",
+    "settingsSaved": "Scoring settings saved", "noData": "No data."
+  },
   "plans": {
     "free": "Free",
     "pro": "Pro",
@@ -236,6 +266,9 @@
     "monthly": "Monthly",
     "annual": "Annual",
     "annualSave": "Save ~20%",
+    "trialBadge": "7 days free",
+    "trialNote": "Card required to start your free trial. Cancel anytime.",
+    "startTrial": "Start 7-day free trial",
     "mostPopular": "Most popular",
     "current": "Current plan",
     "choose": "Choose {{plan}}",

@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
-const BASE_PRICES = { free: 0, pro: 12.99, investor: 24.99 };
+const BASE_PRICES = { free: 0, pro: 4.97, investor: 24.99 };
 
 export function PricingCards({ onChoose, busyPlan }) {
   const { t } = useTranslation();
@@ -49,10 +49,14 @@ export function PricingCards({ onChoose, busyPlan }) {
               {p.popular && <span className="self-start text-[11px] rounded-full px-2 py-0.5 bg-[rgba(22,224,163,0.18)] text-[var(--dz-buy-deep)] mb-2">{t('plans.mostPopular')}</span>}
               <h3 className="font-heading font-bold text-xl">{t(`plans.${p.id}`)}</h3>
               <p className="text-sm text-[var(--dz-muted)] mt-1">{t(`plans.${p.id}Desc`)}</p>
-              <div className="mt-4 flex items-baseline gap-1">
+              {p.id !== 'free' && (
+                <span className="mt-3 self-start inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 bg-[rgba(26,31,77,0.08)] text-[var(--dz-primary)] font-medium">{t('plans.trialBadge')}</span>
+              )}
+              <div className="mt-3 flex items-baseline gap-1">
                 <span className="font-heading font-bold text-3xl tnum">US${price.amount}</span>
                 <span className="text-sm text-[var(--dz-muted)]">{price.suffix}</span>
               </div>
+              {p.id !== 'free' && <p className="mt-1 text-[11px] text-[var(--dz-muted)]">{t('plans.trialNote')}</p>}
               <ul className="mt-5 space-y-2 flex-1">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm"><Check size={16} className="text-[var(--dz-buy)] mt-0.5 shrink-0" />{t(`plans.${f}`)}</li>
@@ -60,7 +64,7 @@ export function PricingCards({ onChoose, busyPlan }) {
               </ul>
               <Button data-testid="pricing-upgrade-button" onClick={() => onChoose && onChoose(p.id, billing)} disabled={isCurrent || p.id === 'free' || busy}
                 className={`mt-6 ${p.popular ? 'bg-[var(--dz-mint)] text-[var(--dz-primary)] hover:brightness-95' : 'bg-[var(--dz-primary)] text-white'}`}>
-                {busy ? <Loader2 size={16} className="animate-spin" /> : isCurrent ? t('plans.current') : t('plans.choose', { plan: t(`plans.${p.id}`) })}
+                {busy ? <Loader2 size={16} className="animate-spin" /> : isCurrent ? t('plans.current') : p.id === 'free' ? t(`plans.${p.id}`) : t('plans.startTrial')}
               </Button>
             </Card>
           );

@@ -117,6 +117,8 @@
     "emptyDesc": "Busque uma a\u00e7\u00e3o para ver seu Opportunity Score e adicion\u00e1-la aqui.",
     "emptyCta": "Buscar a\u00e7\u00f5es",
     "noMatch": "Nenhuma a\u00e7\u00e3o corresponde aos filtros selecionados.",
+    "discoverTitle": "Descubra oportunidades",
+    "discoverSubtitle": "A\u00e7\u00f5es em destaque com \u00f3timos Opportunity Scores \u2014 adicione \u00e0 sua lista com um toque.",
     "count_one": "{{count}} a\u00e7\u00e3o",
     "count_other": "{{count}} a\u00e7\u00f5es"
   },
@@ -210,6 +212,13 @@
     "currentPlan": "Plano atual",
     "saved": "Configura\u00e7\u00f5es salvas"
   },
+  "news": {
+    "title": "Not\u00edcias",
+    "subtitle": "\u00daltimas not\u00edcias do mercado, em tempo real.",
+    "market": "Not\u00edcias do mercado",
+    "empty": "Sem not\u00edcias no momento.",
+    "source": "Fonte"
+  },
   "screener": {
     "title": "Screener",
     "subtitle": "Melhores oportunidades em a\u00e7\u00f5es da TSX e dos EUA.",
@@ -227,6 +236,27 @@
     "empty": "Sem resultados. Atualize o universo ou relaxe os filtros.",
     "upside": "Potencial"
   },
+  "admin": {
+    "title": "Painel Admin",
+    "subtitle": "Gerencie toda a plataforma Dipzee.",
+    "tabs": { "overview": "Vis\u00e3o geral", "users": "Usu\u00e1rios", "assets": "Ativos", "alerts": "Alertas", "billing": "Faturamento", "settings": "Score" },
+    "metrics": { "users": "Usu\u00e1rios", "assets": "Ativos monitorados", "alerts": "Alertas", "activeAlerts": "Alertas ativos", "events": "Notifica\u00e7\u00f5es enviadas", "watchlist": "Itens na lista", "revenue": "Receita", "paid": "Transa\u00e7\u00f5es pagas" },
+    "planFree": "Gr\u00e1tis", "planPro": "Pro", "planInvestor": "Investidor",
+    "recentUsers": "Usu\u00e1rios recentes", "topAssets": "Melhores ativos por score",
+    "colEmail": "E-mail", "colPlan": "Plano", "colRole": "Fun\u00e7\u00e3o", "colWatch": "Lista", "colAlerts": "Alertas", "colCreated": "Cadastro", "colActions": "A\u00e7\u00f5es",
+    "colTicker": "Ticker", "colName": "Nome", "colPrice": "Pre\u00e7o", "colScore": "Score", "colSignal": "Sinal", "colUser": "Usu\u00e1rio", "colType": "Tipo", "colActive": "Ativo", "colDate": "Data", "colMessage": "Mensagem", "colAmount": "Valor", "colStatus": "Status",
+    "save": "Salvar", "delete": "Excluir", "refresh": "Atualizar", "search": "Buscar",
+    "confirmDeleteUser": "Excluir este usu\u00e1rio e todos os seus dados?",
+    "confirmDeleteAsset": "Excluir este ativo do banco de dados?",
+    "userUpdated": "Usu\u00e1rio atualizado", "userDeleted": "Usu\u00e1rio exclu\u00eddo", "assetDeleted": "Ativo exclu\u00eddo",
+    "refreshUniverse": "Atualizar universo", "runDaily": "Rodar atualiza\u00e7\u00e3o di\u00e1ria", "jobDone": "Tarefa conclu\u00edda",
+    "role_user": "Usu\u00e1rio", "role_superadmin": "Superadmin",
+    "integrations": "Integra\u00e7\u00f5es", "configured": "Configurado", "notConfigured": "N\u00e3o configurado", "provider": "Provedor de dados",
+    "scoringTitle": "Configura\u00e7\u00f5es do Opportunity Score", "scoringHelp": "Os pesos seguem o modelo 0,45/0,35/0,20. As altera\u00e7\u00f5es s\u00e3o aplicadas imediatamente e persistem.",
+    "weights": "Pesos", "wBuy": "Posi\u00e7\u00e3o do pre\u00e7o (compra)", "wUpside": "Potencial", "wIncome": "Renda",
+    "thresholds": "Limiares de flags", "buyZone": "Zona de compra (R \u2264)", "sellZone": "Zona de venda (R \u2265)", "incomeFlag": "Renda (div \u2265)", "upsideCap": "Teto do potencial", "incomeCap": "Teto da renda (div)",
+    "settingsSaved": "Configura\u00e7\u00f5es do score salvas", "noData": "Sem dados."
+  },
   "plans": {
     "free": "Gr\u00e1tis",
     "pro": "Pro",
@@ -236,6 +266,9 @@
     "monthly": "Mensal",
     "annual": "Anual",
     "annualSave": "Economize ~20%",
+    "trialBadge": "7 dias gr\u00e1tis",
+    "trialNote": "\u00c9 necess\u00e1rio cart\u00e3o para ativar o teste gr\u00e1tis. Cancele quando quiser.",
+    "startTrial": "Come\u00e7ar teste gr\u00e1tis de 7 dias",
     "mostPopular": "Mais popular",
     "current": "Plano atual",
     "choose": "Escolher {{plan}}",

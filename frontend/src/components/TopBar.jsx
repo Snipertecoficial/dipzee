@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Bell, Menu, User, LogOut, Settings as SettingsIcon, Crown, LayoutDashboard, BellRing, Filter } from 'lucide-react';
+import { Bell, Menu, User, LogOut, Settings as SettingsIcon, Crown, LayoutDashboard, BellRing, Filter, Newspaper, Shield } from 'lucide-react';
 import { Logo } from './Logo';
 import { StockSearch } from './StockSearch';
 import { LanguageSwitcher, CurrencySwitcher } from './Switchers';
@@ -35,10 +35,14 @@ export function TopBar() {
   const navLinks = [
     { to: '/app/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
     { to: '/app/screener', label: t('screener.title'), icon: Filter },
+    { to: '/app/news', label: t('news.title'), icon: Newspaper },
     { to: '/app/alerts', label: t('nav.alerts'), icon: BellRing },
     { to: '/app/notifications', label: t('nav.notifications'), icon: Bell },
     { to: '/app/settings', label: t('nav.settings'), icon: SettingsIcon },
   ];
+  if (user?.role === 'superadmin') {
+    navLinks.push({ to: '/app/admin', label: t('admin.title'), icon: Shield });
+  }
 
   const onLogout = () => { logout(); navigate('/'); };
 
@@ -99,6 +103,9 @@ export function TopBar() {
               <DropdownMenuLabel className="truncate">{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/app/settings')}><SettingsIcon size={15} className="mr-2" />{t('nav.settings')}</DropdownMenuItem>
+              {user?.role === 'superadmin' && (
+                <DropdownMenuItem onClick={() => navigate('/app/admin')} data-testid="user-menu-admin-link"><Shield size={15} className="mr-2" />{t('admin.title')}</DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => navigate('/app/upgrade')}><Crown size={15} className="mr-2" />{t('nav.upgrade')}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onLogout}><LogOut size={15} className="mr-2" />{t('nav.logout')}</DropdownMenuItem>
