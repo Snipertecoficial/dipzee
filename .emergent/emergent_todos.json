@@ -1,26 +1,34 @@
 [
   {
-    "content": "Backend: adicionar plano 'starter' em plans.py + PACKAGES em routes_billing.py",
-    "status": "completed"
+    "content": "Obter diretrizes de design (design_agent) para a home pública + login/registro com ar de empresa grande, mantendo a marca",
+    "status": "in_progress"
   },
   {
-    "content": "Frontend: redesenhar Upgrade.jsx com 3 cards pagos (Iniciante/Pro/Investidor)",
-    "status": "completed"
+    "content": "Remover a seção 'Um número. Uma decisão clara.' (scoreExplainer) da landing",
+    "status": "pending"
   },
   {
-    "content": "i18n: adicionar strings do plano starter (Iniciante) em en/fr/pt/es",
-    "status": "completed"
+    "content": "Redesign da Landing (home pública) premium/enterprise (hero, prova social, segurança, seções de confiança)",
+    "status": "pending"
   },
   {
-    "content": "Criar novo AppShell com sidebar persistente colapsável + Sheet mobile",
-    "status": "completed"
+    "content": "Redesign/polish das telas de Login e Registro (AuthLayout)",
+    "status": "pending"
   },
   {
-    "content": "Redesign Dashboard + verificar consistência das demais páginas",
-    "status": "completed"
+    "content": "Limpeza de copy 'grátis/free': CTAs -> 'Iniciar teste grátis de 7 dias'; remover 'Grátis para sempre'; registerTitle -> 'Crie sua conta' (4 idiomas)",
+    "status": "pending"
   },
   {
-    "content": "Rodar testing_agent_v3 e corrigir bugs (100% passou)",
-    "status": "completed"
+    "content": "Remover plano grátis do backend (gating) + onboarding com paywall: registro -> escolher plano + cartão (checkout) antes de acessar; gating em ProtectedRoute",
+    "status": "pending"
+  },
+  {
+    "content": "Verificar/validar rotas de pagamento e upgrade (testing_agent_v3) + compilação e screenshots",
+    "status": "pending"
+  },
+  {
+    "content": "Escrever avaliação crítica final ('eu assinaria?' + o que falta em tech/design/features)",
+    "status": "pending"
   }
 ]
