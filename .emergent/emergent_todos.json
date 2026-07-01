@@ -12,15 +12,15 @@
     "status": "completed"
   },
   {
-    "content": "Criar novo AppShell com sidebar persistente colapsável (desktop) + Sheet (mobile) + topbar refinada",
+    "content": "Criar novo AppShell com sidebar persistente colapsável + Sheet mobile",
     "status": "completed"
   },
   {
-    "content": "Redesign Dashboard + verificar consistência das demais páginas no novo shell",
+    "content": "Redesign Dashboard + verificar consistência das demais páginas",
     "status": "completed"
   },
   {
-    "content": "Rodar testing_agent_v3 (backend billing/planos + frontend navegação logada/upgrade) e corrigir bugs",
-    "status": "in_progress"
+    "content": "Rodar testing_agent_v3 e corrigir bugs (100% passou)",
+    "status": "completed"
   }
 ]
