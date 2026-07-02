@@ -82,6 +82,17 @@ def quote(symbol: str) -> Optional[dict]:
         d = prov.fetch(symbol)
         if d and d.get("price"):
             d.setdefault("source", getattr(prov, "name", "provider"))
+            # Backfill 52-week range from yfinance when the primary omits it
+            # (the range feeds the Opportunity Score, so it must be populated).
+            if d.get("low_52w") is None or d.get("high_52w") is None:
+                try:
+                    fi = dict(yf.Ticker(symbol).fast_info or {})
+                    if d.get("low_52w") is None:
+                        d["low_52w"] = fi.get("year_low")
+                    if d.get("high_52w") is None:
+                        d["high_52w"] = fi.get("year_high")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("52w backfill failed for %s: %s", symbol, e)
             return d
     except Exception as e:  # noqa: BLE001
         logger.warning("provider quote failed for %s: %s", symbol, e)

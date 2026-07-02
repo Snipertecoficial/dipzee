@@ -1,22 +1,14 @@
 [
   {
-    "content": "Criar market_cache.py (cache TTL + fallback stale Mongo + retry/backoff + json_safe)",
+    "content": "Camada de dados de mercado resiliente (cache TTL + stale fallback Mongo + retry/backoff)",
     "status": "completed"
   },
   {
-    "content": "Criar market_service.py (quote, history, batch, summary, search, fundamentals, options, screener)",
+    "content": "Endpoints /api/market/* (quote, history, batch, summary, search, fundamentals, options, screener, health)",
     "status": "completed"
   },
   {
-    "content": "Criar routes_market.py /api/market/* + schemas + /health",
+    "content": "Validado por testing_agent_v3 + melhoria backfill 52w + README documentado",
     "status": "completed"
-  },
-  {
-    "content": "Registrar router no server.py e reiniciar backend",
-    "status": "completed"
-  },
-  {
-    "content": "Validar camada de mercado com testing_agent_v3 (backend)",
-    "status": "in_progress"
   }
 ]
