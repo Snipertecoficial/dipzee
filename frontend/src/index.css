@@ -90,3 +90,6 @@
         font-variant-numeric: tabular-nums;
     }
 }
+
+/* Defensive: ensure the platform badge never renders in production */
+#emergent-badge { display: none !important; }

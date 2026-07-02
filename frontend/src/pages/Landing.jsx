@@ -117,10 +117,7 @@ export default function Landing() {
             {user ? (
               <Button onClick={() => navigate('/app/dashboard')} className="bg-[var(--dz-primary)] text-white">{t('nav.dashboard')}</Button>
             ) : (
-              <>
-                <Button variant="ghost" onClick={() => navigate('/login')} data-testid="public-topbar-login-link" className="hidden sm:inline-flex text-[var(--dz-primary)]">{t('nav.login')}</Button>
-                <Button onClick={goRegister} data-testid="public-topbar-primary-cta-button" className="hidden sm:inline-flex bg-[var(--dz-mint)] text-[var(--dz-primary)] hover:brightness-95">{t('nav.signup')}</Button>
-              </>
+              <Button variant="ghost" onClick={() => navigate('/login')} data-testid="public-topbar-login-link" className="hidden sm:inline-flex text-[var(--dz-primary)] hover:bg-[var(--dz-primary-8)]">{t('nav.login')}</Button>
             )}
             {/* Mobile menu */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -137,7 +134,6 @@ export default function Landing() {
                 <div className="mt-4"><LanguageSwitcher /></div>
                 <div className="mt-4 flex flex-col gap-2">
                   <Button variant="outline" onClick={() => { setMobileOpen(false); navigate('/login'); }}>{t('nav.login')}</Button>
-                  <Button onClick={() => { setMobileOpen(false); goRegister(); }} className="bg-[var(--dz-mint)] text-[var(--dz-primary)]">{t('nav.signup')}</Button>
                 </div>
               </SheetContent>
             </Sheet>
