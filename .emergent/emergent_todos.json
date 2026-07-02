@@ -1,18 +1,22 @@
 [
   {
-    "content": "Backend: remover variáveis/imports não usados (alert_service.py prefs, explain.py high, server.py daily_refresh_job, routes_assets.py imports, poc_core.py imports)",
+    "content": "F1 Depoimentos i18n: dataset localizado 5 por idioma (PT/EN/ES/FR) + TestimonialsCarousel seleciona por i18n.language",
     "status": "completed"
   },
   {
-    "content": "Frontend: corrigir key={index} por chaves estáveis (Portfolio metrics, AuthLayout perks, AssetInsights income+options, Landing steps/features/faqs)",
+    "content": "F2 Camada de dados resiliente: cascata defensiva por operação (quote/history/search) yfinance→Finnhub→Investing→cache stale + circuit breaker + normalização",
     "status": "completed"
   },
   {
-    "content": "Refatorar Admin.jsx em sub-componentes (components/admin: Overview, Users, Assets, Alerts, Billing, Settings + Shared)",
+    "content": "F4 Segurança: rate limiting (in-memory), anti-brute-force login (lockout Mongo), security headers (CSP/HSTS/etc), validação/sanitização de inputs",
     "status": "completed"
   },
   {
-    "content": "Verificação: esbuild compile frontend, import backend, logs supervisor e screenshots (login superadmin + Admin tabs)",
+    "content": "F3 Backtest v2: explicação + tooltips didáticos, período/estratégia configuráveis, gráfico equity curve (estratégia vs buy&hold)",
+    "status": "completed"
+  },
+  {
+    "content": "Verificação final: pyflakes/esbuild, curl endpoints, git status",
     "status": "completed"
   }
 ]

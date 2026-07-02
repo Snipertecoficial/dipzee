@@ -1,4 +1,4 @@
-# Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium) — ATUALIZADO (Fase: Qualidade & Refactor)
+# Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium) — ATUALIZADO (Fase: F — Robustez sem Chaves + Backtest + Segurança + i18n Depoimentos)
 
 ## 1) Objectives
 
@@ -17,26 +17,28 @@
 - **Investidor entregue**: Portfolio P&L + export CSV + Backtesting.
 - **Dual-superadmin**: múltiplos e-mails permitidos.
 
-### Objetivos desta fase (Qualidade de Código + Refatoração Admin) — STATUS: ⏳ EM ANDAMENTO
-1. **Aplicar correções de Qualidade de Código (baixo risco, melhores práticas)**
-   - Frontend: eliminar `key={index}` onde há lista dinâmica e substituir por chave estável.
-   - Backend: remover imports/variáveis não usadas (pyflakes), mantendo comportamento idêntico.
-   - Evitar refactors que mudem arquitetura (ex.: migração de localStorage → cookies **não** entra agora).
-2. **Refatorar `Admin.jsx` (manutenibilidade)**
-   - Extrair as tabs em subcomponentes pequenos e testáveis.
-   - Preservar **100%** dos `data-testid`, rotas e chamadas de API.
-   - Manter o container Admin como “orquestrador” (estado, loaders, handlers), e os subcomponentes como “presentational”.
-3. **Verificação básica pós-alteração (sem agente E2E completo)**
-   - `frontend build`/compilação, logs, sanity-check de navegação e chamadas principais (curl) e screenshots pontuais.
+### Qualidade de Código + Refatoração Admin — ✅ CONCLUÍDA
+- Backend sem warnings relevantes de `pyflakes` nos módulos de runtime.
+- Frontend sem `key={index}` em listas dinâmicas (chaves estáveis).
+- `Admin.jsx` dividido em subcomponentes e verificado (screenshots e sanity checks).
 
-> Observação: **Sem integrações** (Stripe subscriptions/Resend/Telegram) nesta fase, pois chaves/API keys ainda não foram fornecidas.
+### Integração GitHub + Features Admin/Monetização + Landing Premium — ✅ CONCLUÍDA (após pull)
+- Pull do GitHub aplicado por fast-forward (commit `78e0755`).
+- Novas tabs e arquitetura admin:
+  - **AdminAnnouncementsTab** (CRUD de comunicados globais)
+  - **AdminAdsTab** (CRUD de anúncios de parceiros)
+  - **AdminHealthTab** (status do sistema + integridade de chaves + scheduler)
+- Landing premium com **framer-motion**, **carrossel de depoimentos** e reforço de copy.
+
+### Hotfixes pós-pull (stabilização do preview) — ✅ CONCLUÍDOS
+- **Landing.jsx**: corrigido import quebrado do `lucide-react` que causava “Failed to compile”.
+- **/api/admin/health**: corrigido erro 500 (import inexistente `scheduler`) via helper `is_scheduler_running()`.
 
 ---
 
 ## 2) Implementation Steps
 
 ### Phase 0 — Auditoria/Inventário (curto, antes de mexer) — ✅ CONCLUÍDA
-**Entregue**
 - Auditoria de limites, intraday, alert types, UI do Upgrade.
 - Tabela interna “Plano → features → status”.
 - Ajuste de copy/i18n para evitar overpromising.
@@ -44,162 +46,155 @@
 ---
 
 ### Phase A — Fundação (Capacidades por plano + Perfil + Dark Mode) — ✅ CONCLUÍDA
-
-#### A1) Backend: catálogo de planos por capacidades — ✅
-- `plans.py`: `PLAN_LIMITS`, `PLAN_FEATURES`, `PLAN_RANK`, `PLAN_CARD_FEATURES`.
-- Helpers: `has_feature`, `plan_capabilities`, `catalog`.
-- `serialize_user` retorna `capabilities`.
-- `require_feature(feature)` (403 `feature_locked`).
-- `GET /api/plans/catalog`.
-
-#### A2) Backend: Perfil editável (dados + avatar base64) — ✅
-- `PUT /api/auth/profile` com validações (tamanho/formato avatar, sanitização).
-
-#### A3) Frontend: Settings em abas + Perfil — ✅
-- Settings com abas: Perfil / Aparência / Alertas / Assinatura.
-
-#### A4) Dark Mode completo — ✅
-- `ThemeContext` com persistência + opção system.
-- Toggle no TopBar e opção em Settings.
+- Catálogo de planos/capabilities e gating backend/frontend.
+- Perfil editável com avatar Base64.
+- Dark mode com persistência.
 
 ---
 
 ### Phase B — Mercados + Ativos/Notícias — ✅ CONCLUÍDA
-
-#### B1) Página “Mercados” — ✅
-- `/app/markets` com abas `day_gainers`, `day_losers`, `most_actives`, `crypto`, `news`.
-- Integrações: `GET /api/market/screener` e `GET /api/news/market`.
-
-#### B2) Asset Detail (Pro+) — ✅
-- `AssetInsights` com Tabs:
-  - Chart: `GET /api/market/history`
-  - Fundamentals: `GET /api/market/fundamentals`
-  - Options: `GET /api/market/options`
-  - Backtest (Investidor): `GET /api/backtest`
-- Gating 1:1 com a matriz.
+- `/app/markets` com abas.
+- Asset Detail com insights (charts/fundamentals/options/backtest), com gating.
 
 ---
 
 ### Phase C — Investidor (Portfolio P&L + Backtest + Canais) — ✅ CONCLUÍDA
-
-#### C1) Portfolio P&L — ✅
-- Backend: `routes_portfolio.py` + coleção `positions`.
-- Cálculo: P&L, market value, cost basis, dividendos anuais estimados.
-- Frontend: CRUD + métricas + export CSV.
-
-#### C2) Backtest — ✅
-- Backend: `routes_backtest.py`.
-- Frontend: tab Backtest no AssetInsights.
-
-#### C3) Alertas por Mensagem (estrutura) — ✅ (dependente de config)
-- `notify_service.py` com Email (mock), Webhook (real), Telegram (quando token).
+- Portfolio com P&L e export.
+- Backtest (MVP) entregue.
+- Alertas (in-app + mocked email + webhook + telegram pronto).
 
 ---
 
 ### Phase D — Gating, Upsell, Qualidade e “Lista 100%” — ✅ CONCLUÍDA (MVP) / ⏳ PENDÊNCIAS (produção)
-
 **Entregue (MVP)**
-- Gating consistente:
-  - Backend: `require_feature`
-  - Frontend: `FeatureGate`
-- Testes E2E anteriores (iteration_8/9) passaram sem regressões.
+- Gating consistente backend/frontend.
 
-**Pendências para 100% produção (fora do escopo desta fase)**
-1. Stripe Subscriptions + trial real + Customer Portal.
-2. Resend real + reset/verify e-mails.
-3. `TELEGRAM_BOT_TOKEN` em produção.
-4. Dividend tracker dedicado.
-5. Advanced Screener Builder.
-6. Provider licenciado.
-7. Termos/Privacidade + hardening/observabilidade.
+**Pendências (fora do escopo imediato)**
+- Stripe subscriptions/portal (depende de chaves).
+- Resend e-mails reais (depende de chave).
+- Telegram token.
 
 ---
 
-### Phase E — Qualidade de Código + Refatoração Admin (fase atual) — ✅ CONCLUÍDA
+### Phase E — Qualidade de Código + Refatoração Admin — ✅ CONCLUÍDA
+- Correções de hooks/keys/pyflakes e extração de Admin em subcomponentes.
 
-> Resultado: backend sem warnings de pyflakes nos módulos de runtime; keys instáveis (index) substituídas por chaves estáveis; `Admin.jsx` reduzido de 376 → ~145 linhas e dividido em 7 subcomponentes em `frontend/src/pages/admin/` (AdminShared, Overview, Users, Assets, Alerts, Billing, Settings). Todas as abas verificadas via screenshot (Overview/Users/Settings) sem regressão. Compilação esbuild OK e login superadmin OK.
+---
 
-#### E1) Backend: limpar variáveis/imports não usados (pyflakes) — ⏳
-**Descobertas reais (pyflakes):**
-- `alert_service.py`: variável `prefs` atribuída e não usada.
-- `explain.py`: variável `high` atribuída e não usada.
-- `server.py`: import `daily_refresh_job` não usado.
-- `routes_assets.py`: imports `compute_opportunity_score` e `SETTINGS` não usados.
-- `poc_core.py`: imports não usados (`math`, `dataclass`, `field`, `Optional`).
-- `backend_test.py`: import não usado (arquivo de teste; manter sem impacto em runtime, mas ideal limpar também).
+## Phase F — Robustez sem chaves + i18n Depoimentos + Backtest v2 + Segurança (fase atual) — ⏳ EM ANDAMENTO
 
-**Plano de execução:**
-- Remover variáveis/imports não usados sem alterar lógica.
-- Rodar `python -m pyflakes` novamente até “limpo” (ou minimamente sem warnings nos módulos de runtime).
+### Contexto e decisão técnica
+O usuário **não possui chaves de API** para FMP/Polygon/AlphaVantage/TwelveData/Marketstack. Para manter **estabilidade e cobertura ampla** (todos ativos disponíveis), a estratégia será:
+- **Primário:** `yfinance` (sem chave, maior cobertura) + cache agressivo + fallback stale MongoDB.
+- **Secundário:** Finnhub (já configurado no ambiente) para quote rápido quando disponível.
+- **Terciário (último recurso):** Investing (endpoints internos) **apenas como fallback** e com hardening (timeouts, rate limit, cache), por ser instável e com risco de bloqueio.
 
-#### E2) Frontend: substituir `key={index}` por chaves estáveis — ⏳
-**Alvos confirmados via grep:**
-- `Portfolio.jsx`: cards de métricas usam `key={i}` → trocar para `key={m.label}` (ou `key={m.testId}` se criado).
-- `AuthLayout.jsx`: perks usam `key={i}` → trocar para `key={p.text}` (ou `key={p.textKey}` se padronizar).
-- `AssetInsights.jsx`:
-  - `income.map((row, i))` → usar `key={row.item}`.
-  - options chain map usa `key={i}` → usar `key={o.contractSymbol || o.strike}` (fallback controlado se não existir).
-- `Landing.jsx`:
-  - `steps.map((s, i))` → `key={s.title}`.
-  - `features.map((f, i))` → `key={f.title}`.
-  - `faqs.map((f, i))` → `key={f.q}` e `value={f.q}` (ou manter `value` estável derivado do texto).
+> Nota: endpoints internos do Investing são não oficiais; serão tratados como “best effort” e nunca como única fonte.
 
-**Notas de boas práticas:**
-- Keys de skeletons gerados de arrays literais `[1,2,3]` são aceitáveis e podem ser mantidos.
-- Onde o dado não tem id estável, criar uma chave derivada consistente (ex.: `label/title/q`) antes de cair em index.
+### F1) Depoimentos localizados por idioma (Landing) — ⏳
+**Requisito:** 5 depoimentos por idioma (PT/EN/ES/FR), exibidos conforme idioma selecionado.
 
-#### E3) Refatoração do Admin.jsx em subcomponentes — ⏳
-**Objetivo:** reduzir complexidade/custo de manutenção mantendo comportamento.
-
-**Estratégia (segura):**
-- Criar pasta: `frontend/src/pages/admin/` (ou `frontend/src/components/admin/`).
-- Extrair componentes por tab:
-  1. `AdminOverviewTab.jsx`
-  2. `AdminUsersTab.jsx`
-  3. `AdminAssetsTab.jsx`
-  4. `AdminAlertsTab.jsx`
-  5. `AdminBillingTab.jsx`
-  6. `AdminSettingsTab.jsx`
-- `Admin.jsx` mantém:
-  - estado (`stats`, `config`, `users`, `assets`, etc.)
-  - loaders/busy flags
-  - handlers (update/delete/refresh/save)
-  - funções utilitárias comuns (`fmtDate`, classes `th/td`)
-- Subcomponentes recebem via props:
-  - data + callbacks + busy flags
-  - `t`, `locale` (ou strings já prontas)
-- **Preservar `data-testid` existentes** e o layout atual.
+**Plano:**
+- Criar um dataset de depoimentos por locale (ex.: `frontend/src/constants/testimonials.js`).
+- Selecionar a lista via `i18n.language` (slice 0,2 → `pt/en/es/fr`).
+- Garantir fallback elegante (se locale não existir → EN).
+- Preservar o componente `TestimonialsCarousel` e apenas trocar a fonte de dados.
 
 **Critérios de aceite:**
-- UI idêntica (sem regressões visuais e funcionais).
-- Todas as chamadas de API permanecem iguais.
-- `Admin.jsx` reduzido e legível.
+- Ao trocar idioma pelo seletor, o carrossel troca os depoimentos (texto/nome/cargo) corretamente.
 
-#### E4) Verificação básica (sem E2E completo) — ⏳
-- Frontend:
-  - `yarn build` (ou `craco build`) para confirmar compilação.
-  - Navegação rápida: login superadmin → Admin → alternar tabs.
-- Backend:
-  - subir serviços (já estão rodando) e validar endpoints principais via curl:
-    - `/api/admin/stats`
-    - `/api/admin/users`
-    - `/api/market/quote/AAPL`
-  - checar logs por erros.
+### F2) Camada de dados “multi-oráculo” resiliente sem chaves — ⏳
+**Objetivo:** Cobrir *todos os ativos* com máxima estabilidade e antirate-limit.
+
+**Trabalhos planejados:**
+1) **Cascata defensiva real por operação** (não apenas provider único global)
+   - Hoje `get_provider()` escolhe 1 provider global.
+   - Ajustar para uma estratégia por operação:
+     - `quote`: tentar Finnhub → yfinance → Investing → cache stale
+     - `history`: yfinance → Investing → cache stale
+     - `search`: yfinance search → Investing search → cache stale
+   - Implementar isso em uma camada `provider_router` (ou dentro de `market_service`/`asset_service`) sem acoplar nas rotas.
+
+2) **Cache agressivo + deduplicação de chamadas**
+   - Reforçar TTLs e “single-flight” (se 10 requests pedirem o mesmo ticker, 1 busca externa, 9 aguardam cache).
+   - Persistir respostas normalizadas em MongoDB (já existe padrão `market_cache`).
+
+3) **Hardening anti-quebra para Investing**
+   - Timeouts baixos (ex.: 6–10s) e circuit breaker simples (se falhar N vezes em 10 min, desativa temporariamente).
+   - Sanitização de inputs (ticker/query) e limites (máximo de símbolos por batch).
+
+**Critérios de aceite:**
+- A aplicação não cai quando uma fonte externa rate-limita.
+- Quote/histórico/search retornam algo útil (ou stale) em vez de 500.
+
+### F3) Backtest v2 (didático + configurável + visual) — ⏳
+**Requisito:** explicar “para que serve”, tooltips, gráfico visual, período/estratégia configuráveis.
+
+**Plano:**
+- UI (frontend `AssetInsights`/tab Backtest):
+  - Seção “O que é Backtest?” com explicação curta e objetiva + aviso educacional.
+  - Tooltips nos parâmetros e métricas (win rate, retorno médio, trades, etc.).
+  - Controles:
+    - período (ex.: 6m/1y/2y/5y)
+    - estratégia (ex.: Buy & Hold vs Buy the Dip; e preparar arquitetura para expansão)
+    - parâmetros básicos (hold_days, dip_threshold, etc.)
+  - **Gráfico**: curva do capital da estratégia vs buy&hold (Recharts).
+
+- Backend (`routes_backtest.py`):
+  - Expandir resposta para incluir série temporal (equity curve) e parâmetros usados.
+  - Validações e limites (período máximo e número de pontos) para performance.
+
+**Critérios de aceite:**
+- Usuário entende o que está rodando (copy + tooltips).
+- Backtest gera um gráfico comparativo consistente.
+
+### F4) Segurança em camadas (anti-hackers + anti-falhas) — ⏳
+**Requisito:** rate limiting, anti brute force, security headers, validação/sanitização, cascata resiliente.
+
+**Plano:**
+1) **Rate limiting** (sem dependências pesadas)
+   - Rate limit por IP em rotas críticas: login/register/reset, e endpoints de mercado.
+   - Implementar in-memory (TTL) e, quando possível, fallback Mongo para consistência.
+
+2) **Anti brute force no login**
+   - Lockout progressivo por email+IP (ex.: 5 tentativas → bloqueio 10 min; 10 tentativas → 60 min).
+   - Registrar auditoria mínima (sem armazenar senha, apenas contagem e timestamps).
+
+3) **Security headers (CSP/HSTS/etc.)**
+   - Configurar no backend (Starlette middleware) e/ou no Nginx (quando aplicável):
+     - Strict-Transport-Security (produção)
+     - X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+     - CSP mínima compatível com React (evitar quebrar assets).
+
+4) **Validação e sanitização de inputs**
+   - Normalizar tickers e queries (`A-Z0-9.^-`), limite de tamanho.
+   - Validar payloads de admin (ads/announcements) e profile (já existe parte).
+
+**Critérios de aceite:**
+- Login protegido contra brute force.
+- Endpoints críticos com rate limit.
+- Headers básicos ativos.
+
+### F5) Checklist de produção (superadmins e estabilidade) — ⏳
+- Garantir que o seed de superadmins continue idempotente e funcionando em produção.
+- Documentar claramente: preview vs produção → precisa redeploy para refletir.
 
 ---
 
 ## 3) Next Actions (a partir de agora)
 
-### Imediato (esta fase)
-1. Aplicar limpezas do backend (pyflakes) com PR pequeno e seguro.
-2. Corrigir `key` instáveis no frontend.
-3. Refatorar `Admin.jsx` em subcomponentes (com preservação de testids).
-4. Fazer verificação básica (build + sanity check) e registrar evidências (logs/screenshot).
+### Imediato (Phase F)
+1. Implementar depoimentos por idioma (5 por locale) e validar no seletor de idioma.
+2. Backtest v2: UI/UX + parâmetros + gráfico + tooltips.
+3. Segurança: rate limiting + anti brute force + headers + validações.
+4. Robustez de mercado sem chaves:
+   - reestruturar fallback por operação (quote/history/search)
+   - reforçar cache/anti-rate-limit
+   - Investing somente como último recurso com circuit breaker.
+5. Sanity checks (preview): compile + curl endpoints + smoke UI (Landing/Admin/Asset Detail/Backtest).
 
-### Próximo (quando usuário fornecer chaves)
-1. Stripe Subscriptions (trial real) + Customer Portal.
-2. Resend real + reset/verify.
-3. Ativar Telegram em produção.
+### Próximo (quando houver chaves)
+- Ativar provedores oficiais (FMP/Polygon/Alpha/Twelve/Marketstack) e escolher um primário com SLA.
 
 ---
 
@@ -211,16 +206,16 @@
 - Dados de mercado resilientes com cache e fallback.
 - Perfil + avatar base64 + dark mode.
 - Mercados + Asset Detail Pro+ + Portfolio/Backtest Investor.
+- Admin com tabs de monetização/comunicados/health e landing premium.
 
-### Para concluir a fase atual (Qualidade & Refactor)
-- Backend sem warnings relevantes de `pyflakes` em módulos de runtime.
-- Frontend sem `key={index}` em listas dinâmicas (chaves estáveis).
-- `Admin.jsx` refatorado em subcomponentes sem alteração de comportamento.
-- Build frontend ok + sanity checks ok (sem necessidade de rodar o agente E2E completo nesta iteração).
+### Para concluir a Phase F
+- Depoimentos trocam corretamente por idioma (PT/EN/ES/FR) com 5 itens cada.
+- Backtest v2 com explicação, tooltips, parâmetros e gráfico.
+- Rate limiting + anti brute force + security headers + validações aplicadas.
+- Camada de dados robusta sem chaves: yfinance primário, Finnhub secundário, Investing último recurso, sempre com fallback stale.
 
 ### Para considerar “100% produção” (futuro)
-- Stripe Subscriptions + Portal.
-- Resend real + reset/verify.
-- Token Telegram configurado.
-- Dividend tracker dedicado.
-- Provider licenciado + compliance/observabilidade.
+- Stripe subscriptions + portal.
+- Resend e-mails reais.
+- Telegram token.
+- Provider licenciado + compliance (termos/privacidade) + observabilidade (metrics/logs).

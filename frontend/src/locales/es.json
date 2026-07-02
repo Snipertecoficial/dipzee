@@ -145,7 +145,9 @@
     "footerContact": "Contacto",
     "footerPrivacy": "Privacidad",
     "footerTerms": "Términos",
-    "trustedBy": "Hecho para inversores minoristas disciplinados"
+    "trustedBy": "Hecho para inversores minoristas disciplinados",
+    "testimonialsBadge": "Testimonios",
+    "testimonialsTitle": "Los inversores adoran Dipzee"
   },
   "dashboard": {
     "title": "Oportunidades de hoy",
@@ -215,7 +217,31 @@
     "btAvg": "Prom / operación",
     "noData": "Sin datos",
     "incomeStatement": "Estado de resultados (anual)",
-    "period": "Período"
+    "period": "Período",
+    "btWhatTitle": "¿Qué es un backtest?",
+    "btWhatDesc": "Un backtest simula cómo se habría comportado una estrategia en el pasado usando precios históricos reales. Sirve para entender el riesgo y el retorno potencial de una regla de compra/venta ANTES de arriesgar dinero real. Los resultados pasados no garantizan rendimientos futuros.",
+    "btConfigTitle": "Configurar simulación",
+    "btStrategySel": "Estrategia",
+    "stratDip": "Comprar en la caída",
+    "stratSma": "Cruce de medias",
+    "btPeriodLbl": "Período",
+    "btDipLbl": "Caída hasta el mínimo (%)",
+    "btHoldLbl": "Días manteniendo",
+    "btLookbackLbl": "Ventana del mínimo (días)",
+    "btShortMaLbl": "Media corta (días)",
+    "btLongMaLbl": "Media larga (días)",
+    "btDrawdown": "Caída máxima",
+    "btTimeIn": "Tiempo invertido",
+    "btLegendStrategy": "Estrategia",
+    "btLegendBuyHold": "Comprar y mantener",
+    "btEquityTitle": "Evolución de 100 invertidos (base 100)",
+    "btTipTrades": "Número de operaciones (compra + venta) que ejecutó la estrategia en el período.",
+    "btTipWin": "Porcentaje de operaciones que terminaron con ganancia.",
+    "btTipAvg": "Retorno medio por operación.",
+    "btTipStrategy": "Retorno total acumulado siguiendo la estrategia.",
+    "btTipBuyHold": "Retorno de simplemente comprar al inicio y mantener hasta el final (referencia).",
+    "btTipDrawdown": "Mayor caída de pico a valle: mide el peor riesgo de la estrategia.",
+    "btTipTimeIn": "Porcentaje del tiempo que la estrategia estuvo invertida (si no, en efectivo)."
   },
   "alerts": {
     "title": "Alertas",

@@ -8,6 +8,7 @@ import os
 from database import client, ensure_indexes
 from scoring import SETTINGS
 from scheduler import start_scheduler, shutdown_scheduler
+from security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware
 import routes_auth
 import routes_assets
 import routes_watchlist
@@ -53,6 +54,11 @@ api_router.include_router(routes_portfolio.router)
 api_router.include_router(routes_backtest.router)
 
 app.include_router(api_router)
+
+# Security middleware. Added before CORS so that CORS remains the OUTERMOST
+# layer (it must decorate even 429/limited responses with the right headers).
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

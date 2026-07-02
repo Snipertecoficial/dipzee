@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from database import db
-from providers import get_provider, get_yf_target
+from providers import fetch_resilient, get_yf_target
 from scoring import compute_opportunity_score, SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,10 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
     Returns the stored asset dict, or None if there is no data at all.
     """
     ticker = ticker.strip().upper()
-    provider = get_provider()
     existing = await db.assets.find_one({"ticker": ticker}, {"_id": 0})
 
-    data = provider.fetch(ticker)
+    # Resilient cascade: try each source until one returns usable data.
+    data = fetch_resilient(ticker)
     if not data:
         logger.warning("No provider data for %s; returning cached doc if any", ticker)
         return existing

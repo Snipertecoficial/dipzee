@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Loader2, Play } from 'lucide-react';
+import { AreaChart, Area, LineChart, Line, Legend, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Loader2, Play, Info } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -162,40 +165,152 @@ function OptionsTab({ ticker }) {
   );
 }
 
+const BT_PERIODS = ['1y', '2y', '5y', '10y'];
+
+function BtMetric({ label, value, tip, color }) {
+  return (
+    <Card className="p-3 border-[var(--dz-border)]">
+      <div className="flex items-center justify-center gap-1 text-[11px] text-[var(--dz-muted)]">
+        <span>{label}</span>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="inline-flex text-[var(--dz-muted)] hover:text-[var(--dz-fg)] transition-colors" aria-label="info"><Info size={12} /></button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[240px] text-xs leading-relaxed">{tip}</TooltipContent>
+        </UITooltip>
+      </div>
+      <p className="mt-1 text-center font-heading font-bold text-lg tnum" style={{ color: color || 'var(--dz-fg)' }}>{value}</p>
+    </Card>
+  );
+}
+
 function BacktestTab({ ticker }) {
   const { t } = useTranslation();
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [strategy, setStrategy] = useState('buy_the_dip');
+  const [period, setPeriod] = useState('2y');
+  const [dipPct, setDipPct] = useState(3);
+  const [hold, setHold] = useState(10);
+  const [lookback, setLookback] = useState(20);
+  const [shortMa, setShortMa] = useState(20);
+  const [longMa, setLongMa] = useState(50);
+
   const run = useCallback(() => {
     setLoading(true);
-    api.get('/backtest', { params: { ticker, period: '2y', hold_days: 10 } })
+    const params = { ticker, period, strategy };
+    if (strategy === 'buy_the_dip') {
+      params.dip = Math.max(0, Math.min(50, Number(dipPct) || 0)) / 100;
+      params.hold_days = Number(hold) || 10;
+      params.lookback = Number(lookback) || 20;
+    } else {
+      params.short_ma = Number(shortMa) || 20;
+      params.long_ma = Number(longMa) || 50;
+    }
+    api.get('/backtest', { params })
       .then(({ data }) => setRes(data)).catch(() => setRes({ ok: false }))
       .finally(() => setLoading(false));
-  }, [ticker]);
+  }, [ticker, period, strategy, dipPct, hold, lookback, shortMa, longMa]);
+
+  const beatsMarket = res && res.ok && res.strategy_return_pct >= res.buy_hold_return_pct;
+
   return (
-    <div>
-      {!res && (
-        <div className="text-center py-8">
-          <Button onClick={run} disabled={loading} data-testid="asset-run-backtest-button" className="bg-[var(--dz-primary)] text-white">
-            {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <Play size={16} className="mr-2" />}{t('asset.runBacktest')}
-          </Button>
-        </div>
-      )}
-      {res && res.ok && (
-        <div className="space-y-4" data-testid="asset-backtest-result">
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {[['btTrades', res.num_trades], ['btWin', `${res.win_rate}%`], ['btAvg', `${res.avg_return_pct}%`], ['btStrategy', `${res.strategy_return_pct}%`], ['btBuyHold', `${res.buy_hold_return_pct}%`]].map(([k, v]) => (
-              <Card key={k} className="p-3 text-center border-[var(--dz-border)]">
-                <p className="text-[11px] text-[var(--dz-muted)]">{t(`asset.${k}`)}</p>
-                <p className="font-heading font-bold text-lg tnum">{v}</p>
-              </Card>
-            ))}
+    <TooltipProvider delayDuration={150}>
+      <div className="space-y-5">
+        {/* What is a backtest? */}
+        <div className="flex gap-3 rounded-lg border border-[var(--dz-border)] bg-[var(--dz-surface)] p-4">
+          <Info size={18} className="shrink-0 text-[var(--dz-primary)] mt-0.5" />
+          <div>
+            <p className="font-medium text-sm text-[var(--dz-fg)]">{t('asset.btWhatTitle')}</p>
+            <p className="mt-1 text-xs text-[var(--dz-muted)] leading-relaxed">{t('asset.btWhatDesc')}</p>
           </div>
-          <Button onClick={run} variant="outline" size="sm" disabled={loading} className="border-[var(--dz-border)]">{loading ? <Loader2 size={14} className="animate-spin" /> : t('asset.runBacktest')}</Button>
         </div>
-      )}
-      {res && !res.ok && <p className="text-sm text-[var(--dz-muted)] py-8 text-center">{t('asset.noData')}</p>}
-    </div>
+
+        {/* Configuration */}
+        <div>
+          <p className="text-xs font-medium text-[var(--dz-muted)] uppercase tracking-wide mb-2">{t('asset.btConfigTitle')}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">{t('asset.btStrategySel')}</Label>
+              <Select value={strategy} onValueChange={setStrategy}>
+                <SelectTrigger className="h-9" data-testid="backtest-strategy-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buy_the_dip">{t('asset.stratDip')}</SelectItem>
+                  <SelectItem value="sma_cross">{t('asset.stratSma')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('asset.btPeriodLbl')}</Label>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="h-9" data-testid="backtest-period-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BT_PERIODS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {strategy === 'buy_the_dip' ? (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('asset.btDipLbl')}</Label>
+                  <Input type="number" min="0" max="50" step="0.5" value={dipPct} onChange={(e) => setDipPct(e.target.value)} className="h-9" data-testid="backtest-dip-input" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('asset.btHoldLbl')}</Label>
+                  <Input type="number" min="1" max="120" value={hold} onChange={(e) => setHold(e.target.value)} className="h-9" data-testid="backtest-hold-input" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('asset.btShortMaLbl')}</Label>
+                  <Input type="number" min="2" max="100" value={shortMa} onChange={(e) => setShortMa(e.target.value)} className="h-9" data-testid="backtest-short-input" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('asset.btLongMaLbl')}</Label>
+                  <Input type="number" min="5" max="250" value={longMa} onChange={(e) => setLongMa(e.target.value)} className="h-9" data-testid="backtest-long-input" />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="mt-3">
+            <Button onClick={run} disabled={loading} data-testid="asset-run-backtest-button" className="bg-[var(--dz-primary)] text-white">
+              {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <Play size={16} className="mr-2" />}{t('asset.runBacktest')}
+            </Button>
+          </div>
+        </div>
+
+        {res && res.ok && (
+          <div className="space-y-4" data-testid="asset-backtest-result">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              <BtMetric label={t('asset.btTrades')} value={res.num_trades} tip={t('asset.btTipTrades')} />
+              <BtMetric label={t('asset.btWin')} value={`${res.win_rate}%`} tip={t('asset.btTipWin')} />
+              <BtMetric label={t('asset.btAvg')} value={`${res.avg_return_pct}%`} tip={t('asset.btTipAvg')} />
+              <BtMetric label={t('asset.btStrategy')} value={`${res.strategy_return_pct}%`} tip={t('asset.btTipStrategy')} color={beatsMarket ? 'var(--dz-buy)' : 'var(--dz-sell)'} />
+              <BtMetric label={t('asset.btBuyHold')} value={`${res.buy_hold_return_pct}%`} tip={t('asset.btTipBuyHold')} />
+              <BtMetric label={t('asset.btDrawdown')} value={`${res.max_drawdown_pct}%`} tip={t('asset.btTipDrawdown')} color="var(--dz-sell)" />
+              <BtMetric label={t('asset.btTimeIn')} value={`${res.time_in_market_pct}%`} tip={t('asset.btTipTimeIn')} />
+            </div>
+
+            <Card className="p-4 border-[var(--dz-border)]">
+              <p className="text-xs font-medium text-[var(--dz-muted)] mb-3">{t('asset.btEquityTitle')}</p>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={res.equity_curve} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--dz-border)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--dz-muted)' }} minTickGap={40} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--dz-muted)' }} width={44} />
+                  <Tooltip contentStyle={{ background: 'var(--dz-bg)', border: '1px solid var(--dz-border)', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="strategy" name={t('asset.btLegendStrategy')} stroke="var(--dz-primary)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="buyhold" name={t('asset.btLegendBuyHold')} stroke="var(--dz-muted)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+        )}
+        {res && !res.ok && <p className="text-sm text-[var(--dz-muted)] py-6 text-center">{t('asset.noData')}</p>}
+      </div>
+    </TooltipProvider>
   );
 }
 

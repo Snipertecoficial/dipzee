@@ -145,7 +145,9 @@
     "footerContact": "Contact",
     "footerPrivacy": "Privacy",
     "footerTerms": "Terms",
-    "trustedBy": "Built for disciplined retail investors"
+    "trustedBy": "Built for disciplined retail investors",
+    "testimonialsBadge": "Testimonials",
+    "testimonialsTitle": "Investors love Dipzee"
   },
   "dashboard": {
     "title": "Opportunities today",
@@ -217,7 +219,31 @@
     "btAvg": "Avg / trade",
     "noData": "No data available",
     "incomeStatement": "Income statement (annual)",
-    "period": "Period"
+    "period": "Period",
+    "btWhatTitle": "What is a backtest?",
+    "btWhatDesc": "A backtest simulates how a strategy would have performed in the past using real historical prices. It helps you understand the potential risk and return of a buy/sell rule BEFORE risking real money. Past results don't guarantee future performance.",
+    "btConfigTitle": "Configure simulation",
+    "btStrategySel": "Strategy",
+    "stratDip": "Buy the dip",
+    "stratSma": "Moving-average cross",
+    "btPeriodLbl": "Period",
+    "btDipLbl": "Dip to the low (%)",
+    "btHoldLbl": "Holding days",
+    "btLookbackLbl": "Low window (days)",
+    "btShortMaLbl": "Short MA (days)",
+    "btLongMaLbl": "Long MA (days)",
+    "btDrawdown": "Max drawdown",
+    "btTimeIn": "Time in market",
+    "btLegendStrategy": "Strategy",
+    "btLegendBuyHold": "Buy & hold",
+    "btEquityTitle": "Growth of 100 invested (base 100)",
+    "btTipTrades": "Number of trades (buy + sell) the strategy executed in the period.",
+    "btTipWin": "Share of trades that ended in profit.",
+    "btTipAvg": "Average return per trade.",
+    "btTipStrategy": "Total compounded return following the strategy.",
+    "btTipBuyHold": "Return of simply buying at the start and holding to the end (benchmark).",
+    "btTipDrawdown": "Largest peak-to-trough drop — measures the strategy's worst-case risk.",
+    "btTipTimeIn": "Percentage of time the strategy was invested (otherwise in cash)."
   },
   "alerts": {
     "title": "Alerts",

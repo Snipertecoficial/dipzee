@@ -1,4 +1,5 @@
 """Auth routes: register, login, current user, profile/settings update."""
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 from database import db
+import login_guard
 from security import (
     create_access_token,
     get_current_user,
@@ -19,6 +21,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 VALID_CURRENCIES = {"CAD", "USD", "BRL"}
 VALID_LOCALES = {"en", "fr", "pt", "es"}
+
+# Strip control characters from free-text profile fields (defense-in-depth
+# against stored-XSS / log injection; React already escapes on render).
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _sanitize_text(v: Optional[str]) -> str:
+    return _CONTROL_RE.sub("", v or "").strip()
 
 
 class RegisterIn(BaseModel):
@@ -86,9 +96,19 @@ async def register(body: RegisterIn):
 
 @router.post("/login")
 async def login(body: LoginIn):
-    user = await db.users.find_one({"email": body.email.lower()})
+    email = body.email.lower()
+    locked, remaining = await login_guard.check_locked(email)
+    if locked:
+        mins = max(remaining // 60, 1)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Conta temporariamente bloqueada por tentativas excessivas. Tente novamente em ~{mins} min.",
+        )
+    user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["hashed_password"]):
+        await login_guard.record_failure(email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    await login_guard.record_success(email)
     return _auth_response(user)
 
 
@@ -109,7 +129,7 @@ async def update_profile(body: ProfileIn, user: dict = Depends(get_current_user)
     for field in ("display_name", "bio", "phone", "country", "telegram_chat_id", "webhook_url"):
         val = getattr(body, field)
         if val is not None:
-            updates[field] = val.strip()
+            updates[field] = _sanitize_text(val)
     if body.avatar is not None:
         av = body.avatar.strip()
         if av and not av.startswith("data:image/"):

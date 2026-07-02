@@ -16,7 +16,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from providers import get_provider, normalize_dividend_yield, _derive_exchange
+from providers import get_provider, fetch_resilient, normalize_dividend_yield, _derive_exchange
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +76,11 @@ def quote(symbol: str) -> Optional[dict]:
     """Real-time quote. Primary: configured provider (Finnhub). Fallback: yfinance."""
     symbol = symbol.strip().upper()
 
-    # Primary provider (reliable, keyed).
+    # Resilient cascade: keyed providers -> yfinance -> investing.
     try:
-        prov = get_provider()
-        d = prov.fetch(symbol)
+        d = fetch_resilient(symbol)
         if d and d.get("price"):
-            d.setdefault("source", getattr(prov, "name", "provider"))
-            # Backfill 52-week range from yfinance when the primary omits it
+            # Backfill 52-week range when the winning source omits it
             # (the range feeds the Opportunity Score, so it must be populated).
             if d.get("low_52w") is None or d.get("high_52w") is None:
                 try:
@@ -95,7 +93,7 @@ def quote(symbol: str) -> Optional[dict]:
                     logger.warning("52w backfill failed for %s: %s", symbol, e)
             return d
     except Exception as e:  # noqa: BLE001
-        logger.warning("provider quote failed for %s: %s", symbol, e)
+        logger.warning("resilient quote failed for %s: %s", symbol, e)
 
     # Fallback: yfinance fast_info + info.
     t = yf.Ticker(symbol)

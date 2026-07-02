@@ -820,6 +820,110 @@ def get_yf_target(symbol: str):
         return None
 
 
+# --------------------------------------------------------------------------- #
+# Resilient multi-source cascade (works without paid API keys)
+# --------------------------------------------------------------------------- #
+# Circuit breaker for fragile scraping sources (e.g. Investing.com internal
+# endpoints): after repeated failures we stop hitting them for a cooldown so a
+# flaky/blocked source never slows down or crashes the whole request path.
+_FRAGILE_SOURCES = {"investing"}
+_BREAKER: dict = {}
+_BREAKER_THRESHOLD = 3
+_BREAKER_COOLDOWN = 600  # seconds
+
+
+def _breaker_open(name: str) -> bool:
+    import time
+    b = _BREAKER.get(name)
+    return bool(b and b.get("until", 0) > time.time())
+
+
+def _breaker_record(name: str, ok: bool) -> None:
+    import time
+    if ok:
+        _BREAKER.pop(name, None)
+        return
+    b = _BREAKER.setdefault(name, {"fails": 0, "until": 0.0})
+    b["fails"] += 1
+    if b["fails"] >= _BREAKER_THRESHOLD:
+        b["until"] = time.time() + _BREAKER_COOLDOWN
+        b["fails"] = 0
+
+
+def _quote_chain() -> list:
+    """Ordered list of providers to try for a single quote.
+
+    Keyed/licensed providers (only if their API key is configured) come first,
+    then the free broad-coverage source (yfinance), then fragile scraping
+    (Investing) strictly as a last resort. This keeps the app resilient even
+    with zero paid keys.
+    """
+    chain = []
+    added = set()
+
+    def add(inst):
+        n = getattr(inst, "name", None)
+        if n and n not in added:
+            chain.append(inst)
+            added.add(n)
+
+    # Honour an explicit primary if its key is present.
+    primary = os.environ.get("PRIMARY_PROVIDER", "").strip().lower()
+    keyed = {
+        "finnhub": ("FINNHUB_API_KEY", FinnhubProvider),
+        "fmp": ("FMP_API_KEY", FMPProvider),
+        "polygon": ("POLYGON_API_KEY", PolygonProvider),
+        "alphavantage": ("ALPHAVANTAGE_API_KEY", AlphaVantageProvider),
+        "twelvedata": ("TWELVEDATA_API_KEY", TwelveDataProvider),
+        "marketstack": ("MARKETSTACK_API_KEY", MarketstackProvider),
+    }
+    if primary in keyed and os.environ.get(keyed[primary][0]):
+        add(keyed[primary][1]())
+    # Remaining keyed providers that actually have a key configured.
+    for _name, (env, cls) in keyed.items():
+        if os.environ.get(env):
+            add(cls())
+    # Free, broad-coverage source is always available.
+    add(YFinanceProvider())
+    # Fragile scraping — last resort only.
+    add(InvestingProvider())
+    return chain
+
+
+def fetch_resilient(symbol: str) -> Optional[dict]:
+    """Fetch a normalized quote by trying every source in the cascade.
+
+    Never raises. Returns the first usable payload, or None if all sources
+    failed (callers then fall back to stale cache / stored docs).
+    """
+    symbol = (symbol or "").strip().upper()
+    if not symbol:
+        return None
+    errors = []
+    for prov in _quote_chain():
+        name = getattr(prov, "name", "provider")
+        fragile = name in _FRAGILE_SOURCES
+        if fragile and _breaker_open(name):
+            continue
+        try:
+            d = prov.fetch(symbol)
+            if d and d.get("price") is not None:
+                d.setdefault("source", name)
+                if fragile:
+                    _breaker_record(name, True)
+                return d
+            if fragile:
+                _breaker_record(name, False)
+        except Exception as e:  # noqa: BLE001 - never crash on a provider error
+            errors.append(f"{name}:{e}")
+            if fragile:
+                _breaker_record(name, False)
+            continue
+    if errors:
+        logger.warning("fetch_resilient exhausted for %s (%s)", symbol, "; ".join(errors[:5]))
+    return None
+
+
 def get_provider() -> DataProvider:
     global _provider
     if _provider is None:

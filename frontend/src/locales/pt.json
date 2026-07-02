@@ -145,7 +145,9 @@
     "footerContact": "Contato",
     "footerPrivacy": "Privacidade",
     "footerTerms": "Termos",
-    "trustedBy": "Feito para investidores de varejo disciplinados"
+    "trustedBy": "Feito para investidores de varejo disciplinados",
+    "testimonialsBadge": "Depoimentos",
+    "testimonialsTitle": "Investidores amam o Dipzee"
   },
   "dashboard": {
     "title": "Oportunidades de hoje",
@@ -217,7 +219,31 @@
     "btAvg": "Média / operação",
     "noData": "Sem dados disponíveis",
     "incomeStatement": "DRE (anual)",
-    "period": "Período"
+    "period": "Período",
+    "btWhatTitle": "O que é um backtest?",
+    "btWhatDesc": "Um backtest simula como uma estratégia teria se comportado no passado usando preços históricos reais. Serve para você entender o risco e o retorno potencial de uma regra de compra/venda ANTES de arriscar dinheiro real. Resultados passados não garantem retornos futuros.",
+    "btConfigTitle": "Configurar simulação",
+    "btStrategySel": "Estratégia",
+    "stratDip": "Comprar na baixa",
+    "stratSma": "Cruzamento de médias",
+    "btPeriodLbl": "Período",
+    "btDipLbl": "Queda até a mínima (%)",
+    "btHoldLbl": "Dias segurando",
+    "btLookbackLbl": "Janela da mínima (dias)",
+    "btShortMaLbl": "Média curta (dias)",
+    "btLongMaLbl": "Média longa (dias)",
+    "btDrawdown": "Perda máxima",
+    "btTimeIn": "Tempo exposto",
+    "btLegendStrategy": "Estratégia",
+    "btLegendBuyHold": "Comprar e segurar",
+    "btEquityTitle": "Evolução de 100 investidos (base 100)",
+    "btTipTrades": "Número de operações (compra + venda) que a estratégia realizou no período.",
+    "btTipWin": "Percentual de operações que terminaram com lucro.",
+    "btTipAvg": "Retorno médio por operação.",
+    "btTipStrategy": "Retorno total acumulado seguindo a estratégia.",
+    "btTipBuyHold": "Retorno de simplesmente comprar no início e segurar até o fim (referência).",
+    "btTipDrawdown": "Maior queda do pico ao fundo — mede o pior momento/risco da estratégia.",
+    "btTipTimeIn": "Percentual do tempo em que a estratégia esteve posicionada no ativo (fora = em caixa)."
   },
   "alerts": {
     "title": "Alertas",
