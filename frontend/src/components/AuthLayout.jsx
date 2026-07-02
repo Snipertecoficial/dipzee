@@ -32,8 +32,8 @@ export function AuthLayout({ children }) {
           <h2 className="mt-12 font-heading font-bold text-3xl xl:text-4xl leading-tight max-w-md">{t('landing.heroTitle')}</h2>
           <p className="mt-4 text-[rgba(255,255,255,0.75)] max-w-md">{t('landing.heroSubtitle')}</p>
           <ul className="mt-8 space-y-3">
-            {perks.map((p, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
+            {perks.map((p) => (
+              <li key={p.text} className="flex items-center gap-3 text-sm">
                 <span className="h-8 w-8 rounded-lg bg-[rgba(22,224,163,0.18)] text-[var(--dz-mint)] flex items-center justify-center"><p.icon size={16} /></span>
                 {p.text}
               </li>

@@ -84,12 +84,12 @@ function PortfolioInner() {
 
       <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: t('portfolio.totalValue'), value: fmt(totals.market_value, cur), icon: Wallet },
-          { label: t('portfolio.totalCost'), value: fmt(totals.cost_basis, cur), icon: Coins },
-          { label: t('portfolio.totalPnl'), value: fmt(totals.pnl, cur), icon: TrendingUp, color: pctColor(totals.pnl) },
-          { label: t('portfolio.annualIncome'), value: fmt(totals.annual_income, cur), icon: Coins },
+          { k: 'value', label: t('portfolio.totalValue'), value: fmt(totals.market_value, cur), icon: Wallet },
+          { k: 'cost', label: t('portfolio.totalCost'), value: fmt(totals.cost_basis, cur), icon: Coins },
+          { k: 'pnl', label: t('portfolio.totalPnl'), value: fmt(totals.pnl, cur), icon: TrendingUp, color: pctColor(totals.pnl) },
+          { k: 'income', label: t('portfolio.annualIncome'), value: fmt(totals.annual_income, cur), icon: Coins },
         ].map((m, i) => (
-          <Card key={i} className="p-4 border-[var(--dz-border)]">
+          <Card key={m.k} className="p-4 border-[var(--dz-border)]">
             <div className="flex items-center gap-2 text-[var(--dz-muted)] text-xs"><m.icon size={14} /> {m.label}</div>
             <p className="mt-1 font-heading font-bold text-xl tnum" style={{ color: m.color || 'var(--dz-fg)' }} data-testid={`portfolio-metric-${i}`}>{m.value}</p>
           </Card>

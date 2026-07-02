@@ -1,30 +1,18 @@
 [
   {
-    "content": "Backend: capacidades por plano + catálogo + require_feature + serialize_user",
+    "content": "Backend: remover variáveis/imports não usados (alert_service.py prefs, explain.py high, server.py daily_refresh_job, routes_assets.py imports, poc_core.py imports)",
     "status": "completed"
   },
   {
-    "content": "Backend: perfil editável (avatar base64, nome, bio, phone, country, telegram, webhook)",
+    "content": "Frontend: corrigir key={index} por chaves estáveis (Portfolio metrics, AuthLayout perks, AssetInsights income+options, Landing steps/features/faqs)",
     "status": "completed"
   },
   {
-    "content": "Backend: Portfolio P&L + Backtest (gated Investidor) + entrega multicanal (email/telegram/webhook)",
+    "content": "Refatorar Admin.jsx em sub-componentes (components/admin: Overview, Users, Assets, Alerts, Billing, Settings + Shared)",
     "status": "completed"
   },
   {
-    "content": "Frontend: dark mode + Settings em abas + Markets + Portfolio + AssetInsights + gating",
-    "status": "completed"
-  },
-  {
-    "content": "PricingCards features conforme matriz + i18n (4 idiomas)",
-    "status": "completed"
-  },
-  {
-    "content": "Testar tudo (testing_agent_v3) — 100% aprovado",
-    "status": "completed"
-  },
-  {
-    "content": "Lista final do que falta para 100%",
+    "content": "Verificação: esbuild compile frontend, import backend, logs supervisor e screenshots (login superadmin + Admin tabs)",
     "status": "completed"
   }
 ]

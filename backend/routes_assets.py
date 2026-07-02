@@ -7,7 +7,6 @@ from asset_service import refresh_asset
 from database import db
 from explain import build_explanation
 from providers import get_provider, get_company_news, get_market_news, get_fmp_news
-from scoring import compute_opportunity_score, SETTINGS
 from security import get_current_user
 from alert_service import evaluate_alerts_for_asset
 

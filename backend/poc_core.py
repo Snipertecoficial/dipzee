@@ -7,10 +7,7 @@ Proves two things in isolation BEFORE building the app:
 
 Run: python poc_core.py
 """
-import math
 import time
-from dataclasses import dataclass, field
-from typing import Optional
 
 # ----------------------------------------------------------------------------
 # 1) PURE OPPORTUNITY SCORE (settings-configurable)

@@ -92,8 +92,8 @@ function FundamentalsTab({ ticker }) {
             <Table>
               <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Item</TableHead>{periods.map((p) => <TableHead key={p} className="text-right">{p}</TableHead>)}</TableRow></TableHeader>
               <TableBody>
-                {income.map((row, i) => (
-                  <TableRow key={i}>
+                {income.map((row) => (
+                  <TableRow key={row.item}>
                     <TableCell className="font-medium">{row.item}</TableCell>
                     {periods.map((p) => <TableCell key={p} className="text-right tnum text-sm">{row[p] != null ? Number(row[p]).toLocaleString() : '\u2014'}</TableCell>)}
                   </TableRow>
@@ -136,8 +136,8 @@ function OptionsTab({ ticker }) {
         <Table>
           <TableHeader><TableRow className="hover:bg-transparent"><TableHead>{t('asset.strike')}</TableHead><TableHead className="text-right">{t('asset.last')}</TableHead></TableRow></TableHeader>
           <TableBody>
-            {(list || []).slice(0, 40).map((o, i) => (
-              <TableRow key={i}><TableCell className="tnum">{o.strike}</TableCell><TableCell className="text-right tnum">{o.lastPrice}</TableCell></TableRow>
+            {(list || []).slice(0, 40).map((o) => (
+              <TableRow key={o.contractSymbol || o.strike}><TableCell className="tnum">{o.strike}</TableCell><TableCell className="text-right tnum">{o.lastPrice}</TableCell></TableRow>
             ))}
           </TableBody>
         </Table>

@@ -115,7 +115,6 @@ async def evaluate_alerts_for_asset(asset: dict):
             await db.alert_events.insert_one(event)
             await db.alerts.update_one({"id": alert["id"]}, {"$set": {"last_triggered_at": _now_iso()}})
 
-            prefs = (user or {}).get("default_alert_prefs", {}) or {}
             if user:
                 subject = f"Dipzee \u2022 {ticker}: {alert['type'].replace('_', ' ').title()}"
                 html = f"<div style='font-family:Inter,Arial,sans-serif'><h2 style='color:#1A1F4D'>Dipzee</h2><p>{message}</p><p style='color:#5B6478;font-size:12px'>Educational information, not financial advice.</p></div>"

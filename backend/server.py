@@ -7,7 +7,7 @@ import os
 
 from database import client, ensure_indexes
 from scoring import SETTINGS
-from scheduler import start_scheduler, shutdown_scheduler, daily_refresh_job
+from scheduler import start_scheduler, shutdown_scheduler
 import routes_auth
 import routes_assets
 import routes_watchlist

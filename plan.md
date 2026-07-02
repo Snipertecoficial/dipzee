@@ -1,30 +1,35 @@
-# Dipzee — plan.md (Planos por capacidades + Perfil + Dark Mode + Mercados/Ativos + Investidor) — ATUALIZADO
+# Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium) — ATUALIZADO (Fase: Qualidade & Refactor)
 
 ## 1) Objectives
 
-### Objetivos já concluídos (baseline do produto)
+### Objetivos já concluídos (baseline do produto) — ✅
 - **Estrutura de planos paga (USD) concluída** com 3 tiers e pricing server-side:
-  - **Iniciante (`starter`) — US$ 4,97/mês**
+  - **Starter (`starter`) — US$ 4,97/mês**
   - **Pro (`pro`) — US$ 12,97/mês**
-  - **Investidor (`investor`) — US$ 24,99/mês**
-  - Trial de 7 dias com cartão + **paywall** (usuários `plan="none"` não acessam até assinar).
-- **Redesign das áreas logadas concluído** (AppShell com sidebar colapsável, topbar, consistência de rotas).
-- **Redesign da home + auth concluído**, remoção do badge “Made with Emergent”, favicon/título configurados.
-- **Camada resiliente de dados de mercado concluída**: `/api/market/*` (Finnhub + yfinance) com cache TTL, persistência Mongo e fallback stale-on-error.
+  - **Investor (`investor`) — US$ 24,99/mês**
+  - **Trial de 7 dias com cartão + paywall** (usuários `plan="none"` não acessam áreas logadas até assinar).
+- **Redesign das áreas logadas concluído** (AppShell profissional com sidebar/topbar, rotas consistentes).
+- **Redesign da landing/auth concluído**, remoção do badge “Made with Emergent”, favicon/título configurados.
+- **Camada resiliente de dados de mercado concluída** (`/api/market/*`) com cache agressivo + persistência Mongo + fallback stale para evitar rate limit do Yahoo/yfinance.
+- **Dark Mode** completo (toggle + persistência).
+- **Perfil editável** com avatar Base64 e integrações (Telegram/Webhook).
+- **Mercados** (abas + filtro) + **Asset Detail** com Insights (Chart/Fundamentals/Options/Backtest com gating).
+- **Investidor entregue**: Portfolio P&L + export CSV + Backtesting.
+- **Dual-superadmin**: múltiplos e-mails permitidos.
 
-### Objetivos desta nova fase (MVP “de respeito”) — STATUS: CONCLUÍDO
-1. **Matriz de planos fiel e aplicada por gating real** (backend + frontend), sem overpromising:
-   - **Iniciante**: 25 ativos, 10 alertas, in-app + email, EOD, 4 idiomas, busca de qualquer ativo.
-   - **Pro**: ilimitado, in-app + email, **Dividend Tracker (MVP via Portfolio + Yield/Income)**, **Screener completo**, **gráficos + fundamentals + opções**, 4 idiomas.
-   - **Investidor**: tudo do Pro + **intraday 15min**, **Screener avançado** (pré-definidos yfinance), **Portfolio P&L**, **Backtest**, **alertas por mensagem (Telegram/Webhook)**, **export CSV + prioridade**.
-2. **Perfil do usuário completo** (admin/assinantes): dados pessoais + avatar (base64) + integrações (Telegram/Webhook).
-3. **Modo escuro (dark mode)** com toggle no topbar e em Configurações.
-4. **Página “Mercados”** (abas fáceis + filtro) usando screeners do yfinance + notícias.
-5. **Asset Detail enriquecido** (Pro+): gráfico (Recharts), fundamentals e opções usando `/api/market/*`.
-6. **Features Investidor funcionando de verdade** (não só promessa): Portfolio, Backtest, canais de alerta.
-7. **Teste E2E e regressão**: `testing_agent_v3` executado e aprovado (iteration_8 — **23/23 backend + todos os fluxos frontend**).
+### Objetivos desta fase (Qualidade de Código + Refatoração Admin) — STATUS: ⏳ EM ANDAMENTO
+1. **Aplicar correções de Qualidade de Código (baixo risco, melhores práticas)**
+   - Frontend: eliminar `key={index}` onde há lista dinâmica e substituir por chave estável.
+   - Backend: remover imports/variáveis não usadas (pyflakes), mantendo comportamento idêntico.
+   - Evitar refactors que mudem arquitetura (ex.: migração de localStorage → cookies **não** entra agora).
+2. **Refatorar `Admin.jsx` (manutenibilidade)**
+   - Extrair as tabs em subcomponentes pequenos e testáveis.
+   - Preservar **100%** dos `data-testid`, rotas e chamadas de API.
+   - Manter o container Admin como “orquestrador” (estado, loaders, handlers), e os subcomponentes como “presentational”.
+3. **Verificação básica pós-alteração (sem agente E2E completo)**
+   - `frontend build`/compilação, logs, sanity-check de navegação e chamadas principais (curl) e screenshots pontuais.
 
-> Status geral atual: **MVP robusto concluído e testado 100%**. Restam itens de “produção/escala” (ver Phase D).
+> Observação: **Sem integrações** (Stripe subscriptions/Resend/Telegram) nesta fase, pois chaves/API keys ainda não foram fornecidas.
 
 ---
 
@@ -34,93 +39,60 @@
 **Entregue**
 - Auditoria de limites, intraday, alert types, UI do Upgrade.
 - Tabela interna “Plano → features → status”.
-- Ajuste de copy e i18n para evitar overpromising.
+- Ajuste de copy/i18n para evitar overpromising.
 
 ---
 
 ### Phase A — Fundação (Capacidades por plano + Perfil + Dark Mode) — ✅ CONCLUÍDA
 
-#### A1) Backend: catálogo de planos por capacidades — ✅ CONCLUÍDO
-**Entregue**
-- `/app/backend/plans.py` evoluído com:
-  - `PLAN_LIMITS`, `PLAN_FEATURES`, `PLAN_RANK`, `PLAN_CARD_FEATURES`.
-  - Helpers: `has_feature`, `plan_capabilities`, `catalog`.
-- `serialize_user` agora retorna `capabilities` no usuário.
-- Dependency `require_feature(feature)` para gating backend com `403 {code:"feature_locked"}`.
-- Endpoint público: `GET /api/plans/catalog`.
+#### A1) Backend: catálogo de planos por capacidades — ✅
+- `plans.py`: `PLAN_LIMITS`, `PLAN_FEATURES`, `PLAN_RANK`, `PLAN_CARD_FEATURES`.
+- Helpers: `has_feature`, `plan_capabilities`, `catalog`.
+- `serialize_user` retorna `capabilities`.
+- `require_feature(feature)` (403 `feature_locked`).
+- `GET /api/plans/catalog`.
 
-#### A2) Backend: Perfil editável (dados + avatar base64) — ✅ CONCLUÍDO
-**Entregue**
-- Campos no usuário:
-  - `display_name`, `bio`, `avatar` (base64 data URL com limite), `phone`, `country`.
-  - Integrações: `telegram_chat_id`, `webhook_url`.
-  - `default_alert_prefs` expandido: `email`, `in_app`, `telegram`, `webhook`.
-- Endpoint: `PUT /api/auth/profile` com validações (formato + tamanho do avatar, sanitização).
+#### A2) Backend: Perfil editável (dados + avatar base64) — ✅
+- `PUT /api/auth/profile` com validações (tamanho/formato avatar, sanitização).
 
-#### A3) Frontend: Settings em abas + Perfil — ✅ CONCLUÍDO
-**Entregue**
-- `/app/frontend/src/pages/Settings.jsx` refeito com Tabs:
-  - **Perfil**: nome, bio, foto (upload base64), país/telefone.
-  - **Aparência**: tema + idioma + moeda.
-  - **Alertas**: switches email/in-app + campos Telegram/Webhook (com gating).
-  - **Assinatura**: plano atual + CTA upgrade.
+#### A3) Frontend: Settings em abas + Perfil — ✅
+- Settings com abas: Perfil / Aparência / Alertas / Assinatura.
 
-#### A4) Dark Mode completo — ✅ CONCLUÍDO
-**Entregue**
-- `ThemeContext` com persistência (`localStorage`) + opção `system`.
-- Toggle no TopBar (`ThemeToggle`) + seleção em Settings.
-- Tokens `.dark` em `/frontend/src/index.css` (dz-* e shadcn/hsl) garantindo contraste.
+#### A4) Dark Mode completo — ✅
+- `ThemeContext` com persistência + opção system.
+- Toggle no TopBar e opção em Settings.
 
 ---
 
-### Phase B — Mercados + Ativos/Notícias (Pro+ para “profundidade”) — ✅ CONCLUÍDA
+### Phase B — Mercados + Ativos/Notícias — ✅ CONCLUÍDA
 
-#### B1) Página “Mercados” (descoberta e filtros) — ✅ CONCLUÍDA
-**Entregue**
-- Rota: `/app/markets`.
-- Abas: `day_gainers`, `day_losers`, `most_actives`, **crypto**, **news**.
-- Filtro por ticker/nome nas abas com tabela.
-- Integração:
-  - Screeners via `GET /api/market/screener`.
-  - Notícias via `GET /api/news/market`.
+#### B1) Página “Mercados” — ✅
+- `/app/markets` com abas `day_gainers`, `day_losers`, `most_actives`, `crypto`, `news`.
+- Integrações: `GET /api/market/screener` e `GET /api/news/market`.
 
-#### B2) Asset Detail (Pro+) — ✅ CONCLUÍDA
-**Entregue**
-- Componente `AssetInsights` com Tabs:
-  - **Chart** (Recharts) usando `GET /api/market/history`.
-  - **Fundamentals** usando `GET /api/market/fundamentals`.
-  - **Options** usando `GET /api/market/options`.
-  - **Backtest** (Investidor) usando `GET /api/backtest`.
-- **Gating 1:1** com a matriz:
-  - Starter: visão geral.
-  - Pro+: chart/fundamentals/options.
-  - Investidor: backtest.
+#### B2) Asset Detail (Pro+) — ✅
+- `AssetInsights` com Tabs:
+  - Chart: `GET /api/market/history`
+  - Fundamentals: `GET /api/market/fundamentals`
+  - Options: `GET /api/market/options`
+  - Backtest (Investidor): `GET /api/backtest`
+- Gating 1:1 com a matriz.
 
 ---
 
-### Phase C — Investidor (Portfolio P&L + Backtest + Alertas por Mensagem) — ✅ CONCLUÍDA
+### Phase C — Investidor (Portfolio P&L + Backtest + Canais) — ✅ CONCLUÍDA
 
-#### C1) Portfolio P&L (Investidor) — ✅ CONCLUÍDO
-**Entregue**
-- Backend: `routes_portfolio.py` + coleção `positions` (índice unique user+ticker).
-- Cálculo: P&L, market value, cost basis e dividendos anuais estimados.
-- Frontend: `/app/portfolio` com CRUD + métricas + export CSV.
-- Gating backend (`require_feature("portfolio")`) + upsell UI.
+#### C1) Portfolio P&L — ✅
+- Backend: `routes_portfolio.py` + coleção `positions`.
+- Cálculo: P&L, market value, cost basis, dividendos anuais estimados.
+- Frontend: CRUD + métricas + export CSV.
 
-#### C2) Backtest (Investidor) — ✅ CONCLUÍDO
-**Entregue**
-- Backend: `routes_backtest.py` com estratégia simples “buy the dip” (não-overlap) usando histórico diário.
-- Frontend: aba Backtest dentro de `AssetInsights`.
+#### C2) Backtest — ✅
+- Backend: `routes_backtest.py`.
+- Frontend: tab Backtest no AssetInsights.
 
-#### C3) Alertas por Mensagem (Investidor) — ✅ CONCLUÍDO (com dependências de configuração)
-**Entregue**
-- Novo `notify_service.py`:
-  - Email (via `email_service` — hoje mock/log).
-  - Webhook (POST para URL do usuário) — funcional.
-  - Telegram (quando `TELEGRAM_BOT_TOKEN` estiver configurado) — funcional.
-- Integração em `alert_service.py` respeitando:
-  - `default_alert_prefs`.
-  - gating por `messaging_alerts` (Investidor).
+#### C3) Alertas por Mensagem (estrutura) — ✅ (dependente de config)
+- `notify_service.py` com Email (mock), Webhook (real), Telegram (quando token).
 
 ---
 
@@ -128,49 +100,127 @@
 
 **Entregue (MVP)**
 - Gating consistente:
-  - Backend via `require_feature`.
-  - Frontend via `FeatureGate` (upsell) + nav condicional.
-- `testing_agent_v3` rodado e aprovado (iteration_8): **100% backend + 100% frontend**.
+  - Backend: `require_feature`
+  - Frontend: `FeatureGate`
+- Testes E2E anteriores (iteration_8/9) passaram sem regressões.
 
-**Pendências para “100% produção” (próximos upgrades recomendados)**
-1. **Stripe recorrente real** (assinatura/trial automático) + **Customer Portal** (cancelar/atualizar cartão) — hoje checkout é “pago” mas não há recorrência real via lib atual.
-2. **Resend real** (e-mails transacionais) + **reset de senha** + verificação de e-mail.
-3. **TELEGRAM_BOT_TOKEN** no ambiente (para ativar o envio real no Telegram).
-4. **Dividend Tracker dedicado** (calendário de pagamentos, histórico de dividendos, alerts por ex-dividend) — hoje há estimativa anual por yield e Portfolio Income.
-5. **Advanced Screener Builder** (UI de filtros avançados + presets) e/ou filtros adicionais em Mercados.
-6. **Provider licenciado** (produção comercial): reduzir dependência do Yahoo/yfinance para dados críticos (SLA/legal).
-7. **Termos/Privacidade** (páginas reais), hardening de segurança (rate limiting, auditoria, 2FA opcional) e observabilidade (Sentry).
-8. **Redeploy em produção** após cada alteração (você controla o deploy do preview para https://dipzee-mvp.emergent.host).
+**Pendências para 100% produção (fora do escopo desta fase)**
+1. Stripe Subscriptions + trial real + Customer Portal.
+2. Resend real + reset/verify e-mails.
+3. `TELEGRAM_BOT_TOKEN` em produção.
+4. Dividend tracker dedicado.
+5. Advanced Screener Builder.
+6. Provider licenciado.
+7. Termos/Privacidade + hardening/observabilidade.
+
+---
+
+### Phase E — Qualidade de Código + Refatoração Admin (fase atual) — ✅ CONCLUÍDA
+
+> Resultado: backend sem warnings de pyflakes nos módulos de runtime; keys instáveis (index) substituídas por chaves estáveis; `Admin.jsx` reduzido de 376 → ~145 linhas e dividido em 7 subcomponentes em `frontend/src/pages/admin/` (AdminShared, Overview, Users, Assets, Alerts, Billing, Settings). Todas as abas verificadas via screenshot (Overview/Users/Settings) sem regressão. Compilação esbuild OK e login superadmin OK.
+
+#### E1) Backend: limpar variáveis/imports não usados (pyflakes) — ⏳
+**Descobertas reais (pyflakes):**
+- `alert_service.py`: variável `prefs` atribuída e não usada.
+- `explain.py`: variável `high` atribuída e não usada.
+- `server.py`: import `daily_refresh_job` não usado.
+- `routes_assets.py`: imports `compute_opportunity_score` e `SETTINGS` não usados.
+- `poc_core.py`: imports não usados (`math`, `dataclass`, `field`, `Optional`).
+- `backend_test.py`: import não usado (arquivo de teste; manter sem impacto em runtime, mas ideal limpar também).
+
+**Plano de execução:**
+- Remover variáveis/imports não usados sem alterar lógica.
+- Rodar `python -m pyflakes` novamente até “limpo” (ou minimamente sem warnings nos módulos de runtime).
+
+#### E2) Frontend: substituir `key={index}` por chaves estáveis — ⏳
+**Alvos confirmados via grep:**
+- `Portfolio.jsx`: cards de métricas usam `key={i}` → trocar para `key={m.label}` (ou `key={m.testId}` se criado).
+- `AuthLayout.jsx`: perks usam `key={i}` → trocar para `key={p.text}` (ou `key={p.textKey}` se padronizar).
+- `AssetInsights.jsx`:
+  - `income.map((row, i))` → usar `key={row.item}`.
+  - options chain map usa `key={i}` → usar `key={o.contractSymbol || o.strike}` (fallback controlado se não existir).
+- `Landing.jsx`:
+  - `steps.map((s, i))` → `key={s.title}`.
+  - `features.map((f, i))` → `key={f.title}`.
+  - `faqs.map((f, i))` → `key={f.q}` e `value={f.q}` (ou manter `value` estável derivado do texto).
+
+**Notas de boas práticas:**
+- Keys de skeletons gerados de arrays literais `[1,2,3]` são aceitáveis e podem ser mantidos.
+- Onde o dado não tem id estável, criar uma chave derivada consistente (ex.: `label/title/q`) antes de cair em index.
+
+#### E3) Refatoração do Admin.jsx em subcomponentes — ⏳
+**Objetivo:** reduzir complexidade/custo de manutenção mantendo comportamento.
+
+**Estratégia (segura):**
+- Criar pasta: `frontend/src/pages/admin/` (ou `frontend/src/components/admin/`).
+- Extrair componentes por tab:
+  1. `AdminOverviewTab.jsx`
+  2. `AdminUsersTab.jsx`
+  3. `AdminAssetsTab.jsx`
+  4. `AdminAlertsTab.jsx`
+  5. `AdminBillingTab.jsx`
+  6. `AdminSettingsTab.jsx`
+- `Admin.jsx` mantém:
+  - estado (`stats`, `config`, `users`, `assets`, etc.)
+  - loaders/busy flags
+  - handlers (update/delete/refresh/save)
+  - funções utilitárias comuns (`fmtDate`, classes `th/td`)
+- Subcomponentes recebem via props:
+  - data + callbacks + busy flags
+  - `t`, `locale` (ou strings já prontas)
+- **Preservar `data-testid` existentes** e o layout atual.
+
+**Critérios de aceite:**
+- UI idêntica (sem regressões visuais e funcionais).
+- Todas as chamadas de API permanecem iguais.
+- `Admin.jsx` reduzido e legível.
+
+#### E4) Verificação básica (sem E2E completo) — ⏳
+- Frontend:
+  - `yarn build` (ou `craco build`) para confirmar compilação.
+  - Navegação rápida: login superadmin → Admin → alternar tabs.
+- Backend:
+  - subir serviços (já estão rodando) e validar endpoints principais via curl:
+    - `/api/admin/stats`
+    - `/api/admin/users`
+    - `/api/market/quote/AAPL`
+  - checar logs por erros.
 
 ---
 
 ## 3) Next Actions (a partir de agora)
 
-1. **Produção (Pagamento):** migrar billing para **Stripe Subscriptions** (trial 7 dias + cobrança automática) + Customer Portal.
-2. **E-mail real:** integrar Resend e completar fluxo de reset/verify.
-3. **Ativar Telegram:** setar `TELEGRAM_BOT_TOKEN` e validar canal.
-4. **Refino de features Pro/Investidor:** dividend tracker completo + screener avançado com construtor.
-5. **Compliance e robustez:** Termos/Privacidade, observabilidade e provider licenciado.
+### Imediato (esta fase)
+1. Aplicar limpezas do backend (pyflakes) com PR pequeno e seguro.
+2. Corrigir `key` instáveis no frontend.
+3. Refatorar `Admin.jsx` em subcomponentes (com preservação de testids).
+4. Fazer verificação básica (build + sanity check) e registrar evidências (logs/screenshot).
+
+### Próximo (quando usuário fornecer chaves)
+1. Stripe Subscriptions (trial real) + Customer Portal.
+2. Resend real + reset/verify.
+3. Ativar Telegram em produção.
 
 ---
 
 ## 4) Success Criteria
 
 ### Já atingidos (baseline + MVP)
-- 3 planos pagos em USD + **paywall** (plan=none → upgrade).
-- UI premium (home/auth + app shell) + favicon/title + sem badge Emergent.
-- `/api/market/*` resiliente com cache e fallback stale.
-- **Planos fiéis**: UI + gating 1:1 com capacidades.
-- **Perfil completo**: dados + avatar + integrações salvos.
-- **Dark mode** completo e consistente.
-- **Mercados** com abas e filtro + **Asset Detail completo Pro+** (chart/fundamentals/options) + backtest investidor.
-- **Investidor entregue**: Portfolio P&L + Backtest + canais (webhook/telegram quando token) + export CSV.
-- `testing_agent_v3` passou (iteration_8) sem regressões.
+- 3 planos pagos em USD + paywall trial 7 dias.
+- UI premium (landing/auth + app shell) e gating consistente.
+- Dados de mercado resilientes com cache e fallback.
+- Perfil + avatar base64 + dark mode.
+- Mercados + Asset Detail Pro+ + Portfolio/Backtest Investor.
 
-### Para considerar “100% produção”
-- Stripe Subscriptions + Portal + cancelamento self-serve.
+### Para concluir a fase atual (Qualidade & Refactor)
+- Backend sem warnings relevantes de `pyflakes` em módulos de runtime.
+- Frontend sem `key={index}` em listas dinâmicas (chaves estáveis).
+- `Admin.jsx` refatorado em subcomponentes sem alteração de comportamento.
+- Build frontend ok + sanity checks ok (sem necessidade de rodar o agente E2E completo nesta iteração).
+
+### Para considerar “100% produção” (futuro)
+- Stripe Subscriptions + Portal.
 - Resend real + reset/verify.
-- Telegram token configurado (e testes de entrega real).
+- Token Telegram configurado.
 - Dividend tracker dedicado.
-- Provider licenciado (evitar risco Yahoo).
-- Termos/Privacidade + hardening + observabilidade.
+- Provider licenciado + compliance/observabilidade.

@@ -17,7 +17,6 @@ def build_explanation(asset: dict, locale: str = "en") -> str:
     name = asset.get("name") or asset.get("ticker")
     price = asset.get("price")
     low = asset.get("low_52w")
-    high = asset.get("high_52w")
     target = asset.get("target_mean")
     dy = asset.get("dividend_yield") or 0.0
     score = asset.get("score")

@@ -231,7 +231,7 @@ export default function Landing() {
         <Reveal><h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.howTitle')}</h2></Reveal>
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6" data-testid="home-how-it-works">
           {steps.map((s, i) => (
-            <Reveal key={i}>
+            <Reveal key={s.title}>
               <Card className="p-6 h-full bg-[var(--dz-surface)] border border-[var(--dz-border)] shadow-[var(--dz-shadow-card)]">
                 <div className="flex items-center justify-between">
                   <div className="h-11 w-11 rounded-xl bg-[var(--dz-primary)] text-white flex items-center justify-center"><s.icon size={20} /></div>
@@ -302,8 +302,8 @@ export default function Landing() {
       <section id="features" className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
         <Reveal><h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.featuresTitle')}</h2></Reveal>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="home-feature-grid">
-          {features.map((f, i) => (
-            <Reveal key={i}>
+          {features.map((f) => (
+            <Reveal key={f.title}>
               <Card className="p-6 h-full bg-[var(--dz-surface)] border border-[var(--dz-border)] shadow-[var(--dz-shadow-card)]">
                 <div className="h-10 w-10 rounded-lg bg-[var(--dz-mint-16)] text-[var(--dz-buy-deep)] flex items-center justify-center"><f.icon size={18} /></div>
                 <h3 className="mt-4 font-heading font-semibold">{f.title}</h3>
@@ -349,7 +349,7 @@ export default function Landing() {
           <h2 className="font-heading font-semibold text-2xl sm:text-3xl text-center">{t('landing.faqTitle')}</h2>
           <Accordion type="single" collapsible className="mt-6">
             {faqs.map((f, i) => (
-              <AccordionItem key={i} value={`faq-${i}`}>
+              <AccordionItem key={f.q} value={`faq-${i}`}>
                 <AccordionTrigger className="text-left">{f.q}</AccordionTrigger>
                 <AccordionContent className="text-[var(--dz-muted)]">{f.a}</AccordionContent>
               </AccordionItem>
