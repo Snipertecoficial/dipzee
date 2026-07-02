@@ -12,23 +12,19 @@
     "status": "completed"
   },
   {
-    "content": "Frontend: dark mode (tokens .dark + ThemeContext + toggle topbar/Settings)",
+    "content": "Frontend: dark mode + Settings em abas + Markets + Portfolio + AssetInsights + gating",
     "status": "completed"
   },
   {
-    "content": "Frontend: Settings em abas + Markets + Portfolio + AssetInsights (chart/fund/options/backtest) + gating",
+    "content": "PricingCards features conforme matriz + i18n (4 idiomas)",
     "status": "completed"
   },
   {
-    "content": "Frontend: PricingCards features conforme matriz + i18n (4 idiomas)",
+    "content": "Testar tudo (testing_agent_v3) — 100% aprovado",
     "status": "completed"
   },
   {
-    "content": "Testar tudo (backend + frontend) com testing_agent_v3 e corrigir bugs",
-    "status": "in_progress"
-  },
-  {
-    "content": "Escrever lista final do que falta para 100%",
-    "status": "pending"
+    "content": "Lista final do que falta para 100%",
+    "status": "completed"
   }
 ]
