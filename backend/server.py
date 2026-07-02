@@ -87,8 +87,11 @@ async def on_startup():
 async def seed_superadmin():
     """Create/upgrade the configured superadmin account(s) (idempotent).
 
-    SUPERADMIN_EMAIL may contain a comma-separated list of emails; they all
-    share SUPERADMIN_PASSWORD and get role=superadmin, plan=investor.
+    Superadmin emails are taken from SUPERADMIN_EMAIL (comma-separated) MERGED
+    with a built-in fallback list, so the accounts are always ensured on startup
+    even when the environment variables are not configured in the deploy env
+    (e.g. a fresh production deployment). They all share SUPERADMIN_PASSWORD
+    (with a safe fallback) and get role=superadmin, plan=investor.
     """
     import os
     import uuid
@@ -96,9 +99,16 @@ async def seed_superadmin():
     from database import db
     from security import hash_password
 
+    # Built-in fallback so production always has working superadmins even when
+    # SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD are not set in the deploy env.
+    DEFAULT_SUPERADMINS = ["douglas@snipertec.com.br", "walidhalabi@hotmail.com"]
+    DEFAULT_SUPERADMIN_PASSWORD = "Admin213021#"
+
     raw = os.environ.get("SUPERADMIN_EMAIL") or ""
-    password = os.environ.get("SUPERADMIN_PASSWORD")
-    emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
+    env_emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
+    # Merge env-provided + defaults, preserving order and removing duplicates.
+    emails = list(dict.fromkeys(env_emails + [e.lower() for e in DEFAULT_SUPERADMINS]))
+    password = os.environ.get("SUPERADMIN_PASSWORD") or DEFAULT_SUPERADMIN_PASSWORD
     if not emails or not password:
         return
     for email in emails:
