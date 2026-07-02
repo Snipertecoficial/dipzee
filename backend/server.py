@@ -15,6 +15,7 @@ import routes_alerts
 import routes_screener
 import routes_billing
 import routes_admin
+import routes_market
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ api_router.include_router(routes_alerts.router)
 api_router.include_router(routes_screener.router)
 api_router.include_router(routes_billing.router)
 api_router.include_router(routes_admin.router)
+api_router.include_router(routes_market.router)
 
 app.include_router(api_router)
 

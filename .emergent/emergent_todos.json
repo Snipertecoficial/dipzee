@@ -1,14 +1,22 @@
 [
   {
-    "content": "Redesign home + auth, remover seção, copy, paywall onboarding, remover plano grátis",
+    "content": "Criar market_cache.py (cache TTL + fallback stale Mongo + retry/backoff + json_safe)",
     "status": "completed"
   },
   {
-    "content": "Validar com testing_agent_v3 (100% backend e frontend)",
+    "content": "Criar market_service.py (quote, history, batch, summary, search, fundamentals, options, screener)",
     "status": "completed"
   },
   {
-    "content": "Escrever avaliação crítica final ('eu assinaria?' + o que falta)",
+    "content": "Criar routes_market.py /api/market/* + schemas + /health",
+    "status": "completed"
+  },
+  {
+    "content": "Registrar router no server.py e reiniciar backend",
+    "status": "completed"
+  },
+  {
+    "content": "Validar camada de mercado com testing_agent_v3 (backend)",
     "status": "in_progress"
   }
 ]

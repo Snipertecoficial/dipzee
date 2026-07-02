@@ -1027,6 +1027,337 @@ class DipzeeAPITester:
             print(f"  ✓ New user registered without currency field")
             print(f"    Default currency: {user.get('currency')} (expected: USD)")
 
+    def test_market_data_layer(self):
+        """Test new resilient market data layer endpoints (NO AUTH REQUIRED)"""
+        print("\n" + "="*60)
+        print("TESTING MARKET DATA LAYER (NEW - Public Endpoints)")
+        print("="*60)
+
+        # Save current token and test without auth (public endpoints)
+        old_token = self.token
+        self.token = None
+
+        # Test 1: GET /market/health
+        print("\n--- Test 1: Health Check ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/health",
+            "GET", "market/health", 200,
+            check_response=lambda r: r.get("status") == "ok"
+        )
+        
+        if result:
+            print(f"  ✓ Health check passed: {result}")
+
+        # Test 2: GET /market/quote/AAPL (first call - should fetch)
+        print("\n--- Test 2: Quote AAPL (first call) ---")
+        result1 = self.test_endpoint(
+            "MARKET", "GET /market/quote/AAPL (first call)",
+            "GET", "market/quote/AAPL", 200,
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                r.get("data", {}).get("price") is not None and
+                r.get("data", {}).get("low_52w") is not None and
+                r.get("data", {}).get("high_52w") is not None and
+                r.get("data", {}).get("currency") is not None
+            )
+        )
+        
+        if result1:
+            data = result1.get("data", {})
+            print(f"  ✓ AAPL quote received:")
+            print(f"    Price: {data.get('price')}")
+            print(f"    52w Low: {data.get('low_52w')}, High: {data.get('high_52w')}")
+            print(f"    Currency: {data.get('currency')}")
+            print(f"    Cached: {result1.get('cached')}, Stale: {result1.get('stale')}")
+
+        # Test 3: GET /market/quote/AAPL (second call - should be cached)
+        print("\n--- Test 3: Quote AAPL (second call - cache verification) ---")
+        time.sleep(1)  # Brief pause
+        result2 = self.test_endpoint(
+            "MARKET", "GET /market/quote/AAPL (second call)",
+            "GET", "market/quote/AAPL", 200,
+            check_response=lambda r: (
+                r.get("ok") == True and
+                r.get("cached") == True and
+                "data" in r
+            )
+        )
+        
+        if result2:
+            print(f"  ✓ AAPL quote from cache:")
+            print(f"    Cached: {result2.get('cached')} (expected: True)")
+            print(f"    Stale: {result2.get('stale')}")
+
+        # Test 4: GET /market/quote/ZZINVALIDXYZ (invalid symbol - should return 502)
+        print("\n--- Test 4: Quote Invalid Symbol (error handling) ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/quote/ZZINVALIDXYZ",
+            "GET", "market/quote/ZZINVALIDXYZ", 502
+        )
+        
+        if result is None:  # 502 returns None in our test framework
+            print(f"  ✓ Invalid symbol correctly returned 502")
+        else:
+            # Check if it has error detail
+            try:
+                # Make a direct request to check error structure
+                url = f"{BASE_URL}/market/quote/ZZINVALIDXYZ"
+                response = requests.get(url, timeout=30)
+                if response.status_code == 502:
+                    error_data = response.json()
+                    if error_data.get("detail", {}).get("error") == "upstream_unavailable":
+                        print(f"  ✓ Error structure correct: {error_data}")
+                    else:
+                        print(f"  ⚠️  Error structure unexpected: {error_data}")
+            except Exception as e:
+                print(f"  ⚠️  Could not verify error structure: {e}")
+
+        # Test 5: GET /market/history/AAPL?period=5d&interval=1d
+        print("\n--- Test 5: History AAPL (5d, 1d) ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/history/AAPL?period=5d&interval=1d",
+            "GET", "market/history/AAPL", 200,
+            params={"period": "5d", "interval": "1d"},
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                isinstance(r.get("data"), list) and
+                len(r.get("data", [])) >= 1
+            )
+        )
+        
+        if result:
+            data = result.get("data", [])
+            print(f"  ✓ History data received: {len(data)} bars")
+            if data:
+                first_bar = data[0]
+                required_fields = ["open", "high", "low", "close", "volume"]
+                has_all_fields = all(field in first_bar for field in required_fields)
+                if has_all_fields:
+                    print(f"  ✓ First bar has all OHLCV fields: {list(first_bar.keys())}")
+                else:
+                    print(f"  ⚠️  First bar missing some fields: {list(first_bar.keys())}")
+
+        # Test 6: GET /market/batch?symbols=AAPL,MSFT&period=5d
+        print("\n--- Test 6: Batch AAPL,MSFT (5d) ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/batch?symbols=AAPL,MSFT&period=5d",
+            "GET", "market/batch", 200,
+            params={"symbols": "AAPL,MSFT", "period": "5d"},
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                isinstance(r.get("data"), dict) and
+                "AAPL" in r.get("data", {}) and
+                "MSFT" in r.get("data", {})
+            )
+        )
+        
+        if result:
+            data = result.get("data", {})
+            print(f"  ✓ Batch data received:")
+            print(f"    AAPL: {len(data.get('AAPL', []))} bars")
+            print(f"    MSFT: {len(data.get('MSFT', []))} bars")
+
+        # Test 7: GET /market/summary/US
+        print("\n--- Test 7: Market Summary US ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/summary/US",
+            "GET", "market/summary/US", 200,
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                ("summary" in r.get("data", {}) or "status" in r.get("data", {}))
+            )
+        )
+        
+        if result:
+            data = result.get("data", {})
+            print(f"  ✓ Market summary received:")
+            print(f"    Keys: {list(data.keys())}")
+
+        # Test 8: GET /market/search?q=apple
+        print("\n--- Test 8: Search 'apple' ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/search?q=apple",
+            "GET", "market/search", 200,
+            params={"q": "apple"},
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                "quotes" in r.get("data", {}) and
+                "news" in r.get("data", {}) and
+                isinstance(r.get("data", {}).get("quotes"), list) and
+                isinstance(r.get("data", {}).get("news"), list)
+            )
+        )
+        
+        if result:
+            data = result.get("data", {})
+            quotes = data.get("quotes", [])
+            news = data.get("news", [])
+            print(f"  ✓ Search results:")
+            print(f"    Quotes: {len(quotes)} items")
+            print(f"    News: {len(news)} items")
+
+        # Test 9: GET /market/fundamentals/MSFT
+        print("\n--- Test 9: Fundamentals MSFT ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/fundamentals/MSFT",
+            "GET", "market/fundamentals/MSFT", 200,
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                "income_stmt" in r.get("data", {}) and
+                isinstance(r.get("data", {}).get("income_stmt"), list) and
+                "analyst_price_targets" in r.get("data", {}) and
+                isinstance(r.get("data", {}).get("analyst_price_targets"), dict) and
+                "mean" in r.get("data", {}).get("analyst_price_targets", {})
+            )
+        )
+        
+        if result:
+            data = result.get("data", {})
+            income_stmt = data.get("income_stmt", [])
+            targets = data.get("analyst_price_targets", {})
+            print(f"  ✓ Fundamentals received:")
+            print(f"    Income statement: {len(income_stmt)} rows")
+            print(f"    Analyst price targets mean: {targets.get('mean')}")
+
+        # Test 10: GET /market/options/AAPL
+        print("\n--- Test 10: Options AAPL (expirations) ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/options/AAPL",
+            "GET", "market/options/AAPL", 200,
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                "expirations" in r.get("data", {}) and
+                isinstance(r.get("data", {}).get("expirations"), list)
+            )
+        )
+        
+        first_expiration = None
+        if result:
+            data = result.get("data", {})
+            expirations = data.get("expirations", [])
+            print(f"  ✓ Options expirations: {len(expirations)} dates")
+            if expirations:
+                first_expiration = expirations[0]
+                print(f"    First expiration: {first_expiration}")
+
+        # Test 11: GET /market/options/AAPL?expiration=<first_date>
+        if first_expiration:
+            print(f"\n--- Test 11: Options AAPL (with expiration={first_expiration}) ---")
+            result = self.test_endpoint(
+                "MARKET", f"GET /market/options/AAPL?expiration={first_expiration}",
+                "GET", "market/options/AAPL", 200,
+                params={"expiration": first_expiration},
+                check_response=lambda r: (
+                    r.get("ok") == True and
+                    "data" in r and
+                    "calls" in r.get("data", {}) and
+                    "puts" in r.get("data", {}) and
+                    isinstance(r.get("data", {}).get("calls"), list) and
+                    isinstance(r.get("data", {}).get("puts"), list)
+                )
+            )
+            
+            if result:
+                data = result.get("data", {})
+                calls = data.get("calls", [])
+                puts = data.get("puts", [])
+                print(f"  ✓ Options chain received:")
+                print(f"    Calls: {len(calls)} contracts")
+                print(f"    Puts: {len(puts)} contracts")
+
+        # Test 12: GET /market/screener?type=day_gainers&count=5
+        print("\n--- Test 12: Screener day_gainers (count=5) ---")
+        result = self.test_endpoint(
+            "MARKET", "GET /market/screener?type=day_gainers&count=5",
+            "GET", "market/screener", 200,
+            params={"type": "day_gainers", "count": 5},
+            check_response=lambda r: (
+                r.get("ok") == True and
+                "data" in r and
+                "quotes" in r.get("data", {}) and
+                isinstance(r.get("data", {}).get("quotes"), list) and
+                len(r.get("data", {}).get("quotes", [])) <= 5
+            )
+        )
+        
+        if result:
+            data = result.get("data", {})
+            quotes = data.get("quotes", [])
+            print(f"  ✓ Screener results: {len(quotes)} quotes (max: 5)")
+
+        # Test 13: GET /market/screener?type=invalid_type (should not crash - 502 or empty list)
+        print("\n--- Test 13: Screener invalid type (error handling) ---")
+        try:
+            url = f"{BASE_URL}/market/screener"
+            response = requests.get(url, params={"type": "invalid_type_xyz", "count": 5}, timeout=30)
+            if response.status_code in [200, 502]:
+                print(f"  ✓ Invalid screener type handled gracefully: status={response.status_code}")
+                if response.status_code == 200:
+                    data = response.json()
+                    quotes = data.get("data", {}).get("quotes", [])
+                    print(f"    Returned {len(quotes)} quotes (empty list is acceptable)")
+            else:
+                print(f"  ⚠️  Unexpected status code: {response.status_code}")
+        except Exception as e:
+            print(f"  ⚠️  Error testing invalid screener type: {e}")
+
+        # Restore token
+        self.token = old_token
+
+        # Test 14: Regression - existing endpoints still work
+        print("\n--- Test 14: Regression Tests ---")
+        
+        # Login as superadmin for regression
+        superadmin_email = "douglas@snipertec.com.br"
+        superadmin_password = "Admin213021#"
+        
+        result = self.test_endpoint(
+            "MARKET_REGRESSION", "POST /auth/login (superadmin)",
+            "POST", "auth/login", 200,
+            data={
+                "email": superadmin_email,
+                "password": superadmin_password
+            },
+            check_response=lambda r: "access_token" in r
+        )
+        
+        if result:
+            self.token = result.get("access_token")
+            
+            # Test GET /billing/config
+            self.test_endpoint(
+                "MARKET_REGRESSION", "GET /billing/config",
+                "GET", "billing/config", 200,
+                check_response=lambda r: "configured" in r
+            )
+            
+            # Test GET /screener
+            self.test_endpoint(
+                "MARKET_REGRESSION", "GET /screener?limit=5",
+                "GET", "screener", 200,
+                params={"limit": 5},
+                check_response=lambda r: "results" in r
+            )
+            
+            # Test GET /news/market
+            self.test_endpoint(
+                "MARKET_REGRESSION", "GET /news/market",
+                "GET", "news/market", 200,
+                check_response=lambda r: "news" in r
+            )
+            
+            print(f"  ✓ Regression tests completed")
+
+        # Restore original token
+        self.token = old_token
+
     def print_summary(self):
         """Print test summary"""
         print("\n" + "="*60)
@@ -1087,6 +1418,9 @@ def main():
         
         # NEW: Finnhub integration tests
         tester.test_finnhub_integration()
+        
+        # NEW: Market data layer tests
+        tester.test_market_data_layer()
         
         # Print summary
         tester.print_summary()
