@@ -1,14 +1,34 @@
 [
   {
-    "content": "Camada de dados de mercado resiliente (cache TTL + stale fallback Mongo + retry/backoff)",
+    "content": "Backend: capacidades por plano + catálogo + require_feature + serialize_user",
     "status": "completed"
   },
   {
-    "content": "Endpoints /api/market/* (quote, history, batch, summary, search, fundamentals, options, screener, health)",
+    "content": "Backend: perfil editável (avatar base64, nome, bio, phone, country, telegram, webhook)",
     "status": "completed"
   },
   {
-    "content": "Validado por testing_agent_v3 + melhoria backfill 52w + README documentado",
+    "content": "Backend: Portfolio P&L + Backtest (gated Investidor) + entrega multicanal (email/telegram/webhook)",
     "status": "completed"
+  },
+  {
+    "content": "Frontend: dark mode (tokens .dark + ThemeContext + toggle topbar/Settings)",
+    "status": "completed"
+  },
+  {
+    "content": "Frontend: Settings em abas + Markets + Portfolio + AssetInsights (chart/fund/options/backtest) + gating",
+    "status": "completed"
+  },
+  {
+    "content": "Frontend: PricingCards features conforme matriz + i18n (4 idiomas)",
+    "status": "completed"
+  },
+  {
+    "content": "Testar tudo (backend + frontend) com testing_agent_v3 e corrigir bugs",
+    "status": "in_progress"
+  },
+  {
+    "content": "Escrever lista final do que falta para 100%",
+    "status": "pending"
   }
 ]

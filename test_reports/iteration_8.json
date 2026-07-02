@@ -1,0 +1,57 @@
+{
+  "summary": "Comprehensive testing of Dipzee feature gating, plan capabilities, and multilingual UI completed successfully. All backend APIs (23/23) and frontend flows tested and working correctly.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: Plans catalog returns starter/pro/investor with features[] and card_features[]",
+    "Backend: Superadmin login (douglas@snipertec.com.br) with plan=investor, role=superadmin",
+    "Backend: GET /api/auth/me returns capabilities with features (portfolio, backtest, charts, options) and rank=3",
+    "Backend: PUT /api/auth/profile saves display_name, bio, phone, country, telegram_chat_id, webhook_url",
+    "Backend: Profile avatar validation - valid base64 accepted, invalid format returns 400, oversized returns 413",
+    "Backend: Portfolio CRUD - POST/GET/DELETE with P&L calculation working",
+    "Backend: Backtest endpoint returns trades, win_rate, strategy_return_pct, buy_hold_return_pct",
+    "Backend: Feature gating - starter plan gets 403 with code='feature_locked' for portfolio/backtest",
+    "Backend: Feature gating - pro plan gets 403 for portfolio (investor-only feature)",
+    "Backend: Feature gating - investor plan gets 200 for portfolio and backtest",
+    "Backend: Market endpoints - screener (day_gainers), quote, history all working",
+    "Frontend: Superadmin login successful and redirects to dashboard",
+    "Frontend: Theme toggle (data-testid=theme-toggle-button) applies/removes .dark class on html",
+    "Frontend: Theme persists across page navigation",
+    "Frontend: Markets page loads with all tabs (day_gainers, day_losers, most_actives, crypto, news)",
+    "Frontend: Markets tabs switch content correctly - table for screeners, news grid for news tab",
+    "Frontend: Portfolio page accessible for investor plan with metrics and form",
+    "Frontend: Portfolio add position works - creates row with P&L display",
+    "Frontend: Portfolio remove position works",
+    "Frontend: Settings page with all 4 tabs (profile, appearance, alerts, subscription) working",
+    "Frontend: Settings profile save button (settings-save-profile-button) functional",
+    "Frontend: Settings appearance tab has 3 theme buttons (light/dark/system) all clickable",
+    "Frontend: Settings alerts tab shows Telegram and Webhook channels (gated for messaging_alerts)",
+    "Frontend: Asset detail page loads with insights section",
+    "Frontend: Asset insights tabs (chart, fundamentals, options, backtest) all switchable",
+    "Frontend: Asset chart tab renders history chart for investor",
+    "Frontend: Asset backtest tab has run button, executes and displays results",
+    "Frontend: Feature gating UI - starter plan shows upsell for portfolio (feature-gate-portfolio)",
+    "Frontend: Feature gating UI - starter plan shows upsell for backtest and charts",
+    "Frontend: Screener page accessible for starter plan (basic screener feature)"
+  ],
+  "test_report_links": [
+    "/app/backend/backend_test.py"
+  ],
+  "success_percentage": {
+    "backend": "100% (23/23 tests passed)",
+    "frontend": "100% (all flows tested successfully)"
+  },
+  "updated_files": [
+    "/app/backend/backend_test.py"
+  ],
+  "action_item_for_main_agent": "",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

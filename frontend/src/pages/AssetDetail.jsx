@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScoreDial } from '../components/ScoreDial';
 import { RangeGauge52w } from '../components/RangeGauge';
 import { CreateAlertDialog } from '../components/CreateAlertDialog';
+import { AssetInsights } from '../components/AssetInsights';
 import { formatCurrency, formatPercent } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
@@ -180,6 +181,9 @@ export default function AssetDetail() {
           </div>
         </Card>
       )}
+      {/* Insights: chart, fundamentals, options, backtest (plan-gated) */}
+      <AssetInsights ticker={asset.ticker} />
+
       {/* News */}
       <Card className="p-6" data-testid="asset-news-section">
         <h2 className="font-heading font-semibold mb-4 flex items-center gap-2"><Newspaper size={18} />{t('asset.news')}</h2>

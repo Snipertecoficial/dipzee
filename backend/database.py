@@ -22,3 +22,4 @@ async def ensure_indexes():
     await db.alerts.create_index('ticker')
     await db.alert_events.create_index('user_id')
     await db.alert_events.create_index([('user_id', 1), ('read', 1)])
+    await db.positions.create_index([('user_id', 1), ('ticker', 1)], unique=True)

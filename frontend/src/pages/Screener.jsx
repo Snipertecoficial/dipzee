@@ -8,11 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetCard } from '../components/AssetCard';
+import { FeatureGate } from '../components/FeatureGate';
 import api from '../lib/api';
 
 const SIGNALS = ['strong_buy', 'buy', 'hold', 'reduce', 'sell'];
 
-export default function Screener() {
+function ScreenerInner() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.slice(0, 2) || 'en';
   const [results, setResults] = useState([]);
@@ -114,6 +115,16 @@ export default function Screener() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+export default function Screener() {
+  return (
+    <div data-testid="screener-page">
+      <FeatureGate feature="screener">
+        <ScreenerInner />
+      </FeatureGate>
     </div>
   );
 }

@@ -61,8 +61,13 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const can = useCallback(
+    (feature) => !!user?.capabilities?.features?.includes(feature),
+    [user],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, setUser, can }}>
       {children}
     </AuthContext.Provider>
   );

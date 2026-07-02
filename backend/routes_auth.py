@@ -37,6 +37,16 @@ class ProfileIn(BaseModel):
     locale: Optional[str] = None
     currency: Optional[str] = None
     default_alert_prefs: Optional[dict] = None
+    display_name: Optional[str] = Field(default=None, max_length=80)
+    bio: Optional[str] = Field(default=None, max_length=280)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    country: Optional[str] = Field(default=None, max_length=60)
+    avatar: Optional[str] = None  # base64 data URL (size-limited below)
+    telegram_chat_id: Optional[str] = Field(default=None, max_length=40)
+    webhook_url: Optional[str] = Field(default=None, max_length=400)
+
+
+MAX_AVATAR_CHARS = 2_000_000  # ~1.4MB image encoded as base64
 
 
 def _auth_response(user: dict) -> dict:
@@ -55,12 +65,19 @@ async def register(body: RegisterIn):
         "id": str(uuid.uuid4()),
         "email": email,
         "hashed_password": hash_password(body.password),
+        "display_name": email.split("@")[0],
+        "bio": "",
+        "avatar": None,
+        "phone": "",
+        "country": "",
+        "telegram_chat_id": "",
+        "webhook_url": "",
         "locale": locale,
         "currency": currency,
         "plan": "none",
         "role": "user",
         "stripe_customer_id": None,
-        "default_alert_prefs": {"email": True, "in_app": True},
+        "default_alert_prefs": {"email": True, "in_app": True, "telegram": False, "webhook": False},
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user)
@@ -89,6 +106,17 @@ async def update_profile(body: ProfileIn, user: dict = Depends(get_current_user)
         updates["currency"] = body.currency
     if body.default_alert_prefs is not None:
         updates["default_alert_prefs"] = body.default_alert_prefs
+    for field in ("display_name", "bio", "phone", "country", "telegram_chat_id", "webhook_url"):
+        val = getattr(body, field)
+        if val is not None:
+            updates[field] = val.strip()
+    if body.avatar is not None:
+        av = body.avatar.strip()
+        if av and not av.startswith("data:image/"):
+            raise HTTPException(status_code=400, detail="Avatar must be a base64 image data URL")
+        if len(av) > MAX_AVATAR_CHARS:
+            raise HTTPException(status_code=413, detail={"code": "avatar_too_large", "message": "Image too large (max ~1.4MB)."})
+        updates["avatar"] = av or None
     if updates:
         await db.users.update_one({"id": user["id"]}, {"$set": updates})
     fresh = await db.users.find_one({"id": user["id"]})

@@ -12,9 +12,9 @@ import api from '../lib/api';
 const BASE_PRICES = { starter: 4.97, pro: 12.97, investor: 24.99 };
 
 const PLAN_META = {
-  starter: { icon: Rocket, features: ['starterF1', 'starterF2', 'starterF3', 'starterF4'], accent: 'var(--dz-slate)' },
-  pro: { icon: Sparkles, features: ['proF1', 'proF2', 'proF3', 'proF4', 'proF5'], accent: 'var(--dz-mint)', popular: true },
-  investor: { icon: Crown, features: ['investorF1', 'investorF2', 'investorF3', 'investorF4', 'investorF5'], accent: 'var(--dz-primary)', premium: true },
+  starter: { icon: Rocket, features: ['starterF1', 'starterF2', 'starterF3', 'starterF4', 'starterF5'], accent: 'var(--dz-slate)' },
+  pro: { icon: Sparkles, features: ['proF1', 'proF2', 'proF3', 'proF4', 'proF5', 'proF6'], accent: 'var(--dz-mint)', popular: true },
+  investor: { icon: Crown, features: ['investorF1', 'investorF2', 'investorF3', 'investorF4', 'investorF5', 'investorF6', 'investorF7'], accent: 'var(--dz-primary)', premium: true },
 };
 
 export function PricingCards({ onChoose, busyPlan }) {

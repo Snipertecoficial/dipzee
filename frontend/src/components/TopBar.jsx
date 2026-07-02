@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next';
 import {
   Bell, Menu, User, LogOut, Settings as SettingsIcon, Crown, LayoutDashboard,
   BellRing, SlidersHorizontal, Newspaper, Shield, PanelLeftClose, PanelLeftOpen, Sparkles,
+  BarChart3, Wallet,
 } from 'lucide-react';
 import { Logo, LogoMark } from './Logo';
 import { StockSearch } from './StockSearch';
 import { LanguageSwitcher, CurrencySwitcher } from './Switchers';
+import { ThemeToggle } from './ThemeToggle';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
@@ -24,11 +26,15 @@ function useNavSections() {
   const { user } = useAuth();
   const core = [
     { to: '/app/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { to: '/app/markets', label: t('nav.markets'), icon: BarChart3 },
     { to: '/app/screener', label: t('screener.title'), icon: SlidersHorizontal },
     { to: '/app/news', label: t('news.title'), icon: Newspaper },
     { to: '/app/alerts', label: t('nav.alerts'), icon: BellRing },
     { to: '/app/notifications', label: t('nav.notifications'), icon: Bell },
   ];
+  if (user?.capabilities?.features?.includes('portfolio')) {
+    core.splice(2, 0, { to: '/app/portfolio', label: t('nav.portfolio'), icon: Wallet });
+  }
   const account = [
     { to: '/app/settings', label: t('nav.settings'), icon: SettingsIcon },
     { to: '/app/upgrade', label: t('nav.upgrade'), icon: Crown },
@@ -41,6 +47,8 @@ function useNavSections() {
 
 const ALL_ROUTES = [
   { to: '/app/dashboard', key: 'nav.dashboard' },
+  { to: '/app/markets', key: 'nav.markets' },
+  { to: '/app/portfolio', key: 'nav.portfolio' },
   { to: '/app/screener', key: 'screener.title' },
   { to: '/app/news', key: 'news.title' },
   { to: '/app/alerts', key: 'nav.alerts' },
@@ -209,6 +217,7 @@ export function TopBar({ collapsed, setCollapsed, setMobileOpen }) {
             <LanguageSwitcher />
             <CurrencySwitcher />
           </div>
+          <ThemeToggle />
           <button
             data-testid="topbar-notifications-button"
             onClick={() => navigate('/app/notifications')}

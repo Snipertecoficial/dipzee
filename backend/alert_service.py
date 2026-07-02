@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from database import db
 from explain import build_alert_message
-from email_service import send_email
+from notify_service import deliver
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,10 @@ async def evaluate_alerts_for_asset(asset: dict):
             await db.alerts.update_one({"id": alert["id"]}, {"$set": {"last_triggered_at": _now_iso()}})
 
             prefs = (user or {}).get("default_alert_prefs", {}) or {}
-            if prefs.get("email", True) and user and user.get("email"):
+            if user:
                 subject = f"Dipzee \u2022 {ticker}: {alert['type'].replace('_', ' ').title()}"
                 html = f"<div style='font-family:Inter,Arial,sans-serif'><h2 style='color:#1A1F4D'>Dipzee</h2><p>{message}</p><p style='color:#5B6478;font-size:12px'>Educational information, not financial advice.</p></div>"
-                send_email(user["email"], subject, html)
+                await deliver(user, ticker=ticker, event_type=alert["type"], message=message, subject=subject, html=html)
         except Exception as e:  # noqa: BLE001
             logger.warning("Alert evaluation failed for alert %s: %s", alert.get("id"), e)
 
@@ -175,9 +175,8 @@ async def evaluate_news_alerts():
                     "created_at": _now_iso(),
                 }
                 await db.alert_events.insert_one(event)
-                prefs = (user or {}).get("default_alert_prefs", {}) or {}
-                if prefs.get("email", True) and user and user.get("email"):
+                if user:
                     html = f"<div style='font-family:Inter,Arial,sans-serif'><h2 style='color:#1A1F4D'>Dipzee</h2><p>{event['message']}</p><p><a href='{n.get('url')}'>{n.get('source')}</a></p></div>"
-                    send_email(user["email"], f"Dipzee \u2022 {ticker} news", html)
+                    await deliver(user, ticker=ticker, event_type="news", message=event["message"], subject=f"Dipzee \u2022 {ticker} news", html=html, url=n.get("url"))
             # advance checkpoint so each article fires once (edge-triggered)
             await db.alerts.update_one({"id": alert["id"]}, {"$set": {"params.since": newest_ts, "last_triggered_at": _now_iso()}})
