@@ -117,3 +117,8 @@ def shutdown_scheduler():
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
+
+
+def is_scheduler_running() -> bool:
+    """Return True if the background scheduler is initialized and running."""
+    return bool(_scheduler and _scheduler.running)

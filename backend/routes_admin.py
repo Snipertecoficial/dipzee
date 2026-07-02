@@ -369,8 +369,8 @@ async def system_health(admin: dict = Depends(get_superadmin)):
         logger.warning("DB health check failed: %s", e)
     
     # Scheduler check
-    from scheduler import scheduler
-    scheduler_running = scheduler.running if scheduler else False
+    from scheduler import is_scheduler_running
+    scheduler_running = is_scheduler_running()
     
     from providers import get_provider
 

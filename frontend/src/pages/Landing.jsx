@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {
   Search, Bell, ListChecks, Coins, Globe, Wallet, ArrowRight, ShieldCheck, Lock,
   Eye, KeyRound, Activity, Menu, TrendingUp, RefreshCw, CheckCircle2, Star,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
