@@ -54,7 +54,7 @@ export default function Markets() {
     try {
       if (key === 'news') {
         const { data } = await api.get('/news/market');
-        setNews(data.articles || data || []);
+        setNews(data.news || []);
       } else if (key === 'crypto') {
         const results = await Promise.all(CRYPTO.map((s) =>
           api.get(`/market/quote/${s}`).then(({ data }) => data.data).catch(() => null)));

@@ -1027,6 +1027,113 @@ class DipzeeAPITester:
             print(f"  ✓ New user registered without currency field")
             print(f"    Default currency: {user.get('currency')} (expected: USD)")
 
+    def test_second_superadmin(self):
+        """Test second superadmin (walidhalabi@hotmail.com) with same access as douglas"""
+        print("\n" + "="*60)
+        print("TESTING SECOND SUPERADMIN (NEW)")
+        print("="*60)
+
+        superadmins = [
+            {"email": "douglas@snipertec.com.br", "password": "Admin213021#", "name": "Douglas (original)"},
+            {"email": "walidhalabi@hotmail.com", "password": "Admin213021#", "name": "Walid (new)"}
+        ]
+
+        for admin in superadmins:
+            print(f"\n--- Testing {admin['name']} ---")
+            
+            # Test 1: Login
+            result = self.test_endpoint(
+                "SECOND_SUPERADMIN", f"POST /auth/login ({admin['name']})",
+                "POST", "auth/login", 200,
+                data={
+                    "email": admin["email"],
+                    "password": admin["password"]
+                },
+                check_response=lambda r: (
+                    "access_token" in r and 
+                    "user" in r and
+                    r.get("user", {}).get("role") == "superadmin" and
+                    r.get("user", {}).get("plan") == "investor"
+                )
+            )
+            
+            if not result:
+                print(f"  ❌ Could not login as {admin['name']}, skipping further tests")
+                continue
+            
+            # Save token
+            old_token = self.token
+            self.token = result.get("access_token")
+            user = result.get("user", {})
+            
+            print(f"  ✓ Logged in: {user.get('email')}")
+            print(f"    Role: {user.get('role')} (expected: superadmin)")
+            print(f"    Plan: {user.get('plan')} (expected: investor)")
+            
+            # Test 2: GET /auth/me - verify capabilities
+            result = self.test_endpoint(
+                "SECOND_SUPERADMIN", f"GET /auth/me ({admin['name']})",
+                "GET", "auth/me", 200,
+                check_response=lambda r: (
+                    r.get("role") == "superadmin" and
+                    r.get("plan") == "investor" and
+                    "capabilities" in r and
+                    r.get("capabilities", {}).get("rank") == 3 and
+                    "portfolio" in r.get("capabilities", {}).get("features", []) and
+                    "backtest" in r.get("capabilities", {}).get("features", [])
+                )
+            )
+            
+            if result:
+                caps = result.get("capabilities", {})
+                print(f"  ✓ Capabilities verified:")
+                print(f"    Rank: {caps.get('rank')} (expected: 3)")
+                print(f"    Has 'portfolio': {'portfolio' in caps.get('features', [])}")
+                print(f"    Has 'backtest': {'backtest' in caps.get('features', [])}")
+            
+            # Test 3: GET /admin/stats - admin access
+            result = self.test_endpoint(
+                "SECOND_SUPERADMIN", f"GET /admin/stats ({admin['name']})",
+                "GET", "admin/stats", 200,
+                check_response=lambda r: (
+                    "users_total" in r and
+                    "plan_counts" in r
+                )
+            )
+            
+            if result:
+                print(f"  ✓ Admin access verified (GET /admin/stats returned 200)")
+            
+            # Test 4: GET /portfolio - investor feature access
+            result = self.test_endpoint(
+                "SECOND_SUPERADMIN", f"GET /portfolio ({admin['name']})",
+                "GET", "portfolio", 200,
+                check_response=lambda r: (
+                    "positions" in r and
+                    "totals" in r
+                )
+            )
+            
+            if result:
+                print(f"  ✓ Portfolio access verified (GET /portfolio returned 200, not 403)")
+            
+            # Test 5: GET /backtest?ticker=AAPL - investor feature access
+            result = self.test_endpoint(
+                "SECOND_SUPERADMIN", f"GET /backtest?ticker=AAPL ({admin['name']})",
+                "GET", "backtest", 200,
+                params={"ticker": "AAPL"},
+                check_response=lambda r: (
+                    "ticker" in r and
+                    r.get("ticker") == "AAPL"
+                )
+            )
+            
+            if result:
+                print(f"  ✓ Backtest access verified (GET /backtest returned 200, not 403)")
+            
+            # Restore original token
+            self.token = old_token
+
     def test_market_data_layer(self):
         """Test new resilient market data layer endpoints (NO AUTH REQUIRED)"""
         print("\n" + "="*60)
@@ -1418,6 +1525,9 @@ def main():
         
         # NEW: Finnhub integration tests
         tester.test_finnhub_integration()
+        
+        # NEW: Second superadmin tests
+        tester.test_second_superadmin()
         
         # NEW: Market data layer tests
         tester.test_market_data_layer()

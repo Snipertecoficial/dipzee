@@ -85,38 +85,51 @@ async def on_startup():
 
 
 async def seed_superadmin():
-    """Create/upgrade the configured superadmin account (idempotent)."""
+    """Create/upgrade the configured superadmin account(s) (idempotent).
+
+    SUPERADMIN_EMAIL may contain a comma-separated list of emails; they all
+    share SUPERADMIN_PASSWORD and get role=superadmin, plan=investor.
+    """
     import os
     import uuid
     from datetime import datetime, timezone
     from database import db
     from security import hash_password
 
-    email = (os.environ.get("SUPERADMIN_EMAIL") or "").lower()
+    raw = os.environ.get("SUPERADMIN_EMAIL") or ""
     password = os.environ.get("SUPERADMIN_PASSWORD")
-    if not email or not password:
+    emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
+    if not emails or not password:
         return
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        await db.users.update_one(
-            {"email": email},
-            {"$set": {"role": "superadmin", "plan": "investor", "hashed_password": hash_password(password)}},
-        )
-        logger.info("Superadmin ensured: %s", email)
-        return
-    await db.users.insert_one({
-        "id": str(uuid.uuid4()),
-        "email": email,
-        "hashed_password": hash_password(password),
-        "locale": "pt",
-        "currency": "USD",
-        "plan": "investor",
-        "role": "superadmin",
-        "stripe_customer_id": None,
-        "default_alert_prefs": {"email": True, "in_app": True},
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    logger.info("Superadmin created: %s", email)
+    for email in emails:
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            await db.users.update_one(
+                {"email": email},
+                {"$set": {"role": "superadmin", "plan": "investor", "hashed_password": hash_password(password)}},
+            )
+            logger.info("Superadmin ensured: %s", email)
+            continue
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "hashed_password": hash_password(password),
+            "display_name": email.split("@")[0],
+            "bio": "",
+            "avatar": None,
+            "phone": "",
+            "country": "",
+            "telegram_chat_id": "",
+            "webhook_url": "",
+            "locale": "pt",
+            "currency": "USD",
+            "plan": "investor",
+            "role": "superadmin",
+            "stripe_customer_id": None,
+            "default_alert_prefs": {"email": True, "in_app": True, "telegram": False, "webhook": False},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("Superadmin created: %s", email)
 
 
 @app.on_event("shutdown")
