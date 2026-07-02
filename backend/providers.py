@@ -222,6 +222,518 @@ class FinnhubProvider(DataProvider):
         return results
 
 
+# --------------------------------------------------------------------------- #
+# FMP Provider
+# --------------------------------------------------------------------------- #
+class FMPProvider(DataProvider):
+    name = "fmp"
+
+    def _key(self):
+        return os.environ.get("FMP_API_KEY")
+
+    def _get(self, path: str, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["apikey"] = key
+        try:
+            r = requests.get(f"https://financialmodelingprep.com/api/v3{path}", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:
+            logger.warning("FMP %s failed: %s", path, e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        # 1. Quote
+        quote_list = self._get(f"/quote/{symbol}", {})
+        if not quote_list or not isinstance(quote_list, list):
+            return None
+        q = quote_list[0]
+        
+        # 2. Profile
+        profile_list = self._get(f"/profile/{symbol}", {})
+        p = profile_list[0] if profile_list and isinstance(profile_list, list) else {}
+
+        # 3. Key Metrics (Dividend Yield TTM)
+        metrics_list = self._get(f"/key-metrics-ttm/{symbol}", {})
+        m = metrics_list[0] if metrics_list and isinstance(metrics_list, list) else {}
+
+        price = q.get("price")
+        if price is None:
+            return None
+
+        dy_raw = m.get("dividendYieldTTM")
+        div = float(dy_raw) if dy_raw is not None else 0.0
+
+        return {
+            "ticker": symbol,
+            "exchange": q.get("exchange") or p.get("exchangeShortName") or _derive_exchange(symbol, {}),
+            "name": q.get("name") or p.get("companyName") or symbol,
+            "currency": p.get("currency") or "USD",
+            "price": price,
+            "low_52w": q.get("yearLow"),
+            "high_52w": q.get("yearHigh"),
+            "target_mean": None,
+            "dividend_yield": div,
+            "sector": p.get("sector"),
+            "change_pct": q.get("changesPercentage"),
+            "prev_close": q.get("previousClose"),
+            "logo": p.get("image"),
+            "source": "fmp",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get("/search", {"query": query, "limit": 10}) or []
+        results = []
+        if isinstance(d, list):
+            for r in d:
+                sym = r.get("symbol")
+                if not sym:
+                    continue
+                results.append({
+                    "ticker": sym,
+                    "name": r.get("name") or sym,
+                    "exchange": r.get("exchangeShortName") or ""
+                })
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+# --------------------------------------------------------------------------- #
+# Polygon Provider
+# --------------------------------------------------------------------------- #
+class PolygonProvider(DataProvider):
+    name = "polygon"
+
+    def _key(self):
+        return os.environ.get("POLYGON_API_KEY")
+
+    def _get(self, path: str, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["apiKey"] = key
+        try:
+            r = requests.get(f"https://api.polygon.io{path}", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:
+            logger.warning("Polygon %s failed: %s", path, e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        snap = self._get(f"/v2/snapshot/locale/us/markets/stocks/tickers/{symbol}", {})
+        if not snap or snap.get("status") != "OK" or "ticker" not in snap:
+            return None
+        t_data = snap["ticker"]
+        
+        details = self._get(f"/v3/reference/tickers/{symbol}", {}) or {}
+        results = details.get("results", {}) or {}
+
+        price = t_data.get("lastTrade", {}).get("p") or t_data.get("min", {}).get("c")
+        if price is None:
+            return None
+
+        logo = results.get("branding", {}).get("logo_url")
+        if logo and "apiKey=" not in logo:
+            logo = f"{logo}?apiKey={self._key()}"
+
+        return {
+            "ticker": symbol,
+            "exchange": results.get("primary_exchange") or _derive_exchange(symbol, {}),
+            "name": results.get("name") or symbol,
+            "currency": results.get("currency_name") or "USD",
+            "price": price,
+            "low_52w": None,
+            "high_52w": None,
+            "target_mean": None,
+            "dividend_yield": 0.0,
+            "sector": results.get("sic_description"),
+            "change_pct": t_data.get("todaysChangePerc"),
+            "prev_close": t_data.get("prevDay", {}).get("c"),
+            "logo": logo,
+            "source": "polygon",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get("/v3/reference/tickers", {"search": query, "limit": 10}) or {}
+        results = []
+        for r in (d.get("results", []) or []):
+            sym = r.get("ticker")
+            if not sym:
+                continue
+            results.append({
+                "ticker": sym,
+                "name": r.get("name") or sym,
+                "exchange": r.get("primary_exchange") or ""
+            })
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+# --------------------------------------------------------------------------- #
+# Alpha Vantage Provider
+# --------------------------------------------------------------------------- #
+class AlphaVantageProvider(DataProvider):
+    name = "alphavantage"
+
+    def _key(self):
+        return os.environ.get("ALPHAVANTAGE_API_KEY")
+
+    def _get(self, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["apikey"] = key
+        try:
+            r = requests.get("https://www.alphavantage.co/query", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:
+            logger.warning("AlphaVantage query failed: %s", e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        q_data = self._get({"function": "GLOBAL_QUOTE", "symbol": symbol})
+        if not q_data or "Global Quote" not in q_data:
+            return None
+        q = q_data["Global Quote"]
+        
+        price_str = q.get("05. price")
+        if not price_str:
+            return None
+        price = float(price_str)
+
+        ov = self._get({"function": "OVERVIEW", "symbol": symbol}) or {}
+
+        low_str = ov.get("52WeekLow")
+        high_str = ov.get("52WeekHigh")
+        dy_str = ov.get("DividendYield")
+        pct_str = str(q.get("10. change percent", "")).replace("%", "")
+
+        try:
+            low = float(low_str) if low_str else None
+            high = float(high_str) if high_str else None
+            div = float(dy_str) if dy_str else 0.0
+            change_pct = float(pct_str) if pct_str else None
+            prev = float(q.get("08. previous close")) if q.get("08. previous close") else None
+            target = float(ov.get("AnalystTargetPrice")) if ov.get("AnalystTargetPrice") else None
+        except Exception:
+            low, high, div, change_pct, prev, target = None, None, 0.0, None, None, None
+
+        return {
+            "ticker": symbol,
+            "exchange": ov.get("Exchange") or _derive_exchange(symbol, {}),
+            "name": ov.get("Name") or symbol,
+            "currency": ov.get("Currency") or "USD",
+            "price": price,
+            "low_52w": low,
+            "high_52w": high,
+            "target_mean": target,
+            "dividend_yield": div,
+            "sector": ov.get("Sector"),
+            "change_pct": change_pct,
+            "prev_close": prev,
+            "logo": None,
+            "source": "alphavantage",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get({"function": "SYMBOL_SEARCH", "keywords": query}) or {}
+        results = []
+        for r in (d.get("bestMatches", []) or []):
+            sym = r.get("1. symbol")
+            if not sym:
+                continue
+            results.append({
+                "ticker": sym,
+                "name": r.get("2. name") or sym,
+                "exchange": r.get("4. region") or ""
+            })
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+# --------------------------------------------------------------------------- #
+# Twelve Data Provider
+# --------------------------------------------------------------------------- #
+class TwelveDataProvider(DataProvider):
+    name = "twelvedata"
+
+    def _key(self):
+        return os.environ.get("TWELVEDATA_API_KEY")
+
+    def _get(self, path: str, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["apikey"] = key
+        try:
+            r = requests.get(f"https://api.twelvedata.com{path}", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:
+            logger.warning("TwelveData %s failed: %s", path, e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        q = self._get("/quote", {"symbol": symbol})
+        if not q or "price" not in q or q.get("code") == 400:
+            return None
+        
+        p = self._get("/profile", {"symbol": symbol}) or {}
+
+        try:
+            price = float(q.get("close") or q.get("price"))
+            low = float(q.get("fifty_two_week", {}).get("low")) if q.get("fifty_two_week", {}).get("low") else None
+            high = float(q.get("fifty_two_week", {}).get("high")) if q.get("fifty_two_week", {}).get("high") else None
+            change_pct = float(q.get("percent_change")) if q.get("percent_change") else None
+            prev = float(q.get("previous_close")) if q.get("previous_close") else None
+        except Exception:
+            return None
+
+        return {
+            "ticker": symbol,
+            "exchange": q.get("exchange") or _derive_exchange(symbol, {}),
+            "name": q.get("name") or symbol,
+            "currency": q.get("currency") or "USD",
+            "price": price,
+            "low_52w": low,
+            "high_52w": high,
+            "target_mean": None,
+            "dividend_yield": 0.0,
+            "sector": p.get("sector"),
+            "change_pct": change_pct,
+            "prev_close": prev,
+            "logo": p.get("logo"),
+            "source": "twelvedata",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get("/symbol_search", {"symbol": query}) or {}
+        results = []
+        for r in (d.get("data", []) or [])[:10]:
+            sym = r.get("symbol")
+            if not sym:
+                continue
+            results.append({
+                "ticker": sym,
+                "name": r.get("instrument_name") or sym,
+                "exchange": r.get("exchange") or ""
+            })
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+# --------------------------------------------------------------------------- #
+# Marketstack Provider
+# --------------------------------------------------------------------------- #
+class MarketstackProvider(DataProvider):
+    name = "marketstack"
+
+    def _key(self):
+        return os.environ.get("MARKETSTACK_API_KEY")
+
+    def _get(self, path: str, params: dict):
+        key = self._key()
+        if not key:
+            return None
+        params = dict(params)
+        params["access_key"] = key
+        try:
+            r = requests.get(f"https://api.marketstack.com/v1{path}", params=params, timeout=12)
+            if r.status_code >= 400:
+                return None
+            return r.json()
+        except Exception as e:
+            logger.warning("Marketstack %s failed: %s", path, e)
+            return None
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        t_details = self._get(f"/tickers/{symbol}", {})
+        if not t_details or "symbol" not in t_details:
+            return None
+        
+        eod = self._get(f"/tickers/{symbol}/eod/latest", {}) or {}
+        price = eod.get("close")
+        if price is None:
+            return None
+
+        exch = t_details.get("stock_exchange", {}) or {}
+
+        return {
+            "ticker": symbol,
+            "exchange": exch.get("acronym") or exch.get("name") or _derive_exchange(symbol, {}),
+            "name": t_details.get("name") or symbol,
+            "currency": "USD",
+            "price": price,
+            "low_52w": None,
+            "high_52w": None,
+            "target_mean": None,
+            "dividend_yield": 0.0,
+            "sector": None,
+            "change_pct": None,
+            "prev_close": eod.get("open"),
+            "logo": None,
+            "source": "marketstack",
+        }
+
+    def search(self, query: str) -> list:
+        d = self._get("/tickers", {"search": query}) or {}
+        results = []
+        for r in (d.get("data", []) or [])[:10]:
+            sym = r.get("symbol")
+            if not sym:
+                continue
+            exch = r.get("stock_exchange", {}) or {}
+            results.append({
+                "ticker": sym,
+                "name": r.get("name") or sym,
+                "exchange": exch.get("acronym") or exch.get("name") or ""
+            })
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
+# --------------------------------------------------------------------------- #
+# Investing.com Provider
+# --------------------------------------------------------------------------- #
+class InvestingProvider(DataProvider):
+    name = "investing"
+
+    def _headers(self):
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.investing.com/",
+            "domain-id": "1"
+        }
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        symbol = symbol.strip().upper()
+        search_url = f"https://api.investing.com/api/search/v2/search?q={symbol}"
+        try:
+            r = requests.get(search_url, headers=self._headers(), timeout=12)
+            if r.status_code >= 400:
+                return None
+            search_res = r.json() or {}
+        except Exception as e:
+            logger.warning("Investing search failed for fetch %s: %s", symbol, e)
+            return None
+
+        quotes = search_res.get("quotes", []) or []
+        pair_id = None
+        name = symbol
+        exch = "US"
+        
+        for q in quotes:
+            if q.get("symbol", "").upper() == symbol:
+                pair_id = q.get("pairId")
+                name = q.get("name") or symbol
+                exch = q.get("exchange") or "US"
+                break
+        
+        if not pair_id and quotes:
+            pair_id = quotes[0].get("pairId")
+            name = quotes[0].get("name") or symbol
+            exch = quotes[0].get("exchange") or "US"
+            
+        if not pair_id:
+            return None
+
+        inst_url = f"https://endpoints.investing.com/pd-instruments/v1/instruments?instrument_ids={pair_id}&domain_id=1"
+        try:
+            r = requests.get(inst_url, headers=self._headers(), timeout=12)
+            if r.status_code >= 400:
+                return None
+            data = r.json() or {}
+        except Exception as e:
+            logger.warning("Investing instrument fetch failed for pair %s: %s", pair_id, e)
+            return None
+
+        inst_list = data.get("data", []) or []
+        if not inst_list:
+            if isinstance(data, list):
+                inst_list = data
+            elif "instruments" in data:
+                inst_list = data["instruments"]
+
+        if not inst_list:
+            return None
+
+        inst = inst_list[0]
+        price = inst.get("last") or inst.get("price")
+        if price is None:
+            return None
+
+        try:
+            price = float(price)
+            low = float(inst.get("52_week_low") or inst.get("low")) if (inst.get("52_week_low") or inst.get("low")) else None
+            high = float(inst.get("52_week_high") or inst.get("high")) if (inst.get("52_week_high") or inst.get("high")) else None
+            change_pct = float(inst.get("change_percent")) if inst.get("change_percent") else None
+            prev = float(inst.get("prev_close") or inst.get("close")) if (inst.get("prev_close") or inst.get("close")) else None
+        except Exception:
+            return None
+
+        return {
+            "ticker": symbol,
+            "exchange": exch or _derive_exchange(symbol, {}),
+            "name": name,
+            "currency": inst.get("currency") or "USD",
+            "price": price,
+            "low_52w": low,
+            "high_52w": high,
+            "target_mean": None,
+            "dividend_yield": 0.0,
+            "sector": inst.get("sector"),
+            "change_pct": change_pct,
+            "prev_close": prev,
+            "logo": None,
+            "source": "investing",
+        }
+
+    def search(self, query: str) -> list:
+        search_url = f"https://api.investing.com/api/search/v2/search?q={query}"
+        results = []
+        try:
+            r = requests.get(search_url, headers=self._headers(), timeout=12)
+            if r.status_code >= 400:
+                return []
+            data = r.json() or {}
+            for q in (data.get("quotes", []) or []):
+                sym = q.get("symbol")
+                if not sym:
+                    continue
+                results.append({
+                    "ticker": sym,
+                    "name": q.get("name") or sym,
+                    "exchange": q.get("exchange") or ""
+                })
+        except Exception as e:
+            logger.warning("Investing search failed: %s", e)
+        if not results and query:
+            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
+        return results
+
+
 def get_company_news(symbol: str, days: int = 7, limit: int = 15) -> list:
     key = os.environ.get("FINNHUB_API_KEY")
     if not key:
@@ -311,9 +823,40 @@ def get_yf_target(symbol: str):
 def get_provider() -> DataProvider:
     global _provider
     if _provider is None:
-        if os.environ.get("FINNHUB_API_KEY"):
+        primary = os.environ.get("PRIMARY_PROVIDER", "").strip().lower()
+        
+        # 1. Respect explicit PRIMARY_PROVIDER override
+        if primary == "finnhub" and os.environ.get("FINNHUB_API_KEY"):
             _provider = FinnhubProvider()
-            logger.info("Using FinnhubProvider as primary market-data source.")
+        elif primary == "fmp" and os.environ.get("FMP_API_KEY"):
+            _provider = FMPProvider()
+        elif primary == "polygon" and os.environ.get("POLYGON_API_KEY"):
+            _provider = PolygonProvider()
+        elif primary == "alphavantage" and os.environ.get("ALPHAVANTAGE_API_KEY"):
+            _provider = AlphaVantageProvider()
+        elif primary == "twelvedata" and os.environ.get("TWELVEDATA_API_KEY"):
+            _provider = TwelveDataProvider()
+        elif primary == "marketstack" and os.environ.get("MARKETSTACK_API_KEY"):
+            _provider = MarketstackProvider()
+        elif primary == "investing":
+            _provider = InvestingProvider()
+            
+        # 2. Fallback cascade prioritizing licensed data providers
+        elif os.environ.get("FMP_API_KEY"):
+            _provider = FMPProvider()
+        elif os.environ.get("POLYGON_API_KEY"):
+            _provider = PolygonProvider()
+        elif os.environ.get("FINNHUB_API_KEY"):
+            _provider = FinnhubProvider()
+        elif os.environ.get("ALPHAVANTAGE_API_KEY"):
+            _provider = AlphaVantageProvider()
+        elif os.environ.get("TWELVEDATA_API_KEY"):
+            _provider = TwelveDataProvider()
+        elif os.environ.get("MARKETSTACK_API_KEY"):
+            _provider = MarketstackProvider()
         else:
+            # 3. Final fallback
             _provider = YFinanceProvider()
+            
+        logger.info("Initialized market-data provider: %s", getattr(_provider, "name", "unknown"))
     return _provider

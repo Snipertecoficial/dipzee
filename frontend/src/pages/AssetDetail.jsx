@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Star, BellPlus, RefreshCw, Loader2, Newspaper, ExternalLink } from 'lucide-react';
+import { Star, BellPlus, RefreshCw, Loader2, Newspaper, ExternalLink, Landmark } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -24,6 +24,7 @@ export default function AssetDetail() {
   const [inWatch, setInWatch] = useState(false);
   const [error, setError] = useState(false);
   const [news, setNews] = useState([]);
+  const [ads, setAds] = useState([]);
   const locale = i18n.language?.slice(0, 2) || 'en';
   const cur = asset?.currency || user?.currency || 'USD';
 
@@ -52,7 +53,21 @@ export default function AssetDetail() {
     } catch (e) { /* noop */ }
   }, [ticker]);
 
-  useEffect(() => { load(); loadWatch(); loadNews(); }, [load, loadWatch, loadNews]);
+  const loadAds = useCallback(async () => {
+    try {
+      const { data } = await api.get('/partner-ads/active');
+      setAds(data.ads || []);
+    } catch (e) { /* noop */ }
+  }, []);
+
+  const handleAdClick = async (ad) => {
+    try {
+      await api.post(`/partner-ads/click/${ad.id}`);
+    } catch (e) { /* noop */ }
+    window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+  };
+
+  useEffect(() => { load(); loadWatch(); loadNews(); loadAds(); }, [load, loadWatch, loadNews, loadAds]);
 
   // Real-time: poll the quote every 20s while the page is open.
   useEffect(() => {
@@ -127,17 +142,39 @@ export default function AssetDetail() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Dial + actions */}
-        <Card className="p-6 lg:col-span-1 flex flex-col items-center">
-          <ScoreDial score={asset.score} classification={asset.classification} size="hero" />
-          <div className="mt-6 w-full flex flex-col gap-2">
-            <Button onClick={toggleWatch} data-testid="asset-add-to-watchlist-button" className={inWatch ? 'bg-white border border-[var(--dz-border)] text-[var(--dz-primary)]' : 'bg-[var(--dz-primary)] text-white'}>
-              <Star size={16} className="mr-2" fill={inWatch ? 'currentColor' : 'none'} />
-              {inWatch ? t('asset.removeFromWatchlist') : t('asset.addToWatchlist')}
-            </Button>
-            <CreateAlertDialog defaultTicker={asset.ticker} currency={cur} onCreated={() => {}}
-              trigger={<Button data-testid="asset-create-alert-button" variant="outline"><BellPlus size={16} className="mr-2" />{t('asset.createAlert')}</Button>} />
-          </div>
-        </Card>
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="p-6 flex flex-col items-center">
+            <ScoreDial score={asset.score} classification={asset.classification} size="hero" />
+            <div className="mt-6 w-full flex flex-col gap-2">
+              <Button onClick={toggleWatch} data-testid="asset-add-to-watchlist-button" className={inWatch ? 'bg-white border border-[var(--dz-border)] text-[var(--dz-primary)]' : 'bg-[var(--dz-primary)] text-white'}>
+                <Star size={16} className="mr-2" fill={inWatch ? 'currentColor' : 'none'} />
+                {inWatch ? t('asset.removeFromWatchlist') : t('asset.addToWatchlist')}
+              </Button>
+              <CreateAlertDialog defaultTicker={asset.ticker} currency={cur} onCreated={() => {}}
+                trigger={<Button data-testid="asset-create-alert-button" variant="outline"><BellPlus size={16} className="mr-2" />{t('asset.createAlert')}</Button>} />
+            </div>
+          </Card>
+
+          {/* Contextual partner ad */}
+          {ads.filter((a) => a.placement === 'asset_detail').slice(0, 1).map((ad) => (
+            <Card key={ad.id} onClick={() => handleAdClick(ad)} className="p-4 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer select-none transition-all flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-[var(--dz-canvas)] border border-[var(--dz-border)] flex items-center justify-center shrink-0">
+                {ad.image_url ? (
+                  <img src={ad.image_url} alt="" className="w-5 h-5 object-contain" />
+                ) : (
+                  <Landmark size={14} className="text-amber-500" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                  Patrocinado <ExternalLink size={8} />
+                </span>
+                <h4 className="font-heading font-semibold text-xs text-[var(--dz-fg)] mt-0.5">{ad.partner_name}</h4>
+                <p className="text-[11px] text-[var(--dz-muted)] mt-0.5 leading-tight">{ad.description.replace('{ticker}', asset.ticker)}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
 
         {/* Gauge + explanation */}
         <div className="lg:col-span-2 space-y-6">

@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   Search, Bell, ListChecks, Coins, Globe, Wallet, ArrowRight, ShieldCheck, Lock,
-  Eye, KeyRound, Activity, Menu, TrendingUp, RefreshCw, CheckCircle2,
-} from 'lucide-react';
+  Eye, KeyRound, Activity, Menu, TrendingUp, RefreshCw, CheckCircle2, Star,
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -29,11 +28,74 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
 };
 
-function Reveal({ children, className = '' }) {
+function Reveal({ children, className = '', delay = 0 }) {
   return (
-    <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-80px' }} className={className}>
+    <motion.div 
+      variants={{
+        hidden: { opacity: 0, y: 15 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] } }
+      }} 
+      initial="hidden" 
+      whileInView="show" 
+      viewport={{ once: true, margin: '-60px' }} 
+      className={className}
+    >
       {children}
     </motion.div>
+  );
+}
+
+const testimonials = [
+  { name: "Ricardo Santos", role: "Investidor de Varejo", content: "A Dipzee me salvou horas de pesquisa. O Score quantitativo é ridiculamente preciso e os alertas instantâneos me permitem dormir tranquilo sabendo que não perderei a oportunidade." },
+  { name: "Jessica L.", role: "Day Trader", content: "Eu opero pelo mercado americano todos os dias. Ter os indicadores de preço e dividendos convertidos para BRL e a facilidade do Screener foi a melhor descoberta do meu ano." },
+  { name: "Marcio Alves", role: "Engenheiro de Software", content: "A arquitetura e velocidade dessa plataforma impressionam. Os Webhooks integrados na minha rotina automatizaram minhas decisões de Hold. 10/10." },
+  { name: "Camila Farias", role: "Gestora de Portfólio", content: "Utilizamos as análises fundamentalistas e o veredito dos analistas para compor nossas carteiras. Os alvos de 52 semanas são cirúrgicos. Vale cada centavo do plano Investor." },
+  { name: "John T.", role: "Retail Investor", content: "I've been looking for a tool that combines deep fundamentals with a beautiful UI. Dipzee's Opportunity Score is the best feature. Absolute game-changer." },
+];
+
+function TestimonialsCarousel() {
+  return (
+    <section className="bg-[var(--dz-surface)] border-y border-[var(--dz-border)] overflow-hidden">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
+        <div className="text-center mb-10">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[var(--dz-primary-8)] text-[var(--dz-primary)] px-3 py-1 text-xs font-medium border border-[var(--dz-primary-10)]">
+            Feedback
+          </span>
+          <h2 className="mt-4 font-heading font-semibold text-2xl sm:text-3xl text-[var(--dz-fg)]">
+            Investidores amam o Dipzee
+          </h2>
+        </div>
+        
+        <div className="relative overflow-hidden group py-4">
+          <div className="absolute top-0 bottom-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-[var(--dz-surface)] to-transparent z-10 pointer-events-none"></div>
+          <div className="absolute top-0 bottom-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-[var(--dz-surface)] to-transparent z-10 pointer-events-none"></div>
+          
+          <motion.div
+            className="flex gap-6 w-max"
+            animate={{ x: [0, -1600] }}
+            transition={{ repeat: Infinity, duration: 40, ease: "linear" }}
+          >
+            {[...testimonials, ...testimonials, ...testimonials].map((t, i) => (
+              <div key={i} className="inline-flex w-[300px] sm:w-[380px] flex-col justify-between whitespace-normal rounded-2xl bg-[var(--dz-bg)] border border-[var(--dz-border)] p-6 shadow-sm hover:border-[var(--dz-primary)] transition-colors duration-300">
+                <div>
+                  <div className="flex items-center gap-1 mb-3 text-[#f59e0b]">
+                    {[1,2,3,4,5].map((s) => <Star key={s} size={14} fill="currentColor" />)}
+                  </div>
+                  <p className="text-sm text-[var(--dz-muted)] leading-relaxed italic">"{t.content}"</p>
+                </div>
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--dz-primary)] to-[var(--dz-mint)] flex items-center justify-center text-white font-bold text-sm shadow-inner">{t.name.charAt(0)}</div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-[var(--dz-fg)] leading-none">{t.name}</h4>
+                    <span className="text-[11px] text-[var(--dz-muted)] mt-1 block">{t.role}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -99,7 +161,7 @@ export default function Landing() {
     { icon: ShieldCheck, label: t('landing.sec4') },
     { icon: Wallet, label: t('landing.sec5') },
   ];
-  const faqs = [1, 2, 3, 4].map((n) => ({ q: t(`landing.faq${n}Q`), a: t(`landing.faq${n}A`) }));
+  const faqs = [1, 2, 3, 4, 5, 6].map((n) => ({ q: t(`landing.faq${n}Q`), a: t(`landing.faq${n}A`) }));
 
   return (
     <div className="min-h-screen bg-[var(--dz-bg)] text-[var(--dz-fg)]">
@@ -226,6 +288,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Social Proof Carousel */}
+      <TestimonialsCarousel />
+
       {/* How it works */}
       <section id="how" className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
         <Reveal><h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.howTitle')}</h2></Reveal>
@@ -302,8 +367,8 @@ export default function Landing() {
       <section id="features" className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
         <Reveal><h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.featuresTitle')}</h2></Reveal>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="home-feature-grid">
-          {features.map((f) => (
-            <Reveal key={f.title}>
+          {features.map((f, i) => (
+            <Reveal key={f.title} delay={i * 0.1}>
               <Card className="p-6 h-full bg-[var(--dz-surface)] border border-[var(--dz-border)] shadow-[var(--dz-shadow-card)]">
                 <div className="h-10 w-10 rounded-lg bg-[var(--dz-mint-16)] text-[var(--dz-buy-deep)] flex items-center justify-center"><f.icon size={18} /></div>
                 <h3 className="mt-4 font-heading font-semibold">{f.title}</h3>

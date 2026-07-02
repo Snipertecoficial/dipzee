@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Bell, Menu, User, LogOut, Settings as SettingsIcon, Crown, LayoutDashboard,
   BellRing, SlidersHorizontal, Newspaper, Shield, PanelLeftClose, PanelLeftOpen, Sparkles,
-  BarChart3, Wallet,
+  BarChart3, Wallet, Megaphone, Landmark, ExternalLink,
 } from 'lucide-react';
 import { Logo, LogoMark } from './Logo';
 import { StockSearch } from './StockSearch';
@@ -108,6 +108,28 @@ function SidebarBody({ collapsed, onNavigate }) {
   const planKey = PLAN_LABEL_KEY[user?.plan || 'free'] || 'plans.free';
   const isTopTier = user?.plan === 'investor';
 
+  const [ads, setAds] = useState([]);
+
+  const loadAds = useCallback(async () => {
+    try {
+      const { data } = await api.get('/partner-ads/active');
+      setAds(data.ads || []);
+    } catch (e) { /* noop */ }
+  }, []);
+
+  useEffect(() => {
+    loadAds();
+  }, [loadAds]);
+
+  const handleAdClick = async (ad) => {
+    try {
+      await api.post(`/partner-ads/click/${ad.id}`);
+    } catch (e) { /* noop */ }
+    window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+  };
+
+  const sidebarAds = ads.filter((a) => a.placement === 'sidebar');
+
   const Section = ({ label, items }) => (
     <div className="px-2">
       {!collapsed && label && (
@@ -126,6 +148,24 @@ function SidebarBody({ collapsed, onNavigate }) {
         <Section label={t('nav.sectionAccount')} items={account} />
         {admin.length > 0 && <Section label={t('nav.sectionAdmin')} items={admin} />}
       </ScrollArea>
+
+      {/* Partner Ad */}
+      {!collapsed && sidebarAds.length > 0 && (
+        <div className="mx-3 my-2 p-3 rounded-[14px] border border-amber-500/20 bg-amber-500/5 flex flex-col gap-1.5 transition-all hover:bg-amber-500/10">
+          <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-800 shrink-0">
+            <Landmark size={11} />
+            Patrocinado
+          </div>
+          {sidebarAds.slice(0, 1).map((ad) => (
+            <div key={ad.id} className="cursor-pointer select-none" onClick={() => handleAdClick(ad)}>
+              <p className="font-heading font-semibold text-xs text-[var(--dz-fg)] hover:underline flex items-center gap-0.5">
+                {ad.partner_name} <ExternalLink size={10} className="inline text-[var(--dz-muted)]" />
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--dz-muted)] leading-tight">{ad.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Plan footer */}
       {!collapsed ? (
@@ -260,10 +300,37 @@ export function TopBar({ collapsed, setCollapsed, setMobileOpen }) {
 export function AppShell({ children }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('dz_sidebar_collapsed') === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('dz_dismissed_announcements') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const { data } = await api.get('/announcements/active');
+      setAnnouncements(data.announcements || []);
+    } catch (e) { /* noop */ }
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  const dismissAnnouncement = (id) => {
+    const next = { ...dismissed, [id]: true };
+    setDismissed(next);
+    localStorage.setItem('dz_dismissed_announcements', JSON.stringify(next));
+  };
 
   useEffect(() => {
     localStorage.setItem('dz_sidebar_collapsed', collapsed ? '1' : '0');
   }, [collapsed]);
+
+  const activeAnnouncements = announcements.filter((a) => !dismissed[a.id]);
 
   return (
     <TooltipProvider>
@@ -298,6 +365,31 @@ export function AppShell({ children }) {
         {/* Main column */}
         <div className={`transition-[padding] duration-200 ${collapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
           <TopBar collapsed={collapsed} setCollapsed={setCollapsed} setMobileOpen={setMobileOpen} />
+          
+          {/* Active announcements */}
+          {activeAnnouncements.map((a) => (
+            <div
+              key={a.id}
+              className={`px-4 py-2.5 flex items-center justify-between text-xs sm:text-sm font-medium border-b transition-all duration-200 ${
+                a.type === 'success' ? 'bg-green-500/10 text-green-700 border-green-500/20' :
+                a.type === 'warning' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' :
+                'bg-[var(--dz-primary)]/10 text-[var(--dz-primary)] border-[var(--dz-primary)]/20'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Megaphone size={14} className="shrink-0" />
+                <span>{a.content}</span>
+              </div>
+              <button
+                onClick={() => dismissAnnouncement(a.id)}
+                className="p-1 hover:bg-black/5 rounded-full transition-colors font-bold text-lg leading-none"
+                aria-label="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+
           <main className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5 sm:py-7">{children}</main>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
-  Users, LineChart, BellRing, CreditCard, SlidersHorizontal, Shield, Database,
+  Users, LineChart, BellRing, CreditCard, SlidersHorizontal, Shield, Database, Megaphone, Landmark, Activity,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,9 @@ import { AdminAssetsTab } from './admin/AdminAssetsTab';
 import { AdminAlertsTab } from './admin/AdminAlertsTab';
 import { AdminBillingTab } from './admin/AdminBillingTab';
 import { AdminSettingsTab } from './admin/AdminSettingsTab';
+import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
+import { AdminAdsTab } from './admin/AdminAdsTab';
+import { AdminHealthTab } from './admin/AdminHealthTab';
 
 // Admin acts as the orchestrator: it owns all state, data loaders and action
 // handlers, then delegates presentation to focused per-tab subcomponents.
@@ -23,6 +26,7 @@ export default function Admin() {
 
   const [stats, setStats] = useState(null);
   const [config, setConfig] = useState(null);
+  const [chartData, setChartData] = useState([]);
   const [users, setUsers] = useState([]);
   const [userQ, setUserQ] = useState('');
   const [assets, setAssets] = useState([]);
@@ -38,6 +42,12 @@ export default function Admin() {
     try {
       const [s, c] = await Promise.all([api.get('/admin/stats'), api.get('/admin/config')]);
       setStats(s.data); setConfig(c.data);
+    } catch (e) { /* noop */ }
+  }, []);
+  const loadChartData = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/stats/charts');
+      setChartData(data.chart_data || []);
     } catch (e) { /* noop */ }
   }, []);
   const loadUsers = useCallback(async () => {
@@ -56,7 +66,15 @@ export default function Admin() {
     try { const { data } = await api.get('/admin/settings'); setSettings(data); } catch (e) { /* noop */ }
   }, []);
 
-  useEffect(() => { loadStats(); loadUsers(); loadAssets(); loadAlerts(); loadTxs(); loadSettings(); }, [loadStats, loadUsers, loadAssets, loadAlerts, loadTxs, loadSettings]);
+  useEffect(() => {
+    loadStats();
+    loadChartData();
+    loadUsers();
+    loadAssets();
+    loadAlerts();
+    loadTxs();
+    loadSettings();
+  }, [loadStats, loadChartData, loadUsers, loadAssets, loadAlerts, loadTxs, loadSettings]);
 
   const updateUser = async (id, payload) => {
     try { await api.put(`/admin/users/${id}`, payload); toast.success(t('admin.userUpdated')); loadUsers(); loadStats(); }
@@ -116,11 +134,14 @@ export default function Admin() {
           <TabsTrigger value="assets" data-testid="admin-tab-assets"><Database size={15} className="mr-1.5" />{t('admin.tabs.assets')}</TabsTrigger>
           <TabsTrigger value="alerts" data-testid="admin-tab-alerts"><BellRing size={15} className="mr-1.5" />{t('admin.tabs.alerts')}</TabsTrigger>
           <TabsTrigger value="billing" data-testid="admin-tab-billing"><CreditCard size={15} className="mr-1.5" />{t('admin.tabs.billing')}</TabsTrigger>
+          <TabsTrigger value="announcements" data-testid="admin-tab-announcements"><Megaphone size={15} className="mr-1.5" />Comunicados</TabsTrigger>
+          <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads"><Landmark size={15} className="mr-1.5" />Parceiros</TabsTrigger>
+          <TabsTrigger value="health" data-testid="admin-tab-health"><Activity size={15} className="mr-1.5" />Status do Sistema</TabsTrigger>
           <TabsTrigger value="settings" data-testid="admin-tab-settings"><SlidersHorizontal size={15} className="mr-1.5" />{t('admin.tabs.settings')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
-          <AdminOverviewTab stats={stats} config={config} busy={busy} onRefreshUniverse={refreshUniverse} onRunDaily={runDaily} />
+          <AdminOverviewTab stats={stats} config={config} chartData={chartData} busy={busy} onRefreshUniverse={refreshUniverse} onRunDaily={runDaily} />
         </TabsContent>
 
         <TabsContent value="users" className="mt-6">
@@ -142,6 +163,18 @@ export default function Admin() {
 
         <TabsContent value="billing" className="mt-6">
           <AdminBillingTab stats={stats} txs={txs} />
+        </TabsContent>
+
+        <TabsContent value="announcements" className="mt-6">
+          <AdminAnnouncementsTab />
+        </TabsContent>
+
+        <TabsContent value="partner-ads" className="mt-6">
+          <AdminAdsTab />
+        </TabsContent>
+
+        <TabsContent value="health" className="mt-6">
+          <AdminHealthTab />
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6">

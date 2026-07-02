@@ -86,3 +86,38 @@ async def get_asset(ticker: str, locale: Optional[str] = None, user: dict = Depe
         raise HTTPException(status_code=404, detail=f"No data available for {ticker}")
     loc = locale or user.get("locale", "en")
     return _with_explanation(asset, loc)
+
+
+# USER-FACING OPERATIONS FOR ANNOUNCEMENTS & SPONSOR ADS
+from datetime import datetime, timezone
+
+@router.get("/announcements/active")
+async def get_active_announcements(user: dict = Depends(get_current_user)):
+    now_str = datetime.now(timezone.utc).isoformat()
+    query = {
+        "active": True,
+        "$or": [
+            {"expires_at": None},
+            {"expires_at": {"$gt": now_str}}
+        ]
+    }
+    announcements = await db.announcements.find(query).to_list(100)
+    for a in announcements:
+        a.pop("_id", None)
+    return {"announcements": announcements}
+
+@router.get("/partner-ads/active")
+async def get_active_partner_ads(user: dict = Depends(get_current_user)):
+    ads = await db.partner_ads.find({"active": True}).to_list(100)
+    for a in ads:
+        a.pop("_id", None)
+    return {"ads": ads}
+
+@router.post("/partner-ads/click/{ad_id}")
+async def register_ad_click(ad_id: str, user: dict = Depends(get_current_user)):
+    ad = await db.partner_ads.find_one({"id": ad_id})
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    await db.partner_ads.update_one({"id": ad_id}, {"$inc": {"clicks": 1}})
+    return {"target_url": ad.get("target_url")}
+

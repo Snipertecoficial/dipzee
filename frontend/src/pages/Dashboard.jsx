@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [filters, setFilters] = useState([]);
   const [discover, setDiscover] = useState([]);
   const [adding, setAdding] = useState('');
+  const [ads, setAds] = useState([]);
   const locale = i18n.language?.slice(0, 2) || 'en';
 
   const load = useCallback(async () => {
@@ -37,7 +38,25 @@ export default function Dashboard() {
     catch (e) { /* noop */ }
   }, []);
 
-  useEffect(() => { load(); loadDiscover(); }, [load, loadDiscover]);
+  const loadAds = useCallback(async () => {
+    try {
+      const { data } = await api.get('/partner-ads/active');
+      setAds(data.ads || []);
+    } catch (e) { /* noop */ }
+  }, []);
+
+  const handleAdClick = async (ad) => {
+    try {
+      await api.post(`/partner-ads/click/${ad.id}`);
+    } catch (e) { /* noop */ }
+    window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+  };
+
+  useEffect(() => {
+    load();
+    loadDiscover();
+    loadAds();
+  }, [load, loadDiscover, loadAds]);
 
   const addToWatch = async (ticker) => {
     setAdding(ticker);
@@ -94,6 +113,31 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* Dashboard sponsor banner */}
+      {ads.filter((a) => a.placement === 'dashboard').slice(0, 1).map((ad) => (
+        <Card key={ad.id} onClick={() => handleAdClick(ad)} className="mt-8 p-5 border-l-4 border-l-[var(--dz-mint)] bg-[var(--dz-surface)] flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer select-none transition-all hover:shadow-md hover:bg-amber-500/5">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-[var(--dz-canvas)] flex items-center justify-center text-[var(--dz-primary)] shrink-0 border border-[var(--dz-border)]">
+              {ad.image_url ? (
+                <img src={ad.image_url} alt={ad.partner_name} className="w-7 h-7 object-contain rounded" />
+              ) : (
+                <Plus className="text-amber-500" />
+              )}
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--dz-muted)]">Parceiro Comercial</span>
+              <h4 className="font-heading font-semibold text-sm text-[var(--dz-fg)] flex items-center gap-1">
+                {ad.partner_name} <Sparkles size={13} className="text-amber-500" />
+              </h4>
+              <p className="text-xs text-[var(--dz-muted)] mt-0.5">{ad.description}</p>
+            </div>
+          </div>
+          <Button className="shrink-0 gap-1.5 h-8 text-xs" size="sm">
+            Negociar Agora <Plus size={13} />
+          </Button>
+        </Card>
+      ))}
 
       {/* Discover: suggested opportunities to monitor */}
       {(() => {
