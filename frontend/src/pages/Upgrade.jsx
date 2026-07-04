@@ -133,17 +133,19 @@ export default function Upgrade() {
   };
 
   const pollStatus = useCallback(async (sessionId, attempts = 0) => {
-    if (attempts >= 6) { setVerifying(false); toast.error(t('auth.genericError')); return; }
+    if (attempts >= 8) { setVerifying(false); toast.error(t('auth.genericError')); return; }
     try {
       const { data } = await api.get(`/billing/status/${sessionId}`);
-      if (data.payment_status === 'paid') {
+      // Trial subscriptions complete without an immediate charge, so success is
+      // driven by the subscription being active/trialing (data.active).
+      if (data.active) {
         setVerifying(false);
         if (setUser && user) setUser({ ...user, plan: data.plan });
-        toast.success('Upgrade complete \u2014 ' + t(`plans.${data.plan}`));
+        toast.success(t('plans.trialStartedToast', { plan: t(`plans.${data.plan}`) }));
         setParams({}, { replace: true });
         return;
       }
-      if (data.status === 'expired') { setVerifying(false); toast.error(t('auth.genericError')); return; }
+      if (data.session_status === 'expired') { setVerifying(false); toast.error(t('auth.genericError')); return; }
       setTimeout(() => pollStatus(sessionId, attempts + 1), 2000);
     } catch (e) {
       setVerifying(false);

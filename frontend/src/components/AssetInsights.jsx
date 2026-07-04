@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AreaChart, Area, LineChart, Line, Legend, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Loader2, Play, Info } from 'lucide-react';
+import { Loader2, Play, Info, Sparkles, TrendingUp, AlertTriangle, Zap, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
 import { FeatureGate } from './FeatureGate';
 import api from '../lib/api';
 
@@ -314,6 +315,134 @@ function BacktestTab({ ticker }) {
   );
 }
 
+const STANCE_META = {
+  accumulate: { icon: TrendingUp, color: 'var(--dz-buy-deep)', bg: 'var(--dz-mint-16)' },
+  hold: { icon: Info, color: 'var(--dz-primary)', bg: 'var(--dz-primary-8)' },
+  watch: { icon: AlertTriangle, color: '#B45309', bg: 'rgba(245,158,11,0.14)' },
+  avoid: { icon: AlertTriangle, color: 'var(--dz-sell)', bg: 'rgba(217,45,32,0.12)' },
+};
+
+function BulletBlock({ title, items, Icon, color }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <p className="flex items-center gap-2 font-heading font-semibold text-sm mb-2" style={{ color }}>
+        <Icon size={15} /> {title}
+      </p>
+      <ul className="space-y-2">
+        {items.map((it) => (
+          <li key={it} className="flex items-start gap-2 text-sm text-[var(--dz-fg)] leading-snug">
+            <span className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0" style={{ background: color }} />
+            <span>{it}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AnalystTab({ ticker }) {
+  const { t } = useTranslation();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback((refresh = false) => {
+    setLoading(true); setError(false);
+    api.get(`/ai/analyst/${encodeURIComponent(ticker)}`, { params: refresh ? { refresh: 1 } : {} })
+      .then(({ data }) => setData(data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [ticker]);
+
+  useEffect(() => { load(false); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4" data-testid="ai-analyst-loading">
+        <div className="flex items-center gap-2 text-sm text-[var(--dz-muted)]">
+          <Loader2 size={16} className="animate-spin" /> {t('asset.aiGenerating')}
+        </div>
+        <Skeleton className="h-6 w-44" />
+        <Skeleton className="h-16 w-full" />
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-10 text-center" data-testid="ai-analyst-error">
+        <p className="text-sm text-[var(--dz-muted)]">{t('asset.aiError')}</p>
+        <Button onClick={() => load(false)} variant="outline" className="mt-4 border-[var(--dz-border)]">
+          <RefreshCw size={15} className="mr-2" />{t('asset.aiRetry')}
+        </Button>
+      </div>
+    );
+  }
+
+  const meta = STANCE_META[data.stance] || STANCE_META.watch;
+  const StanceIcon = meta.icon;
+  const conf = typeof data.confidence === 'number' ? data.confidence : null;
+
+  return (
+    <div className="space-y-5" data-testid="ai-analyst-panel">
+      {/* Header: stance + regenerate */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            data-testid="ai-analyst-stance"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold"
+            style={{ background: meta.bg, color: meta.color }}
+          >
+            <StanceIcon size={14} /> {data.stance_label || t(`asset.aiStance.${data.stance}`, data.stance)}
+          </span>
+          {data.horizon && (
+            <span className="text-xs text-[var(--dz-muted)]">· {data.horizon}</span>
+          )}
+        </div>
+        <Button onClick={() => load(true)} variant="outline" size="sm" data-testid="ai-analyst-regenerate-button" className="border-[var(--dz-border)]">
+          <RefreshCw size={14} className="mr-1.5" />{t('asset.aiRegenerate')}
+        </Button>
+      </div>
+
+      {/* Confidence */}
+      {conf !== null && (
+        <div data-testid="ai-analyst-confidence">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-[var(--dz-muted)]">{t('asset.aiConfidence')}</span>
+            <span className="font-medium tnum">{conf}%</span>
+          </div>
+          <Progress value={conf} className="h-2" />
+        </div>
+      )}
+
+      {/* Summary */}
+      {data.summary && (
+        <Card className="p-4 border-[var(--dz-border)] bg-[var(--dz-surface)]">
+          <p className="text-sm text-[var(--dz-fg)] leading-relaxed" data-testid="ai-analyst-summary">{data.summary}</p>
+        </Card>
+      )}
+
+      {/* Thesis / Risks / Catalysts */}
+      <div className="grid sm:grid-cols-2 gap-5">
+        <BulletBlock title={t('asset.aiThesis')} items={data.thesis} Icon={TrendingUp} color="var(--dz-buy-deep)" />
+        <BulletBlock title={t('asset.aiRisks')} items={data.risks} Icon={AlertTriangle} color="var(--dz-sell)" />
+        <BulletBlock title={t('asset.aiCatalysts')} items={data.catalysts} Icon={Zap} color="var(--dz-primary)" />
+      </div>
+
+      {/* Disclaimer */}
+      <div className="flex gap-2 items-start rounded-lg border border-dashed border-[var(--dz-border)] p-3">
+        <Info size={14} className="shrink-0 text-[var(--dz-muted)] mt-0.5" />
+        <p className="text-[11px] text-[var(--dz-muted)] leading-relaxed">{t('asset.aiDisclaimer')}</p>
+      </div>
+    </div>
+  );
+}
+
 export function AssetInsights({ ticker }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState('chart');
@@ -326,12 +455,16 @@ export function AssetInsights({ ticker }) {
           <TabsTrigger value="fundamentals" data-testid="asset-tab-fundamentals">{t('asset.fundamentals')}</TabsTrigger>
           <TabsTrigger value="options" data-testid="asset-tab-options">{t('asset.options')}</TabsTrigger>
           <TabsTrigger value="backtest" data-testid="asset-tab-backtest">{t('asset.backtest')}</TabsTrigger>
+          <TabsTrigger value="aiAnalyst" data-testid="asset-tab-ai-analyst" className="gap-1.5">
+            <Sparkles size={14} /> {t('asset.aiAnalyst')}
+          </TabsTrigger>
         </TabsList>
         <div className="mt-5">
           <TabsContent value="chart"><FeatureGate feature="charts">{tab === 'chart' && <ChartTab ticker={ticker} />}</FeatureGate></TabsContent>
           <TabsContent value="fundamentals"><FeatureGate feature="fundamentals">{tab === 'fundamentals' && <FundamentalsTab ticker={ticker} />}</FeatureGate></TabsContent>
           <TabsContent value="options"><FeatureGate feature="options">{tab === 'options' && <OptionsTab ticker={ticker} />}</FeatureGate></TabsContent>
           <TabsContent value="backtest"><FeatureGate feature="backtest">{tab === 'backtest' && <BacktestTab ticker={ticker} />}</FeatureGate></TabsContent>
+          <TabsContent value="aiAnalyst"><FeatureGate feature="ai_analyst">{tab === 'aiAnalyst' && <AnalystTab ticker={ticker} />}</FeatureGate></TabsContent>
         </div>
       </Tabs>
     </Card>

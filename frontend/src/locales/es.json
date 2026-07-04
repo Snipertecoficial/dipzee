@@ -241,7 +241,23 @@
     "btTipStrategy": "Retorno total acumulado siguiendo la estrategia.",
     "btTipBuyHold": "Retorno de simplemente comprar al inicio y mantener hasta el final (referencia).",
     "btTipDrawdown": "Mayor caída de pico a valle: mide el peor riesgo de la estrategia.",
-    "btTipTimeIn": "Porcentaje del tiempo que la estrategia estuvo invertida (si no, en efectivo)."
+    "btTipTimeIn": "Porcentaje del tiempo que la estrategia estuvo invertida (si no, en efectivo).",
+    "aiAnalyst": "Analista Virtual",
+    "aiGenerating": "Generando análisis con IA…",
+    "aiError": "No se pudo generar el análisis ahora.",
+    "aiRetry": "Reintentar",
+    "aiRegenerate": "Actualizar",
+    "aiConfidence": "Confianza",
+    "aiThesis": "Tesis de inversión",
+    "aiRisks": "Riesgos",
+    "aiCatalysts": "Catalizadores",
+    "aiDisclaimer": "Contenido generado por IA solo con fines educativos. No es asesoramiento de inversión.",
+    "aiStance": {
+      "accumulate": "Acumular",
+      "hold": "Mantener",
+      "watch": "Observar",
+      "avoid": "Evitar"
+    }
   },
   "alerts": {
     "title": "Alertas",
@@ -323,7 +339,20 @@
     "telegramPh": "ej. 123456789",
     "webhookPh": "https://...",
     "profileSaved": "Perfil actualizado",
-    "lockedInvestor": "Disponible en el plan Inversor"
+    "lockedInvestor": "Disponible en el plan Inversor",
+    "manageSubscription": "Gestionar suscripción",
+    "noBillingAccount": "No se encontró cuenta de facturación. Suscríbete a un plan primero.",
+    "trialEndsOn": "La prueba termina el",
+    "renewsOn": "Se renueva el",
+    "endsOn": "Finaliza el",
+    "subStatus": {
+      "trialing": "En prueba",
+      "active": "Activa",
+      "past_due": "Pago pendiente",
+      "canceled": "Cancelada",
+      "unpaid": "Sin pagar",
+      "incomplete": "Incompleta"
+    }
   },
   "screener": {
     "title": "Screener",
@@ -387,7 +416,8 @@
     "starterF5": "Los 4 idiomas",
     "proF6": "Los 4 idiomas",
     "investorF6": "Alertas Telegram y webhook",
-    "investorF7": "Exportar datos y prioridad"
+    "investorF7": "Exportar datos y prioridad",
+    "trialStartedToast": "Prueba de 7 días iniciada — {{plan}}"
   },
   "admin": {
     "planStarter": "Principiante",

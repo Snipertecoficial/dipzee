@@ -241,7 +241,23 @@
     "btTipStrategy": "Rendement total cumulé en suivant la stratégie.",
     "btTipBuyHold": "Rendement d'un simple achat au début et conservation jusqu'à la fin (référence).",
     "btTipDrawdown": "Plus forte baisse du pic au creux — mesure le pire risque de la stratégie.",
-    "btTipTimeIn": "Pourcentage de temps où la stratégie était investie (sinon en liquidités)."
+    "btTipTimeIn": "Pourcentage de temps où la stratégie était investie (sinon en liquidités).",
+    "aiAnalyst": "Analyste Virtuel",
+    "aiGenerating": "Génération de l'analyse IA…",
+    "aiError": "Impossible de générer l'analyse pour le moment.",
+    "aiRetry": "Réessayer",
+    "aiRegenerate": "Actualiser",
+    "aiConfidence": "Confiance",
+    "aiThesis": "Thèse d'investissement",
+    "aiRisks": "Risques",
+    "aiCatalysts": "Catalyseurs",
+    "aiDisclaimer": "Contenu généré par IA à des fins éducatives uniquement. Ce n'est pas un conseil en investissement.",
+    "aiStance": {
+      "accumulate": "Accumuler",
+      "hold": "Conserver",
+      "watch": "Surveiller",
+      "avoid": "Éviter"
+    }
   },
   "alerts": {
     "title": "Alertes",
@@ -323,7 +339,20 @@
     "telegramPh": "ex. 123456789",
     "webhookPh": "https://...",
     "profileSaved": "Profil mis à jour",
-    "lockedInvestor": "Disponible avec le forfait Investisseur"
+    "lockedInvestor": "Disponible avec le forfait Investisseur",
+    "manageSubscription": "Gérer l'abonnement",
+    "noBillingAccount": "Aucun compte de facturation trouvé. Abonnez-vous d'abord à un forfait.",
+    "trialEndsOn": "L'essai se termine le",
+    "renewsOn": "Renouvellement le",
+    "endsOn": "Se termine le",
+    "subStatus": {
+      "trialing": "Essai",
+      "active": "Actif",
+      "past_due": "En retard",
+      "canceled": "Annulé",
+      "unpaid": "Impayé",
+      "incomplete": "Incomplet"
+    }
   },
   "screener": {
     "title": "Filtre",
@@ -387,7 +416,8 @@
     "starterF5": "Les 4 langues",
     "proF6": "Les 4 langues",
     "investorF6": "Alertes Telegram et webhook",
-    "investorF7": "Export de données et priorité"
+    "investorF7": "Export de données et priorité",
+    "trialStartedToast": "Essai de 7 jours démarré — {{plan}}"
   },
   "admin": {
     "planStarter": "Débutant",

@@ -20,6 +20,7 @@ import routes_market
 import routes_plans
 import routes_portfolio
 import routes_backtest
+import routes_ai
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ api_router.include_router(routes_market.router)
 api_router.include_router(routes_plans.router)
 api_router.include_router(routes_portfolio.router)
 api_router.include_router(routes_backtest.router)
+api_router.include_router(routes_ai.router)
 
 app.include_router(api_router)
 

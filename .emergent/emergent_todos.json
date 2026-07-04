@@ -1,22 +1,42 @@
 [
   {
-    "content": "F1 Depoimentos i18n: dataset localizado 5 por idioma (PT/EN/ES/FR) + TestimonialsCarousel seleciona por i18n.language",
+    "content": "G1: Injetar chaves Stripe reais no backend/.env (STRIPE_API_KEY + STRIPE_PUBLISHABLE_KEY) e adicionar EMERGENT_LLM_KEY",
     "status": "completed"
   },
   {
-    "content": "F2 Camada de dados resiliente: cascata defensiva por operação (quote/history/search) yfinance→Finnhub→Investing→cache stale + circuit breaker + normalização",
+    "content": "G1: Reescrever routes_billing.py com SDK nativo (subscription + trial 7d + customer + portal + status + webhook)",
     "status": "completed"
   },
   {
-    "content": "F4 Segurança: rate limiting (in-memory), anti-brute-force login (lockout Mongo), security headers (CSP/HSTS/etc), validação/sanitização de inputs",
+    "content": "G1: Ajustar Upgrade.jsx (poll para trialing/active) e adicionar botão Gerenciar Assinatura em Settings.jsx",
     "status": "completed"
   },
   {
-    "content": "F3 Backtest v2: explicação + tooltips didáticos, período/estratégia configuráveis, gráfico equity curve (estratégia vs buy&hold)",
+    "content": "G1: Testar fluxo de billing (backend curl + status) - checkout/status/portal OK",
     "status": "completed"
   },
   {
-    "content": "Verificação final: pyflakes/esbuild, curl endpoints, git status",
+    "content": "G2: Adicionar feature flag ai_analyst em plans.py (Pro + Investor)",
     "status": "completed"
+  },
+  {
+    "content": "G2: Criar routes_ai.py (endpoint /api/ai/analyst/{ticker} + cache Mongo) e registrar em server.py",
+    "status": "completed"
+  },
+  {
+    "content": "G2: Adicionar tab Analista Virtual em AssetInsights.jsx + i18n (pt/en/es/fr)",
+    "status": "completed"
+  },
+  {
+    "content": "G2: Testar Analista Virtual (gating + geração + cache + UI screenshot) OK",
+    "status": "completed"
+  },
+  {
+    "content": "i18n: adicionar chaves de billing + IA em pt/en/es/fr",
+    "status": "completed"
+  },
+  {
+    "content": "Testes finais com testing agent (backend Stripe E2E + AI + frontend)",
+    "status": "in_progress"
   }
 ]

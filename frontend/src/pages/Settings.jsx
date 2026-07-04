@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Crown, Camera, Trash2, Check, Sun, Moon, Monitor, Lock } from 'lucide-react';
+import { Crown, Camera, Trash2, Check, Sun, Moon, Monitor, Lock, Loader2, ExternalLink, CalendarClock } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import api from '../lib/api';
 
 const LANGS = [{ code: 'en', label: 'English' }, { code: 'fr', label: 'Fran\u00e7ais' }, { code: 'pt', label: 'Portugu\u00eas' }, { code: 'es', label: 'Espa\u00f1ol' }];
 const MAX_FILE = 1_100_000; // ~1MB source -> ~1.4MB base64
@@ -35,6 +36,35 @@ export default function Settings() {
   const [channels, setChannels] = useState({ telegram_chat_id: user?.telegram_chat_id || '', webhook_url: user?.webhook_url || '' });
   const [saving, setSaving] = useState(false);
   const canMsg = can('messaging_alerts');
+  const [sub, setSub] = useState(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+
+  const isPaid = ['starter', 'pro', 'investor'].includes(user?.plan);
+
+  useEffect(() => {
+    let alive = true;
+    api.get('/billing/subscription')
+      .then(({ data }) => { if (alive) setSub(data); })
+      .catch(() => { if (alive) setSub({}); });
+    return () => { alive = false; };
+  }, []);
+
+  const openPortal = async () => {
+    setPortalBusy(true);
+    try {
+      const { data } = await api.post('/billing/portal', { origin_url: window.location.origin });
+      if (data.url) { window.location.href = data.url; }
+    } catch (e) {
+      toast.error(e?.response?.status === 400 ? t('settings.noBillingAccount') : t('auth.genericError'));
+      setPortalBusy(false);
+    }
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return '\u2014';
+    try { return new Date(iso).toLocaleDateString(user?.locale || 'en', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return '\u2014'; }
+  };
 
   const initials = (user?.display_name || user?.email || 'U').slice(0, 2).toUpperCase();
 
@@ -221,13 +251,56 @@ export default function Settings() {
         <TabsContent value="subscription">
           <Card className="p-6 border-[var(--dz-border)]">
             <p className="font-heading font-semibold">{t('settings.subscription')}</p>
-            <div className="mt-3 flex items-center justify-between gap-4">
+            <div className="mt-3 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-sm text-[var(--dz-muted)]">{t('settings.currentPlan')}</p>
-                <p className="font-heading font-bold text-xl">{t(`plans.${user?.plan || 'none'}`)}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-heading font-bold text-xl" data-testid="settings-current-plan">{t(`plans.${user?.plan || 'none'}`)}</p>
+                  {sub?.subscription_status && (
+                    <span
+                      data-testid="settings-subscription-status"
+                      className="inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 font-medium bg-[var(--dz-mint-16)] text-[var(--dz-buy-deep)]"
+                    >
+                      {t(`settings.subStatus.${sub.subscription_status}`, sub.subscription_status)}
+                    </span>
+                  )}
+                </div>
               </div>
-              <Link to="/app/upgrade"><Button variant="outline" data-testid="settings-upgrade-button" className="border-[var(--dz-border)]"><Crown size={16} className="mr-2" />{t('nav.upgrade')}</Button></Link>
+              <div className="flex items-center gap-2">
+                {isPaid && sub?.has_subscription ? (
+                  <Button onClick={openPortal} disabled={portalBusy} data-testid="settings-manage-subscription-button" className="bg-[var(--dz-primary)] text-white">
+                    {portalBusy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <ExternalLink size={16} className="mr-2" />}
+                    {t('settings.manageSubscription')}
+                  </Button>
+                ) : (
+                  <Link to="/app/upgrade"><Button variant="outline" data-testid="settings-upgrade-button" className="border-[var(--dz-border)]"><Crown size={16} className="mr-2" />{t('nav.upgrade')}</Button></Link>
+                )}
+              </div>
             </div>
+
+            {sub && (sub.trial_ends_at || sub.current_period_end) && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {sub.subscription_status === 'trialing' && sub.trial_ends_at && (
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--dz-border)] bg-[var(--dz-surface)] p-3" data-testid="settings-trial-ends">
+                    <CalendarClock size={16} className="text-[var(--dz-buy-deep)]" />
+                    <div>
+                      <p className="text-xs text-[var(--dz-muted)]">{t('settings.trialEndsOn')}</p>
+                      <p className="font-medium tnum">{fmtDate(sub.trial_ends_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {sub.current_period_end && (
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--dz-border)] bg-[var(--dz-surface)] p-3" data-testid="settings-renews-on">
+                    <CalendarClock size={16} className="text-[var(--dz-muted)]" />
+                    <div>
+                      <p className="text-xs text-[var(--dz-muted)]">{sub.cancel_at_period_end ? t('settings.endsOn') : t('settings.renewsOn')}</p>
+                      <p className="font-medium tnum">{fmtDate(sub.current_period_end)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {user?.capabilities?.features?.length > 0 && (
               <ul className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {user.capabilities.features.map((f) => (

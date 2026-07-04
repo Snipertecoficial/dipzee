@@ -18,13 +18,13 @@ PLAN_FEATURES = {
     "pro": [
         "search", "watchlist", "alerts", "email_alerts", "in_app_alerts",
         "all_locales", "dividend_tracker", "screener", "charts", "fundamentals",
-        "options",
+        "options", "ai_analyst",
     ],
     "investor": [
         "search", "watchlist", "alerts", "email_alerts", "in_app_alerts",
         "all_locales", "dividend_tracker", "screener", "charts", "fundamentals",
         "options", "intraday", "advanced_screener", "portfolio", "backtest",
-        "messaging_alerts", "export", "priority",
+        "messaging_alerts", "export", "priority", "ai_analyst",
     ],
 }
 

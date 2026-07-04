@@ -243,7 +243,23 @@
     "btTipStrategy": "Retorno total acumulado seguindo a estratégia.",
     "btTipBuyHold": "Retorno de simplesmente comprar no início e segurar até o fim (referência).",
     "btTipDrawdown": "Maior queda do pico ao fundo — mede o pior momento/risco da estratégia.",
-    "btTipTimeIn": "Percentual do tempo em que a estratégia esteve posicionada no ativo (fora = em caixa)."
+    "btTipTimeIn": "Percentual do tempo em que a estratégia esteve posicionada no ativo (fora = em caixa).",
+    "aiAnalyst": "Analista Virtual",
+    "aiGenerating": "Gerando análise com IA…",
+    "aiError": "Não foi possível gerar a análise agora.",
+    "aiRetry": "Tentar novamente",
+    "aiRegenerate": "Atualizar",
+    "aiConfidence": "Confiança",
+    "aiThesis": "Tese de investimento",
+    "aiRisks": "Riscos",
+    "aiCatalysts": "Catalisadores",
+    "aiDisclaimer": "Conteúdo gerado por IA apenas para fins educacionais. Não é recomendação de investimento.",
+    "aiStance": {
+      "accumulate": "Acumular",
+      "hold": "Manter",
+      "watch": "Observar",
+      "avoid": "Evitar"
+    }
   },
   "alerts": {
     "title": "Alertas",
@@ -325,7 +341,20 @@
     "telegramPh": "ex.: 123456789",
     "webhookPh": "https://...",
     "profileSaved": "Perfil atualizado",
-    "lockedInvestor": "Disponível no plano Investidor"
+    "lockedInvestor": "Disponível no plano Investidor",
+    "manageSubscription": "Gerenciar assinatura",
+    "noBillingAccount": "Nenhuma conta de cobrança encontrada. Assine um plano primeiro.",
+    "trialEndsOn": "Teste termina em",
+    "renewsOn": "Renova em",
+    "endsOn": "Encerra em",
+    "subStatus": {
+      "trialing": "Em teste",
+      "active": "Ativa",
+      "past_due": "Pagamento pendente",
+      "canceled": "Cancelada",
+      "unpaid": "Não paga",
+      "incomplete": "Incompleta"
+    }
   },
   "news": {
     "title": "Notícias",
@@ -479,7 +508,8 @@
     "starterF5": "Todos os 4 idiomas",
     "proF6": "Todos os 4 idiomas",
     "investorF6": "Alertas Telegram e webhook",
-    "investorF7": "Exportar dados e prioridade"
+    "investorF7": "Exportar dados e prioridade",
+    "trialStartedToast": "Teste de 7 dias iniciado — {{plan}}"
   },
   "markets": {
     "title": "Mercados",

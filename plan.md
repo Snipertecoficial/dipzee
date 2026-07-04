@@ -1,4 +1,10 @@
-# Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium) — ATUALIZADO (Fase: F — Robustez sem Chaves + Backtest + Segurança + i18n Depoimentos)
+# Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium)
+
+**Status:** ATUALIZADO — **Fase G (Stripe Recorrente + Trial 7 dias + IA Analista Virtual)** — ⏳ **EM ANDAMENTO (P0)**
+
+> **Nota de idioma:** usuário primário pt-BR; todas as interações/UX devem manter pt-BR como primeira classe (com i18n EN/FR/ES já existente).
+
+---
 
 ## 1) Objectives
 
@@ -7,215 +13,233 @@
   - **Starter (`starter`) — US$ 4,97/mês**
   - **Pro (`pro`) — US$ 12,97/mês**
   - **Investor (`investor`) — US$ 24,99/mês**
-  - **Trial de 7 dias com cartão + paywall** (usuários `plan="none"` não acessam áreas logadas até assinar).
-- **Redesign das áreas logadas concluído** (AppShell profissional com sidebar/topbar, rotas consistentes).
-- **Redesign da landing/auth concluído**, remoção do badge “Made with Emergent”, favicon/título configurados.
-- **Camada resiliente de dados de mercado concluída** (`/api/market/*`) com cache agressivo + persistência Mongo + fallback stale para evitar rate limit do Yahoo/yfinance.
-- **Dark Mode** completo (toggle + persistência).
-- **Perfil editável** com avatar Base64 e integrações (Telegram/Webhook).
-- **Mercados** (abas + filtro) + **Asset Detail** com Insights (Chart/Fundamentals/Options/Backtest com gating).
-- **Investidor entregue**: Portfolio P&L + export CSV + Backtesting.
-- **Dual-superadmin**: múltiplos e-mails permitidos.
+  - Anual: **`monthly * 12 * 0.8`** (~20% OFF)
+- **Paywall upfront**: usuários com `plan="none"` são redirecionados para `/app/upgrade` antes de acessar o app.
+- **Redesign das áreas logadas** (AppShell premium com sidebar/topbar).
+- **Redesign da landing/auth** (premium), remoção do badge “Made with Emergent”, favicon/título configurados.
+- **Dark Mode** completo.
+- **Perfil editável** com avatar Base64 e preferências.
+- **Mercados** (abas + filtro) + **Asset Detail** com Insights.
+- **Portfolio P&L** + export CSV.
+- **Multi-admin / dual-superadmin** (múltiplos e-mails; fallback hardcoded em `server.py`).
 
 ### Qualidade de Código + Refatoração Admin — ✅ CONCLUÍDA
 - Backend sem warnings relevantes de `pyflakes` nos módulos de runtime.
-- Frontend sem `key={index}` em listas dinâmicas (chaves estáveis).
-- `Admin.jsx` dividido em subcomponentes e verificado (screenshots e sanity checks).
+- Frontend sem `key={index}` em listas dinâmicas.
+- `Admin.jsx` refatorado em sub-tabs modulares e verificado.
 
-### Integração GitHub + Features Admin/Monetização + Landing Premium — ✅ CONCLUÍDA (após pull)
-- Pull do GitHub aplicado por fast-forward (commit `78e0755`).
-- Novas tabs e arquitetura admin:
-  - **AdminAnnouncementsTab** (CRUD de comunicados globais)
-  - **AdminAdsTab** (CRUD de anúncios de parceiros)
-  - **AdminHealthTab** (status do sistema + integridade de chaves + scheduler)
-- Landing premium com **framer-motion**, **carrossel de depoimentos** e reforço de copy.
-
-### Hotfixes pós-pull (stabilização do preview) — ✅ CONCLUÍDOS
-- **Landing.jsx**: corrigido import quebrado do `lucide-react` que causava “Failed to compile”.
-- **/api/admin/health**: corrigido erro 500 (import inexistente `scheduler`) via helper `is_scheduler_running()`.
+### Phase F — Robustez + i18n + Backtest v2 + Segurança — ✅ CONCLUÍDA
+- **F1 Depoimentos por idioma** (PT/EN/ES/FR) via `i18n.language`.
+- **F2 Mercado resiliente (cascata)**: Finnhub → yfinance → Investing → Mongo cache stale.
+- **F3 Backtest v2**: equity curve, estratégias (Buy the Dip / SMA Cross), tooltips, drawdown/time-in-market.
+- **F4 Segurança**: rate limiting, brute-force lockout, headers de segurança e CSP.
 
 ---
 
 ## 2) Implementation Steps
 
-### Phase 0 — Auditoria/Inventário (curto, antes de mexer) — ✅ CONCLUÍDA
+### Phase 0 — Auditoria/Inventário — ✅ CONCLUÍDA
 - Auditoria de limites, intraday, alert types, UI do Upgrade.
-- Tabela interna “Plano → features → status”.
-- Ajuste de copy/i18n para evitar overpromising.
-
----
+- Matriz “Plano → features → status”.
 
 ### Phase A — Fundação (Capacidades por plano + Perfil + Dark Mode) — ✅ CONCLUÍDA
-- Catálogo de planos/capabilities e gating backend/frontend.
-- Perfil editável com avatar Base64.
-- Dark mode com persistência.
-
----
 
 ### Phase B — Mercados + Ativos/Notícias — ✅ CONCLUÍDA
-- `/app/markets` com abas.
-- Asset Detail com insights (charts/fundamentals/options/backtest), com gating.
-
----
 
 ### Phase C — Investidor (Portfolio P&L + Backtest + Canais) — ✅ CONCLUÍDA
-- Portfolio com P&L e export.
-- Backtest (MVP) entregue.
-- Alertas (in-app + mocked email + webhook + telegram pronto).
 
----
-
-### Phase D — Gating, Upsell, Qualidade e “Lista 100%” — ✅ CONCLUÍDA (MVP) / ⏳ PENDÊNCIAS (produção)
-**Entregue (MVP)**
-- Gating consistente backend/frontend.
-
-**Pendências (fora do escopo imediato)**
-- Stripe subscriptions/portal (depende de chaves).
-- Resend e-mails reais (depende de chave).
-- Telegram token.
-
----
+### Phase D — Gating, Upsell, Qualidade e “Lista 100%” — ✅ CONCLUÍDA (MVP)
 
 ### Phase E — Qualidade de Código + Refatoração Admin — ✅ CONCLUÍDA
-- Correções de hooks/keys/pyflakes e extração de Admin em subcomponentes.
+
+### Phase F — Robustez sem chaves + i18n Depoimentos + Backtest v2 + Segurança — ✅ CONCLUÍDA
 
 ---
 
-## Phase F — Robustez sem chaves + i18n Depoimentos + Backtest v2 + Segurança (fase atual) — ⏳ EM ANDAMENTO
+## Phase G — Reta Final (P0): Stripe REAL Recorrente + Trial 7 dias + IA Analista Virtual — ⏳ EM ANDAMENTO
 
-### Contexto e decisão técnica
-O usuário **não possui chaves de API** para FMP/Polygon/AlphaVantage/TwelveData/Marketstack. Para manter **estabilidade e cobertura ampla** (todos ativos disponíveis), a estratégia será:
-- **Primário:** `yfinance` (sem chave, maior cobertura) + cache agressivo + fallback stale MongoDB.
-- **Secundário:** Finnhub (já configurado no ambiente) para quote rápido quando disponível.
-- **Terciário (último recurso):** Investing (endpoints internos) **apenas como fallback** e com hardening (timeouts, rate limit, cache), por ser instável e com risco de bloqueio.
+### Contexto (decisões confirmadas pelo usuário)
+- **Stripe**:
+  - Usar as **mesmas chaves de teste já fornecidas** (`sk_test`, `pk_test`, `rk_test`).
+  - **Criar Products/Prices dinamicamente via API** (sem Price IDs pré-criados).
+  - Preços em **USD** iguais aos cards da home:
+    - Starter: 4.97/mês
+    - Pro: 12.97/mês
+    - Investor: 24.99/mês
+    - Anual: `monthly*12*0.8`
+  - Trial de **7 dias** para **todos** os planos (mensal e anual), com **cartão obrigatório upfront** (`payment_method_collection="always"`).
+- **Playbook Stripe**:
+  - O playbook retornou o wrapper `emergentintegrations` (focado em pagamento único), **inadequado** para assinaturas.
+  - Implementação correta: **SDK nativo do Stripe** (`stripe==14.4.1`, já instalado).
+- **IA Analista Virtual**:
+  - Usar **EMERGENT_LLM_KEY** (sem custo por enquanto) com **OpenAI `gpt-5.4`**.
+  - Gating: **apenas Pro + Investor**.
+- **Ordem de execução:** Stripe primeiro → depois IA. Usuário pediu “**seguir sem parar**”.
 
-> Nota: endpoints internos do Investing são não oficiais; serão tratados como “best effort” e nunca como única fonte.
+---
 
-### F1) Depoimentos localizados por idioma (Landing) — ⏳
-**Requisito:** 5 depoimentos por idioma (PT/EN/ES/FR), exibidos conforme idioma selecionado.
+### G1) Stripe REAL (assinaturas recorrentes) + Trial 7 dias (Starter/Pro/Investor) — ⏳
+**Objetivo:** trocar o fluxo atual (mock/one-time) por **assinatura recorrente** no Stripe, garantindo que **trialing/active** desbloqueie o app e **canceled/unpaid** volte para `plan="none"`.
 
-**Plano:**
-- Criar um dataset de depoimentos por locale (ex.: `frontend/src/constants/testimonials.js`).
-- Selecionar a lista via `i18n.language` (slice 0,2 → `pt/en/es/fr`).
-- Garantir fallback elegante (se locale não existir → EN).
-- Preservar o componente `TestimonialsCarousel` e apenas trocar a fonte de dados.
+#### Requisitos de produto
+- Trial 7 dias em **Starter/Pro/Investor** (mensal e anual).
+- Cartão obrigatório no trial (sem acesso sem CC).
+- Self-service de upgrade/downgrade/cancelar via **Customer Portal**.
+- Estado de plano consistente via **polling (primário)** + **webhook (quando configurado)**.
+- Preços **server-side** (proteção contra manipulação do frontend).
 
-**Critérios de aceite:**
-- Ao trocar idioma pelo seletor, o carrossel troca os depoimentos (texto/nome/cargo) corretamente.
+#### Trabalho técnico — Backend (FastAPI)
+1) **Variáveis de ambiente (.env)**
+   - Substituir `STRIPE_API_KEY` (mock) pela **sk_test real** fornecida.
+   - Adicionar:
+     - `STRIPE_PUBLISHABLE_KEY=pk_test_...`
+     - (Opcional no início) `STRIPE_WEBHOOK_SECRET=whsec_...` quando o endpoint for criado no dashboard.
 
-### F2) Camada de dados “multi-oráculo” resiliente sem chaves — ⏳
-**Objetivo:** Cobrir *todos os ativos* com máxima estabilidade e antirate-limit.
+2) **Reescrever `routes_billing.py` usando Stripe SDK (assinaturas)**
+   - `POST /api/billing/checkout`
+     - `stripe.checkout.sessions.create` com:
+       - `mode="subscription"`
+       - `line_items=[{price_data:{currency:"usd",unit_amount:<cents>,product_data:{name},recurring:{interval:"month"|"year"}},quantity:1}]`
+       - `subscription_data={"trial_period_days":7, "metadata":{user_id,plan,billing,package_id}}`
+       - `payment_method_collection="always"`
+       - `client_reference_id=user_id`
+       - `success_url`/`cancel_url` construídos a partir de `origin_url` (nunca hardcode)
+     - **Customer**:
+       - Criar/recuperar `stripe_customer_id` e persistir em `users`.
+     - Criar registro em `payment_transactions` (já existe) como `initiated/pending`.
+   - `GET /api/billing/status/{session_id}`
+     - `stripe.checkout.sessions.retrieve(..., expand=["subscription"])`
+     - Considerar **sucesso** quando subscription estiver `trialing` ou `active` (mesmo que `payment_status` não seja `paid` durante trial).
+     - Aplicar upgrade idempotente do plano + persistir:
+       - `stripe_subscription_id`, `trial_ends_at`, `current_period_end`.
+   - `POST /api/billing/portal`
+     - Criar sessão do **Billing Portal** via `stripe.billing_portal.sessions.create`.
+     - Incluir `return_url` para voltar ao app.
+   - `GET /api/billing/subscription` (qualidade de UX)
+     - Retornar status atual (trialing/active/canceled), datas relevantes e plano.
 
-**Trabalhos planejados:**
-1) **Cascata defensiva real por operação** (não apenas provider único global)
-   - Hoje `get_provider()` escolhe 1 provider global.
-   - Ajustar para uma estratégia por operação:
-     - `quote`: tentar Finnhub → yfinance → Investing → cache stale
-     - `history`: yfinance → Investing → cache stale
-     - `search`: yfinance search → Investing search → cache stale
-   - Implementar isso em uma camada `provider_router` (ou dentro de `market_service`/`asset_service`) sem acoplar nas rotas.
+3) **Webhook Stripe (opcional no começo, obrigatório para produção)**
+   - `POST /api/webhook/stripe`
+   - Se `STRIPE_WEBHOOK_SECRET` estiver configurado:
+     - Verificar assinatura com `stripe.Webhook.construct_event`.
+   - Eventos mínimos:
+     - `checkout.session.completed`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.payment_failed`
+   - Regras:
+     - `trialing/active` → garantir `users.plan` correto
+     - `canceled/unpaid` → `users.plan="none"` (exceto `role=superadmin`)
+   - **Idempotência**: registrar `event_id` processados (collection `stripe_events` ou campo no doc) para evitar dupla aplicação.
 
-2) **Cache agressivo + deduplicação de chamadas**
-   - Reforçar TTLs e “single-flight” (se 10 requests pedirem o mesmo ticker, 1 busca externa, 9 aguardam cache).
-   - Persistir respostas normalizadas em MongoDB (já existe padrão `market_cache`).
+4) **Persistência (MongoDB)**
+   - Reaproveitar `payment_transactions`.
+   - Criar coleções (mínimo recomendado):
+     - `billing_subscriptions` (auditoria do estado Stripe)
+     - `stripe_events` (dedupe de webhook)
+   - Atualizar `users`:
+     - `stripe_customer_id`
+     - `stripe_subscription_id` (ou último ativo)
 
-3) **Hardening anti-quebra para Investing**
-   - Timeouts baixos (ex.: 6–10s) e circuit breaker simples (se falhar N vezes em 10 min, desativa temporariamente).
-   - Sanitização de inputs (ticker/query) e limites (máximo de símbolos por batch).
+5) **Performance/robustez**
+   - Stripe SDK é síncrono: envolver chamadas em `asyncio.to_thread(...)` para não bloquear o event loop.
 
-**Critérios de aceite:**
-- A aplicação não cai quando uma fonte externa rate-limita.
-- Quote/histórico/search retornam algo útil (ou stale) em vez de 500.
+#### Trabalho técnico — Frontend (React)
+- **Upgrade.jsx**
+  - Manter criação do checkout via backend.
+  - Ajustar polling:
+    - hoje verifica `payment_status === 'paid'`; atualizar para aceitar `active/trialing` (ex.: `data.active === true`).
+  - Mostrar feedback de “trial iniciado” e atualizar `user.plan` local.
+- **Settings.jsx**
+  - Adicionar botão **“Gerenciar assinatura”** → `POST /billing/portal` → redirect para `url`.
 
-### F3) Backtest v2 (didático + configurável + visual) — ⏳
-**Requisito:** explicar “para que serve”, tooltips, gráfico visual, período/estratégia configuráveis.
+#### Critérios de aceite (G1)
+- Iniciar trial de 7 dias (mensal/anual) em qualquer plano.
+- `plan` do usuário muda para `starter/pro/investor` ao completar checkout (trialing) e continua em active.
+- Cancelamento no portal reflete no app (plan=none) via webhook (ou fallback por verificação periódica).
 
-**Plano:**
-- UI (frontend `AssetInsights`/tab Backtest):
-  - Seção “O que é Backtest?” com explicação curta e objetiva + aviso educacional.
-  - Tooltips nos parâmetros e métricas (win rate, retorno médio, trades, etc.).
-  - Controles:
-    - período (ex.: 6m/1y/2y/5y)
-    - estratégia (ex.: Buy & Hold vs Buy the Dip; e preparar arquitetura para expansão)
-    - parâmetros básicos (hold_days, dip_threshold, etc.)
-  - **Gráfico**: curva do capital da estratégia vs buy&hold (Recharts).
+---
 
-- Backend (`routes_backtest.py`):
-  - Expandir resposta para incluir série temporal (equity curve) e parâmetros usados.
-  - Validações e limites (período máximo e número de pontos) para performance.
+### G2) IA Analista Virtual (LLM) — gated para Pro + Investor — ⏳
+**Objetivo:** gerar um resumo interpretável (educacional) para um ativo, usando contexto do Dipzee (score + dados de mercado) e resposta localizada (pt/en/es/fr).
 
-**Critérios de aceite:**
-- Usuário entende o que está rodando (copy + tooltips).
-- Backtest gera um gráfico comparativo consistente.
+#### Trabalho técnico — Backend
+1) **Feature flag**
+   - `plans.py`: adicionar `ai_analyst` em **Pro** e **Investor**.
 
-### F4) Segurança em camadas (anti-hackers + anti-falhas) — ⏳
-**Requisito:** rate limiting, anti brute force, security headers, validação/sanitização, cascata resiliente.
+2) **Rotas**
+- Criar `routes_ai.py`:
+  - `GET /api/ai/analyst/{ticker}`
+  - `Depends(require_feature('ai_analyst'))`
+  - Agregar contexto via:
+    - `refresh_asset(ticker)`
+    - `get_company_news(ticker)` (quando útil)
+  - Chamar LLM via `emergentintegrations.llm.chat`:
+    - `LlmChat(api_key=EMERGENT_LLM_KEY, ...)`
+    - `.with_model("openai", "gpt-5.4")`
+  - Retornar JSON estruturado:
+    - `summary`
+    - `thesis_bullets[]`
+    - `risks[]`
+    - `catalysts[]`
+    - `horizon`
+    - `confidence` (0–100)
+  - **Cache Mongo**: collection `ai_analyses` por `ticker+locale` por ~12h (e opção `?refresh=1`).
+  - Rate limit extra (além do middleware) se necessário.
 
-**Plano:**
-1) **Rate limiting** (sem dependências pesadas)
-   - Rate limit por IP em rotas críticas: login/register/reset, e endpoints de mercado.
-   - Implementar in-memory (TTL) e, quando possível, fallback Mongo para consistência.
+3) **Registro no server**
+- `server.py`: incluir router `routes_ai` (sem tocar no fallback de superadmin).
 
-2) **Anti brute force no login**
-   - Lockout progressivo por email+IP (ex.: 5 tentativas → bloqueio 10 min; 10 tentativas → 60 min).
-   - Registrar auditoria mínima (sem armazenar senha, apenas contagem e timestamps).
+#### Trabalho técnico — Frontend
+- `AssetInsights.jsx`
+  - Nova tab **“Analista Virtual”** gated via `<FeatureGate feature="ai_analyst">`.
+  - Botão “Gerar/Atualizar” + estado de loading.
+  - Render:
+    - resumo
+    - listas de tese/riscos/catalisadores
+    - disclaimer (educacional)
 
-3) **Security headers (CSP/HSTS/etc.)**
-   - Configurar no backend (Starlette middleware) e/ou no Nginx (quando aplicável):
-     - Strict-Transport-Security (produção)
-     - X-Content-Type-Options, X-Frame-Options, Referrer-Policy
-     - CSP mínima compatível com React (evitar quebrar assets).
+#### i18n
+- Adicionar chaves em `locales/{pt,en,fr,es}.json`:
+  - `asset.aiAnalystTitle`, `asset.aiAnalystGenerate`, `asset.aiAnalystDisclaimer`, etc.
 
-4) **Validação e sanitização de inputs**
-   - Normalizar tickers e queries (`A-Z0-9.^-`), limite de tamanho.
-   - Validar payloads de admin (ads/announcements) e profile (já existe parte).
-
-**Critérios de aceite:**
-- Login protegido contra brute force.
-- Endpoints críticos com rate limit.
-- Headers básicos ativos.
-
-### F5) Checklist de produção (superadmins e estabilidade) — ⏳
-- Garantir que o seed de superadmins continue idempotente e funcionando em produção.
-- Documentar claramente: preview vs produção → precisa redeploy para refletir.
+#### Critérios de aceite (G2)
+- Pro/Investor conseguem gerar e visualizar análise.
+- Starter recebe gate/upsell.
+- Conteúdo localizado conforme `user.locale`.
+- Cache reduz chamadas repetidas.
 
 ---
 
 ## 3) Next Actions (a partir de agora)
 
-### Imediato (Phase F)
-1. Implementar depoimentos por idioma (5 por locale) e validar no seletor de idioma.
-2. Backtest v2: UI/UX + parâmetros + gráfico + tooltips.
-3. Segurança: rate limiting + anti brute force + headers + validações.
-4. Robustez de mercado sem chaves:
-   - reestruturar fallback por operação (quote/history/search)
-   - reforçar cache/anti-rate-limit
-   - Investing somente como último recurso com circuit breaker.
-5. Sanity checks (preview): compile + curl endpoints + smoke UI (Landing/Admin/Asset Detail/Backtest).
-
-### Próximo (quando houver chaves)
-- Ativar provedores oficiais (FMP/Polygon/Alpha/Twelve/Marketstack) e escolher um primário com SLA.
+### Imediato (P0 — Phase G)
+1) **Stripe**: injetar chaves reais no `.env` e reescrever `routes_billing.py` com SDK nativo.
+2) **Frontend**: ajustar `Upgrade.jsx` (trialing/active) + adicionar Customer Portal em `Settings.jsx`.
+3) **Webhook**: implementar handler com verificação opcional (ativa quando `whsec` existir).
+4) **Sanity tests (manual/curl + UI)**:
+   - Criar checkout, completar no Stripe test
+   - Verificar `plan` alterado após status
+   - Portal abre e cancelamento reflete no app
+5) **IA Analista Virtual**: feature flag + endpoint + cache + UI tab + i18n.
 
 ---
 
 ## 4) Success Criteria
 
-### Já atingidos (baseline + MVP)
-- 3 planos pagos em USD + paywall trial 7 dias.
-- UI premium (landing/auth + app shell) e gating consistente.
-- Dados de mercado resilientes com cache e fallback.
-- Perfil + avatar base64 + dark mode.
-- Mercados + Asset Detail Pro+ + Portfolio/Backtest Investor.
-- Admin com tabs de monetização/comunicados/health e landing premium.
+### Já atingidos — ✅
+- UI premium (landing + app), dark mode, multi-admin.
+- Mercado resiliente com cache.
+- Backtest v2 e camadas de segurança.
 
-### Para concluir a Phase F
-- Depoimentos trocam corretamente por idioma (PT/EN/ES/FR) com 5 itens cada.
-- Backtest v2 com explicação, tooltips, parâmetros e gráfico.
-- Rate limiting + anti brute force + security headers + validações aplicadas.
-- Camada de dados robusta sem chaves: yfinance primário, Finnhub secundário, Investing último recurso, sempre com fallback stale.
+### Para concluir a Phase G (reta final) — 🎯
+- Stripe recorrente ponta a ponta com trial 7 dias em todos os planos.
+- Customer Portal funcionando.
+- Webhooks sincronizando plano/estado do usuário (com idempotência).
+- IA Analista Virtual disponível em Pro/Investor com cache + i18n.
 
-### Para considerar “100% produção” (futuro)
-- Stripe subscriptions + portal.
-- Resend e-mails reais.
-- Telegram token.
-- Provider licenciado + compliance (termos/privacidade) + observabilidade (metrics/logs).
+### Para produção (futuro) — 📌
+- Termos/Privacidade + compliance.
+- Emails reais (Resend) + alertas de fim de trial.
+- Observabilidade (APM/metrics) + WAF.
+- Opcional: provedor de dados licenciado com SLA quando houver orçamento.

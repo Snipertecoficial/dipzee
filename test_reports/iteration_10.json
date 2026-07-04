@@ -1,0 +1,48 @@
+{
+  "summary": "Phase G testing complete: Stripe recurring subscriptions with 7-day trial and AI Virtual Analyst feature. All backend APIs working correctly. Frontend flows validated including paywall, upgrade page, and AI analyst feature gating.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: GET /api/billing/config returns 6 packages (starter/pro/investor × monthly/annual), USD currency, 7-day trial, correct prices",
+    "Backend: POST /api/billing/checkout with invalid package returns 400",
+    "Backend: POST /api/billing/checkout without auth returns 401",
+    "Backend: POST /api/billing/checkout with valid package returns Stripe checkout URL and session_id",
+    "Backend: GET /api/billing/status/{session_id} before payment returns active=false",
+    "Backend: GET /api/billing/subscription returns subscription info with plan and status",
+    "Backend: POST /api/billing/portal returns billing.stripe.com URL",
+    "Backend: GET /api/ai/analyst/{ticker} for Pro/Investor returns analysis with summary, stance, thesis, risks, catalysts, confidence (0-100)",
+    "Backend: GET /api/ai/analyst/{ticker} second call returns cached=true and is fast (12h cache working)",
+    "Backend: GET /api/ai/analyst/{ticker} for plan='none' returns 403 with code='feature_locked'",
+    "Frontend: Paywall working - new user registration redirects to /app/upgrade",
+    "Frontend: Upgrade page displays all 3 pricing cards (Starter, Pro, Investor)",
+    "Frontend: Pricing cards show correct monthly prices (US$4.97, US$12.97, US$24.99)",
+    "Frontend: '7 days free' trial badge visible on all pricing cards",
+    "Frontend: Monthly/Annual toggle present with 'Save ~20%' label",
+    "Frontend: Settings > Assinatura tab shows current plan (Investidor for superadmin)",
+    "Frontend: AI Analyst tab visible for Investor plan with stance badge, summary, confidence bar, thesis, risks, catalysts",
+    "Frontend: AI Analyst content localized to Portuguese (pt-BR) for superadmin"
+  ],
+  "test_report_links": [
+    "/app/phase_g_test.py",
+    "/app/.screenshots/test1_paywall.png",
+    "/app/.screenshots/test2_upgrade_page.png",
+    "/app/.screenshots/test5_ai_analyst.png"
+  ],
+  "action_item_for_main_agent": "MANUAL TEST REQUIRED: Complete full Stripe checkout E2E flow with test card 4242 4242 4242 4242 (expiry 12/34, CVC 123, ZIP 12345) to verify: (1) trial subscription creation, (2) return redirect to /app/upgrade?session_id=..., (3) polling GET /api/billing/status/{session_id} returns active=true and subscription_status='trialing', (4) GET /api/auth/me shows upgraded plan. Backend endpoints are working correctly; only the actual payment completion needs manual verification.",
+  "updated_files": [
+    "/app/phase_g_test.py"
+  ],
+  "success_percentage": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "90% (automated tests passed; manual Stripe checkout completion pending)"
+  },
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": true
+}

@@ -243,7 +243,23 @@
     "btTipStrategy": "Total compounded return following the strategy.",
     "btTipBuyHold": "Return of simply buying at the start and holding to the end (benchmark).",
     "btTipDrawdown": "Largest peak-to-trough drop — measures the strategy's worst-case risk.",
-    "btTipTimeIn": "Percentage of time the strategy was invested (otherwise in cash)."
+    "btTipTimeIn": "Percentage of time the strategy was invested (otherwise in cash).",
+    "aiAnalyst": "Virtual Analyst",
+    "aiGenerating": "Generating AI analysis…",
+    "aiError": "Couldn't generate the analysis right now.",
+    "aiRetry": "Try again",
+    "aiRegenerate": "Refresh",
+    "aiConfidence": "Confidence",
+    "aiThesis": "Investment thesis",
+    "aiRisks": "Risks",
+    "aiCatalysts": "Catalysts",
+    "aiDisclaimer": "AI-generated content for educational purposes only. Not investment advice.",
+    "aiStance": {
+      "accumulate": "Accumulate",
+      "hold": "Hold",
+      "watch": "Watch",
+      "avoid": "Avoid"
+    }
   },
   "alerts": {
     "title": "Alerts",
@@ -325,7 +341,20 @@
     "telegramPh": "e.g. 123456789",
     "webhookPh": "https://...",
     "profileSaved": "Profile updated",
-    "lockedInvestor": "Available on the Investor plan"
+    "lockedInvestor": "Available on the Investor plan",
+    "manageSubscription": "Manage subscription",
+    "noBillingAccount": "No billing account found. Subscribe to a plan first.",
+    "trialEndsOn": "Trial ends on",
+    "renewsOn": "Renews on",
+    "endsOn": "Ends on",
+    "subStatus": {
+      "trialing": "Trialing",
+      "active": "Active",
+      "past_due": "Past due",
+      "canceled": "Canceled",
+      "unpaid": "Unpaid",
+      "incomplete": "Incomplete"
+    }
   },
   "news": {
     "title": "News",
@@ -479,7 +508,8 @@
     "starterF5": "All 4 languages",
     "proF6": "All 4 languages",
     "investorF6": "Telegram & webhook alerts",
-    "investorF7": "Data export & priority"
+    "investorF7": "Data export & priority",
+    "trialStartedToast": "7-day trial started — {{plan}}"
   },
   "markets": {
     "title": "Markets",
