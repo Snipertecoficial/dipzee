@@ -82,6 +82,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api"):
             return await call_next(request)
 
+        # Never rate-limit the Stripe webhook: Stripe may burst many events and
+        # a 429 would make it retry / mark the endpoint unhealthy. Signature
+        # verification (in the route) is the real gate here.
+        if path.startswith("/api/webhook/"):
+            return await call_next(request)
+
         ip = client_ip(request)
         bucket, limit = _bucket_for(path)
         key = f"{ip}:{bucket}"

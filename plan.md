@@ -1,6 +1,8 @@
 # Dipzee — plan.md (Planos + Paywall + Mercado resiliente + App Premium)
 
-**Status:** ATUALIZADO — **Fase G (Stripe Recorrente + Trial 7 dias + IA Analista Virtual)** — ⏳ **EM ANDAMENTO (P0)**
+**Status:** ATUALIZADO — **Fase G (Stripe Recorrente + Trial 7 dias + IA Analista Virtual)** — ✅ **IMPLEMENTADO E VALIDADO (preview)** · ⚙️ **Produção: webhook configurado, requer redeploy**
+
+> **Produção (deploy):** endpoint webhook `https://dipzee-mvp.emergent.host/api/webhook/stripe` (eventos: checkout.session.completed, customer.subscription.created/updated/deleted). `STRIPE_WEBHOOK_SECRET` adicionado ao `.env`. Caminho de webhook validado com assinatura real (upgrade trial→pro, idempotência, rejeição de assinatura inválida, cancelamento→none). **Pendente decisão do usuário: modo TEST vs LIVE + variáveis de ambiente em produção.**
 
 > **Nota de idioma:** usuário primário pt-BR; todas as interações/UX devem manter pt-BR como primeira classe (com i18n EN/FR/ES já existente).
 

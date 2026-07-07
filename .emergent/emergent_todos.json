@@ -1,42 +1,22 @@
 [
   {
-    "content": "G1: Injetar chaves Stripe reais no backend/.env (STRIPE_API_KEY + STRIPE_PUBLISHABLE_KEY) e adicionar EMERGENT_LLM_KEY",
+    "content": "G1: Stripe assinaturas recorrentes + trial 7d (routes_billing + Upgrade + Settings) - implementado e testado",
     "status": "completed"
   },
   {
-    "content": "G1: Reescrever routes_billing.py com SDK nativo (subscription + trial 7d + customer + portal + status + webhook)",
+    "content": "G2: Analista Virtual de IA (plans + routes_ai + AssetInsights + i18n) - implementado e testado",
     "status": "completed"
   },
   {
-    "content": "G1: Ajustar Upgrade.jsx (poll para trialing/active) e adicionar botão Gerenciar Assinatura em Settings.jsx",
+    "content": "Testes finais (testing agent backend 100% + frontend 90%, sem bugs)",
     "status": "completed"
   },
   {
-    "content": "G1: Testar fluxo de billing (backend curl + status) - checkout/status/portal OK",
+    "content": "Produção: adicionar STRIPE_WEBHOOK_SECRET, isentar webhook do rate limit, validar caminho de webhook assinado",
     "status": "completed"
   },
   {
-    "content": "G2: Adicionar feature flag ai_analyst em plans.py (Pro + Investor)",
-    "status": "completed"
-  },
-  {
-    "content": "G2: Criar routes_ai.py (endpoint /api/ai/analyst/{ticker} + cache Mongo) e registrar em server.py",
-    "status": "completed"
-  },
-  {
-    "content": "G2: Adicionar tab Analista Virtual em AssetInsights.jsx + i18n (pt/en/es/fr)",
-    "status": "completed"
-  },
-  {
-    "content": "G2: Testar Analista Virtual (gating + geração + cache + UI screenshot) OK",
-    "status": "completed"
-  },
-  {
-    "content": "i18n: adicionar chaves de billing + IA em pt/en/es/fr",
-    "status": "completed"
-  },
-  {
-    "content": "Testes finais com testing agent (backend Stripe E2E + AI + frontend)",
+    "content": "Aguardando usuário: confirmar modo TEST vs LIVE + garantir env vars em produção + redeploy",
     "status": "in_progress"
   }
 ]
