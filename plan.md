@@ -2,7 +2,7 @@
 
 **Status:** ATUALIZADO — **Fase G (Stripe Recorrente + Trial 7 dias + IA Analista Virtual)** — ✅ **IMPLEMENTADO E VALIDADO (preview)** · ⚙️ **Produção: webhook configurado, requer redeploy**
 
-> **Produção (deploy):** endpoint webhook `https://dipzee-mvp.emergent.host/api/webhook/stripe` (eventos: checkout.session.completed, customer.subscription.created/updated/deleted). `STRIPE_WEBHOOK_SECRET` adicionado ao `.env`. Caminho de webhook validado com assinatura real (upgrade trial→pro, idempotência, rejeição de assinatura inválida, cancelamento→none). **Pendente decisão do usuário: modo TEST vs LIVE + variáveis de ambiente em produção.**
+> **Produção (deploy):** MODO **LIVE** configurado ✅ — `.env` com `sk_live_`/`pk_live_`/`rk_live_` (conta `acct_1Tori8BH5RSPJi53`, charges_enabled=true) + `STRIPE_WEBHOOK_SECRET=whsec_l1C1…` (webhook LIVE `we_1TqYuK…`). **ROOT CAUSE do "não funcionava" corrigido:** `.gitignore` estava bloqueando os `.env` (linhas `.env`/`.env.*`/`*.env` removidas) — por isso o deploy anterior subia sem as chaves do Stripe (checkout dava 503). Checkout LIVE validado (`cs_live_…` criado, sem cobrança). Caminho de webhook assinado validado (upgrade/idempotência/cancelamento). **AÇÃO PENDENTE: novo deploy (front+back) para publicar.** ⚠️ Preview agora também opera em LIVE (evitar checkouts de teste com cartão real no preview).
 
 > **Nota de idioma:** usuário primário pt-BR; todas as interações/UX devem manter pt-BR como primeira classe (com i18n EN/FR/ES já existente).
 
