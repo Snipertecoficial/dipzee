@@ -135,9 +135,6 @@ class YFinanceProvider(DataProvider):
         except Exception as e:  # noqa: BLE001
             logger.warning("yfinance search failed for %s: %s", query, e)
 
-        if not results and query:
-            # Fall back to treating the query itself as a ticker symbol
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -217,8 +214,6 @@ class FinnhubProvider(DataProvider):
             if not sym:
                 continue
             results.append({"ticker": sym, "name": r.get("description") or sym, "exchange": r.get("type") or ""})
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -226,7 +221,19 @@ class FinnhubProvider(DataProvider):
 # FMP Provider
 # --------------------------------------------------------------------------- #
 class FMPProvider(DataProvider):
+    """Financial Modeling Prep, on their current `/stable` API.
+
+    FMP retired the whole `/api/v3` family (legacy, cut off 2025-08-31) in
+    favor of `/stable`, which also changed how symbols are passed (query
+    param instead of URL path) and moved dividend yield from
+    key-metrics-ttm to ratios-ttm. Endpoints not covered by the caller's plan
+    (e.g. non-US quotes, screener, batch quotes on lower tiers) respond
+    ``402 Payment Required``, which `_get` already treats as "no data" so the
+    resilient cascade in this module just falls through to the next provider.
+    """
+
     name = "fmp"
+    FMP_BASE = "https://financialmodelingprep.com/stable"
 
     def _key(self):
         return os.environ.get("FMP_API_KEY")
@@ -238,7 +245,7 @@ class FMPProvider(DataProvider):
         params = dict(params)
         params["apikey"] = key
         try:
-            r = requests.get(f"https://financialmodelingprep.com/api/v3{path}", params=params, timeout=12)
+            r = requests.get(f"{self.FMP_BASE}{path}", params=params, timeout=12)
             if r.status_code >= 400:
                 return None
             return r.json()
@@ -248,30 +255,28 @@ class FMPProvider(DataProvider):
 
     def fetch(self, symbol: str) -> Optional[dict]:
         symbol = symbol.strip().upper()
-        # 1. Quote
-        quote_list = self._get(f"/quote/{symbol}", {})
+        # 1. Quote (price, 52w range, change, exchange, name)
+        quote_list = self._get("/quote", {"symbol": symbol})
         if not quote_list or not isinstance(quote_list, list):
             return None
         q = quote_list[0]
-        
-        # 2. Profile
-        profile_list = self._get(f"/profile/{symbol}", {})
-        p = profile_list[0] if profile_list and isinstance(profile_list, list) else {}
-
-        # 3. Key Metrics (Dividend Yield TTM)
-        metrics_list = self._get(f"/key-metrics-ttm/{symbol}", {})
-        m = metrics_list[0] if metrics_list and isinstance(metrics_list, list) else {}
-
         price = q.get("price")
         if price is None:
             return None
 
-        dy_raw = m.get("dividendYieldTTM")
+        # 2. Profile (currency, sector, logo, full company name)
+        profile_list = self._get("/profile", {"symbol": symbol})
+        p = profile_list[0] if profile_list and isinstance(profile_list, list) else {}
+
+        # 3. TTM ratios (dividend yield, already a decimal fraction e.g. 0.032 = 3.2%)
+        ratios_list = self._get("/ratios-ttm", {"symbol": symbol})
+        r = ratios_list[0] if ratios_list and isinstance(ratios_list, list) else {}
+        dy_raw = r.get("dividendYieldTTM")
         div = float(dy_raw) if dy_raw is not None else 0.0
 
         return {
             "ticker": symbol,
-            "exchange": q.get("exchange") or p.get("exchangeShortName") or _derive_exchange(symbol, {}),
+            "exchange": q.get("exchange") or p.get("exchange") or _derive_exchange(symbol, {}),
             "name": q.get("name") or p.get("companyName") or symbol,
             "currency": p.get("currency") or "USD",
             "price": price,
@@ -280,14 +285,14 @@ class FMPProvider(DataProvider):
             "target_mean": None,
             "dividend_yield": div,
             "sector": p.get("sector"),
-            "change_pct": q.get("changesPercentage"),
+            "change_pct": q.get("changePercentage"),
             "prev_close": q.get("previousClose"),
             "logo": p.get("image"),
             "source": "fmp",
         }
 
     def search(self, query: str) -> list:
-        d = self._get("/search", {"query": query, "limit": 10}) or []
+        d = self._get("/search-name", {"query": query, "limit": 10}) or []
         results = []
         if isinstance(d, list):
             for r in d:
@@ -297,10 +302,8 @@ class FMPProvider(DataProvider):
                 results.append({
                     "ticker": sym,
                     "name": r.get("name") or sym,
-                    "exchange": r.get("exchangeShortName") or ""
+                    "exchange": r.get("exchangeFullName") or r.get("exchange") or "",
                 })
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -375,8 +378,6 @@ class PolygonProvider(DataProvider):
                 "name": r.get("name") or sym,
                 "exchange": r.get("primary_exchange") or ""
             })
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -462,8 +463,6 @@ class AlphaVantageProvider(DataProvider):
                 "name": r.get("2. name") or sym,
                 "exchange": r.get("4. region") or ""
             })
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -537,8 +536,6 @@ class TwelveDataProvider(DataProvider):
                 "name": r.get("instrument_name") or sym,
                 "exchange": r.get("exchange") or ""
             })
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -609,8 +606,6 @@ class MarketstackProvider(DataProvider):
                 "name": r.get("name") or sym,
                 "exchange": exch.get("acronym") or exch.get("name") or ""
             })
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -729,8 +724,6 @@ class InvestingProvider(DataProvider):
                 })
         except Exception as e:
             logger.warning("Investing search failed: %s", e)
-        if not results and query:
-            results.append({"ticker": query.upper(), "name": query.upper(), "exchange": ""})
         return results
 
 
@@ -807,6 +800,52 @@ def get_fmp_news(limit: int = 20) -> list:
             "datetime": a.get("publishedDate"),
         })
     return out
+
+
+_MARKET_NEWS_TICKERS = [
+    "SPY", "QQQ", "DIA", "IWM",  # broad market
+    "XLF", "XLK", "XLE", "XLV",  # financials / tech / energy / healthcare
+]
+
+
+def get_yf_news(symbol: Optional[str] = None, limit: int = 20) -> list:
+    """News via yfinance's Ticker.news — needs no API key, so it's the fallback
+    when Finnhub/FMP news are unavailable (missing key or plan-restricted).
+
+    With a symbol: news for that ticker. Without: aggregates across a handful
+    of broad-market index ETFs as a stand-in for a general market-news feed
+    (yfinance has no dedicated "front page" news endpoint).
+    """
+    import yfinance as yf
+
+    tickers = [symbol.strip().upper()] if symbol else _MARKET_NEWS_TICKERS
+    seen = set()
+    out = []
+    for tk in tickers:
+        try:
+            items = yf.Ticker(tk).news or []
+        except Exception as e:  # noqa: BLE001
+            logger.warning("yfinance news failed for %s: %s", tk, e)
+            continue
+        for item in items:
+            c = item.get("content") or {}
+            nid = item.get("id") or c.get("id")
+            if not nid or nid in seen:
+                continue
+            seen.add(nid)
+            url = (c.get("canonicalUrl") or {}).get("url") or (c.get("clickThroughUrl") or {}).get("url")
+            thumb = (c.get("thumbnail") or {}).get("originalUrl")
+            out.append({
+                "id": nid,
+                "headline": c.get("title"),
+                "summary": c.get("summary"),
+                "url": url,
+                "source": (c.get("provider") or {}).get("displayName") or "Yahoo Finance",
+                "image": thumb,
+                "datetime": c.get("pubDate"),
+            })
+    out.sort(key=lambda x: x.get("datetime") or "", reverse=True)
+    return out[:limit]
 
 
 def get_yf_target(symbol: str):
@@ -922,6 +961,41 @@ def fetch_resilient(symbol: str) -> Optional[dict]:
     if errors:
         logger.warning("fetch_resilient exhausted for %s (%s)", symbol, "; ".join(errors[:5]))
     return None
+
+
+def search_resilient(query: str) -> list:
+    """Search by trying every source in the cascade until one returns real matches.
+
+    Never raises, and never invents a fake "literal ticker" result — if every
+    source comes back empty (e.g. a provider is rate-limited), the caller gets
+    an honest empty list instead of a made-up entry that looks like a match
+    but isn't.
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
+    errors = []
+    for prov in _quote_chain():
+        name = getattr(prov, "name", "provider")
+        fragile = name in _FRAGILE_SOURCES
+        if fragile and _breaker_open(name):
+            continue
+        try:
+            results = prov.search(query)
+            if results:
+                if fragile:
+                    _breaker_record(name, True)
+                return results
+            if fragile:
+                _breaker_record(name, False)
+        except Exception as e:  # noqa: BLE001 - never crash on a provider error
+            errors.append(f"{name}:{e}")
+            if fragile:
+                _breaker_record(name, False)
+            continue
+    if errors:
+        logger.warning("search_resilient exhausted for %r (%s)", query, "; ".join(errors[:5]))
+    return []
 
 
 def get_provider() -> DataProvider:

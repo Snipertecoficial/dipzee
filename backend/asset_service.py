@@ -1,5 +1,7 @@
 """Asset refresh service: fetch via provider, compute score, upsert in Mongo."""
+import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -8,6 +10,14 @@ from providers import fetch_resilient, get_yf_target
 from scoring import compute_opportunity_score, SETTINGS
 
 logger = logging.getLogger(__name__)
+
+# Real ticker symbols are short and only ever use this charset (letters,
+# digits, a dot for share classes like BRK.B, a hyphen for feeds that use
+# BRK-B instead). This is the single chokepoint almost every ticker-shaped
+# input passes through before reaching provider URL-building code, so
+# rejecting anything outside this shape here also protects providers.py's
+# f-string-interpolated request URLs from query/path injection.
+_TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,15}$")
 
 
 def _now_iso() -> str:
@@ -25,10 +35,16 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
     Returns the stored asset dict, or None if there is no data at all.
     """
     ticker = ticker.strip().upper()
+    if not _TICKER_RE.match(ticker):
+        logger.warning("refresh_asset: rejected malformed ticker %r", ticker)
+        return None
     existing = await db.assets.find_one({"ticker": ticker}, {"_id": 0})
 
-    # Resilient cascade: try each source until one returns usable data.
-    data = fetch_resilient(ticker)
+    # Resilient cascade: try each source until one returns usable data. Offloaded
+    # to a worker thread — these are blocking HTTP calls (requests/yfinance) and
+    # running them inline would stall the whole event loop (all other requests)
+    # for the duration of every refresh, including the daily/manual bulk ones.
+    data = await asyncio.to_thread(fetch_resilient, ticker)
     if not data:
         logger.warning("No provider data for %s; returning cached doc if any", ticker)
         return existing
@@ -39,7 +55,7 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
         if existing and existing.get("target_mean") and not force_target:
             target = existing.get("target_mean")
         else:
-            target = get_yf_target(ticker)
+            target = await asyncio.to_thread(get_yf_target, ticker)
 
     score_res = compute_opportunity_score(
         data.get("price"), data.get("low_52w"), data.get("high_52w"),

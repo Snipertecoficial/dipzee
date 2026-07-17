@@ -1,4 +1,5 @@
 """Asset routes: score, refresh, get, search."""
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,11 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from asset_service import refresh_asset
 from database import db
 from explain import build_explanation
-from providers import get_provider, get_company_news, get_market_news, get_fmp_news
+from market_cache import cached
+from providers import get_company_news, get_market_news, get_fmp_news, get_yf_news, search_resilient
 from security import get_current_user
 from alert_service import evaluate_alerts_for_asset
 
 router = APIRouter(tags=["assets"])
+
+TTL_NEWS = 180  # 3min — short enough to feel live, long enough to not hammer Yahoo.
 
 
 def _with_explanation(asset: dict, locale: str) -> dict:
@@ -22,19 +26,27 @@ def _with_explanation(asset: dict, locale: str) -> dict:
 
 @router.get("/assets/search")
 async def search_assets(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
-    provider = get_provider()
-    return {"results": provider.search(q)}
+    return {"results": await asyncio.to_thread(search_resilient, q)}
 
 
 @router.get("/assets/{ticker}/news")
 async def asset_news(ticker: str, user: dict = Depends(get_current_user)):
-    return {"news": get_company_news(ticker, days=7, limit=15)}
+    ticker = ticker.strip().upper()
+    news = get_company_news(ticker, days=7, limit=15)  # Finnhub, needs FINNHUB_API_KEY
+    if not news:
+        # Free fallback: no key needed, so this always has a chance of working.
+        env = await cached(f"yfnews:{ticker}", TTL_NEWS, lambda: get_yf_news(ticker, limit=15))
+        news = (env or {}).get("data") or []
+    return {"news": news}
 
 
 @router.get("/news/market")
 async def market_news(user: dict = Depends(get_current_user)):
-    news = get_market_news(limit=20)
-    news += get_fmp_news(limit=15)  # optional secondary source (if FMP_API_KEY set)
+    news = get_market_news(limit=20)       # Finnhub, needs FINNHUB_API_KEY
+    news += get_fmp_news(limit=15)         # FMP, needs a plan that isn't restricted to /stable basics
+    if not news:
+        env = await cached("yfnews:market", TTL_NEWS, lambda: get_yf_news(limit=20))
+        news = (env or {}).get("data") or []
     return {"news": news}
 
 

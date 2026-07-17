@@ -44,7 +44,10 @@ export default function Login() {
             <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email-input" />
           </div>
           <div className="space-y-1.5">
-            <Label>{t('auth.password')}</Label>
+            <div className="flex items-center justify-between">
+              <Label>{t('auth.password')}</Label>
+              <Link to="/forgot-password" className="text-xs text-[var(--dz-primary)] font-medium" data-testid="login-forgot-password-link">{t('auth.forgotLink')}</Link>
+            </div>
             <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password-input" />
           </div>
           <Button type="submit" disabled={loading} data-testid="auth-submit-button" className="w-full bg-[var(--dz-primary)] text-white">

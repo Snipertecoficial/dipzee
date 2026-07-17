@@ -1,10 +1,13 @@
 """Comprehensive backend API tests for Dipzee feature gating and capabilities."""
+import os
 import requests
 import sys
 import uuid
 from datetime import datetime
 
-BASE_URL = "https://dipzee-mvp.preview.emergentagent.com/api"
+BASE_URL = os.environ.get("DIPZEE_TEST_BASE_URL", "http://localhost:8000/api")
+SUPERADMIN_EMAIL = os.environ.get("SUPERADMIN_EMAIL")
+SUPERADMIN_PASSWORD = os.environ.get("SUPERADMIN_PASSWORD")
 
 class DipzeeAPITester:
     def __init__(self):
@@ -89,12 +92,15 @@ class DipzeeAPITester:
     def test_superadmin_login(self):
         """Test superadmin login."""
         self.log("\n=== Testing Superadmin Login ===")
+        if not SUPERADMIN_EMAIL or not SUPERADMIN_PASSWORD:
+            self.log("SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD not set — skipping.", "SKIP")
+            return False
         success, response = self.run_test(
             "Superadmin Login",
             "POST",
             "auth/login",
             200,
-            data={"email": "douglas@snipertec.com.br", "password": "Admin213021#"}
+            data={"email": SUPERADMIN_EMAIL, "password": SUPERADMIN_PASSWORD}
         )
         if success:
             self.superadmin_token = response.get("access_token")

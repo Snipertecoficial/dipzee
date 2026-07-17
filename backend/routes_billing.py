@@ -15,11 +15,10 @@ Notes:
   ``payment_status``.
 """
 import asyncio
-import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -57,6 +56,24 @@ def _ensure_configured() -> str:
     return api_key
 
 
+async def cancel_subscription_silently(sub_id: str | None) -> None:
+    """Best-effort Stripe cancellation for account deletion (self-service or
+    admin-initiated). Never raises — deleting the account must succeed even if
+    Stripe is unreachable or already in sync; a stray active subscription is
+    logged so it can be cleaned up by hand rather than silently forgotten.
+    """
+    if not sub_id:
+        return
+    api_key = os.environ.get("STRIPE_API_KEY")
+    if not api_key or api_key in ("", "sk_test_emergent"):
+        return
+    stripe.api_key = api_key
+    try:
+        await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[stripe] failed to cancel subscription %s during account deletion: %s", sub_id, e)
+
+
 def _ts_to_iso(ts) -> str | None:
     if not ts:
         return None
@@ -73,6 +90,10 @@ class CheckoutIn(BaseModel):
 
 class PortalIn(BaseModel):
     origin_url: str
+
+
+class ChangePlanIn(BaseModel):
+    package_id: str
 
 
 @router.get("/billing/config")
@@ -223,6 +244,122 @@ async def _apply_subscription_state(user_id: str, plan: str, sub: dict, session_
         )
 
 
+async def sync_transaction_status(tx: dict) -> dict:
+    """Re-check ONE transaction's real Stripe status and sync it locally.
+
+    This is what makes billing status reliable even when the customer never
+    comes back to the app after paying (closed the tab, network hiccup) and
+    the webhook either isn't configured or was missed — both the polling
+    endpoint below AND this function converge on the same source of truth
+    (Stripe), so a transaction can never get permanently stuck showing
+    "initiated" just because neither happened to fire.
+    """
+    session_id = tx.get("session_id")
+    if not session_id:
+        return tx
+    try:
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id, expand=["subscription"])
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe sync] could not retrieve session %s: %s", session_id, e)
+        return tx
+
+    session_status = session.get("status")
+    if session_status == "expired":
+        await db.payment_transactions.update_one(
+            {"id": tx["id"]},
+            {"$set": {"payment_status": "expired", "status": "expired", "processed": False}},
+        )
+        return await db.payment_transactions.find_one({"id": tx["id"]}, {"_id": 0})
+
+    sub = session.get("subscription")
+    sub_dict = dict(sub) if sub else {}
+    plan = (session.get("metadata") or {}).get("plan") or (sub_dict.get("metadata") or {}).get("plan")
+    sub_status = sub_dict.get("status")
+    active = (session_status == "complete") and (sub_status in _ACTIVE_SUB_STATES)
+    user_id = session.get("client_reference_id") or (session.get("metadata") or {}).get("user_id")
+
+    if active and plan and user_id:
+        await _apply_subscription_state(user_id, plan, sub_dict, session_id=session_id)
+    return await db.payment_transactions.find_one({"id": tx["id"]}, {"_id": 0})
+
+
+async def reconcile_pending_transactions(max_age_days: int = 30) -> dict:
+    """Sweep every transaction still marked unprocessed and sync it.
+
+    Bounded to the last `max_age_days` — a checkout session Stripe has
+    already expired (~24h after creation) is resolved to a terminal
+    "expired" status well before that window closes, so anything older is
+    either already resolved or genuinely abandoned and not worth re-checking
+    forever.
+    """
+    api_key = os.environ.get("STRIPE_API_KEY")
+    if not api_key or api_key in ("", "sk_test_emergent"):
+        return {"checked": 0, "updated": 0}
+    stripe.api_key = api_key
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    pending = await db.payment_transactions.find(
+        {"processed": False, "created_at": {"$gte": cutoff}}
+    ).to_list(500)
+
+    updated = 0
+    for tx in pending:
+        before = tx.get("payment_status")
+        after = await sync_transaction_status(tx)
+        if after and after.get("payment_status") != before:
+            updated += 1
+    return {"checked": len(pending), "updated": updated}
+
+
+async def refund_transaction_charge(tx: dict) -> dict:
+    """Refund the underlying charge for a transaction's subscription.
+
+    Recurring subscriptions don't have a single "the" charge tied to the
+    checkout session itself — the actual money movement is the
+    subscription's latest invoice, so that's what gets refunded.
+    """
+    _ensure_configured()
+    session_id = tx.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Transaction has no Stripe session")
+    try:
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.retrieve, session_id,
+            expand=["subscription.latest_invoice.payment_intent"],
+        )
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe refund] session retrieve error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Stripe error")
+
+    sub = session.get("subscription")
+    if not sub:
+        raise HTTPException(status_code=400, detail="No subscription associated with this transaction")
+    invoice = sub.get("latest_invoice")
+    if not invoice:
+        raise HTTPException(status_code=400, detail="No invoice found to refund")
+    payment_intent = invoice.get("payment_intent")
+    pi_id = payment_intent.get("id") if isinstance(payment_intent, dict) else payment_intent
+    if not pi_id:
+        raise HTTPException(status_code=400, detail="Nothing was charged yet (trial period) — nothing to refund")
+
+    try:
+        refund = await asyncio.to_thread(stripe.Refund.create, payment_intent=pi_id)
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe refund] error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail=f"Stripe refund error: {getattr(e, 'user_message', str(e))}")
+
+    await db.payment_transactions.update_one(
+        {"id": tx["id"]},
+        {"$set": {
+            "refunded": True,
+            "refund_id": refund.id,
+            "refund_status": refund.status,
+            "refunded_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {"ok": True, "refund_id": refund.id, "status": refund.status}
+
+
 @router.get("/billing/status/{session_id}")
 async def checkout_status(session_id: str, user: dict = Depends(get_current_user)):
     _ensure_configured()
@@ -233,6 +370,15 @@ async def checkout_status(session_id: str, user: dict = Depends(get_current_user
     except stripe.error.StripeError as e:  # noqa
         logger.warning("[stripe status] error: %s", getattr(e, "user_message", e))
         raise HTTPException(status_code=502, detail="Stripe error")
+
+    # A session_id is not a secret — it rides in a plain success-URL query
+    # string and can leak via browser history, referrers, or screenshots.
+    # Without this check, anyone who obtains someone else's session_id could
+    # call this endpoint as themselves and have that person's paid plan
+    # granted to their OWN account for free.
+    owner_id = session.get("client_reference_id") or (session.get("metadata") or {}).get("user_id")
+    if owner_id != user["id"]:
+        raise HTTPException(status_code=403, detail="This checkout session does not belong to you")
 
     sub = session.get("subscription")
     sub_dict = dict(sub) if sub else {}
@@ -278,6 +424,107 @@ async def my_subscription(user: dict = Depends(get_current_user)):
         except stripe.error.StripeError:  # noqa
             pass
     return data
+
+
+@router.post("/billing/change-plan")
+async def change_plan(body: ChangePlanIn, user: dict = Depends(get_current_user)):
+    """Upgrade or downgrade an existing subscription IN PLACE.
+
+    Deliberately does not go through Checkout: creating a new Checkout
+    Session for a user who already has an active subscription would start a
+    second, independent Stripe subscription (and double-bill them) instead of
+    changing the existing one. Stripe prorates the price difference on the
+    next invoice automatically.
+    """
+    _ensure_configured()
+    pkg = PACKAGES.get(body.package_id)
+    if not pkg:
+        raise HTTPException(status_code=400, detail="Invalid package")
+
+    fresh = await db.users.find_one({"id": user["id"]})
+    sub_id = (fresh or {}).get("stripe_subscription_id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="No active subscription to change")
+
+    try:
+        current = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe change-plan] retrieve error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Stripe error")
+
+    if current.get("status") not in _ACTIVE_SUB_STATES:
+        raise HTTPException(status_code=400, detail="Subscription is not active")
+
+    item = current["items"]["data"][0]
+    current_interval = ((item.get("price") or {}).get("recurring") or {}).get("interval")
+    if (current.get("metadata") or {}).get("plan") == pkg["plan"] and current_interval == pkg["interval"]:
+        raise HTTPException(status_code=400, detail="Already on this plan")
+
+    unit_amount = int(round(float(pkg["amount"]) * 100))
+    metadata = {"user_id": user["id"], "plan": pkg["plan"], "interval": pkg["interval"], "package_id": body.package_id}
+
+    try:
+        updated = await asyncio.to_thread(
+            stripe.Subscription.modify,
+            sub_id,
+            items=[{
+                "id": item["id"],
+                "price_data": {
+                    "currency": CURRENCY,
+                    "unit_amount": unit_amount,
+                    "recurring": {"interval": pkg["interval"]},
+                    "product_data": {
+                        "name": f"Dipzee {pkg['plan'].capitalize()}",
+                        "metadata": {"plan": pkg["plan"]},
+                    },
+                },
+            }],
+            proration_behavior="create_prorations",
+            metadata=metadata,
+            cancel_at_period_end=False,
+        )
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe change-plan] modify error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Stripe error changing plan")
+
+    await _apply_subscription_state(user["id"], pkg["plan"], dict(updated))
+    return await my_subscription(user)
+
+
+@router.post("/billing/cancel")
+async def cancel_subscription(user: dict = Depends(get_current_user)):
+    """Cancel at the end of the current billing period.
+
+    The customer keeps the plan they already paid for until it lapses, and
+    is never charged again — no proration/refund complexity.
+    """
+    _ensure_configured()
+    fresh = await db.users.find_one({"id": user["id"]})
+    sub_id = (fresh or {}).get("stripe_subscription_id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="No active subscription")
+    try:
+        await asyncio.to_thread(stripe.Subscription.modify, sub_id, cancel_at_period_end=True)
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe cancel] error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Stripe error canceling subscription")
+    return await my_subscription(user)
+
+
+@router.post("/billing/reactivate")
+async def reactivate_subscription(user: dict = Depends(get_current_user)):
+    """Undo a pending cancel-at-period-end before it takes effect."""
+    _ensure_configured()
+    fresh = await db.users.find_one({"id": user["id"]})
+    sub_id = (fresh or {}).get("stripe_subscription_id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="No active subscription")
+    try:
+        await asyncio.to_thread(stripe.Subscription.modify, sub_id, cancel_at_period_end=False)
+    except stripe.error.StripeError as e:  # noqa
+        logger.warning("[stripe reactivate] error: %s", getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Stripe error reactivating subscription")
+    return await my_subscription(user)
 
 
 @router.post("/billing/portal")
@@ -326,19 +573,15 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("Stripe-Signature")
     secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
 
-    if secret:
-        try:
-            event = stripe.Webhook.construct_event(payload, sig, secret)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("[stripe webhook] signature verify failed: %s", e)
-            raise HTTPException(status_code=400, detail="Invalid signature")
-    else:
-        # No secret configured (dev/preview): parse without verification. Plan
-        # sync still primarily happens through the polling status endpoint.
-        try:
-            event = json.loads(payload)
-        except Exception:  # noqa: BLE001
-            raise HTTPException(status_code=400, detail="Invalid payload")
+    if not secret:
+        logger.error("[stripe webhook] STRIPE_WEBHOOK_SECRET not configured — refusing unsigned payload.")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, secret)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[stripe webhook] signature verify failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid signature")
 
     event_id = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
     event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
@@ -378,6 +621,14 @@ async def stripe_webhook(request: Request):
             u = await db.users.find_one({"stripe_customer_id": data_obj.get("customer")})
             if u and u.get("role") != "superadmin":
                 await db.users.update_one({"id": u["id"]}, {"$set": {"subscription_status": "past_due"}})
+        elif event_type == "checkout.session.expired":
+            # Customer opened checkout but abandoned it — resolve the
+            # transaction to a terminal state instead of leaving it stuck at
+            # "initiated" forever in the billing panel.
+            await db.payment_transactions.update_one(
+                {"session_id": data_obj.get("id")},
+                {"$set": {"payment_status": "expired", "status": "expired", "processed": False}},
+            )
     except Exception as e:  # noqa: BLE001
         logger.warning("[stripe webhook] handler error (%s): %s", event_type, e)
 

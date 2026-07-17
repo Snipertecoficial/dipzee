@@ -1,6 +1,7 @@
 """Superadmin management panel routes. All endpoints require role=superadmin."""
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,6 +12,8 @@ from database import db
 from security import get_current_user, hash_password
 from scoring import SETTINGS
 from asset_service import refresh_asset
+from routes_billing import cancel_subscription_silently, reconcile_pending_transactions, refund_transaction_charge
+import refresh_tokens
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -76,7 +79,9 @@ async def stats(admin: dict = Depends(get_superadmin)):
 async def list_users(q: Optional[str] = None, admin: dict = Depends(get_superadmin)):
     query = {}
     if q:
-        query = {"email": {"$regex": q, "$options": "i"}}
+        # Escaped and length-capped so a search term can't be used as a
+        # catastrophic-backtracking regex (ReDoS) against every user's email.
+        query = {"email": {"$regex": re.escape(q.strip()[:100]), "$options": "i"}}
     users = await db.users.find(query, {"_id": 0, "hashed_password": 0}).sort("created_at", -1).to_list(500)
     # enrich with counts
     for u in users:
@@ -111,8 +116,24 @@ async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_
         updates["hashed_password"] = hash_password(body.password)
     if updates:
         await db.users.update_one({"id": user_id}, {"$set": updates})
+    if body.password:
+        # An admin-set password means the old one may be compromised (or the
+        # user locked out) — kill existing sessions so a stale token can't
+        # keep using the account under the old credentials.
+        await refresh_tokens.revoke_all(user_id)
     fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0})
     return fresh
+
+
+@router.post("/users/{user_id}/revoke-sessions")
+async def revoke_user_sessions(user_id: str, admin: dict = Depends(get_superadmin)):
+    """Force-logout every device/session for a user (suspected compromise,
+    offboarding a team member, etc.) without touching their account otherwise."""
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    await refresh_tokens.revoke_all(user_id)
+    return {"ok": True}
 
 
 @router.delete("/users/{user_id}")
@@ -122,9 +143,16 @@ async def delete_user(user_id: str, admin: dict = Depends(get_superadmin)):
         raise HTTPException(status_code=404, detail="User not found")
     if target.get("role") == "superadmin":
         raise HTTPException(status_code=400, detail="Cannot delete a superadmin account")
+    # Billing/payment records are kept for accounting/tax retention even after
+    # the account is erased — only the subscription itself is stopped so the
+    # customer is never charged again post-deletion.
+    await cancel_subscription_silently(target.get("stripe_subscription_id"))
     await db.watchlist_items.delete_many({"user_id": user_id})
     await db.alerts.delete_many({"user_id": user_id})
     await db.alert_events.delete_many({"user_id": user_id})
+    await db.positions.delete_many({"user_id": user_id})
+    await db.password_resets.delete_many({"user_id": user_id})
+    await db.refresh_tokens.delete_many({"user_id": user_id})
     await db.users.delete_one({"id": user_id})
     return {"ok": True}
 
@@ -133,7 +161,7 @@ async def delete_user(user_id: str, admin: dict = Depends(get_superadmin)):
 async def list_assets(q: Optional[str] = None, admin: dict = Depends(get_superadmin)):
     query = {}
     if q:
-        query = {"ticker": {"$regex": q.upper(), "$options": "i"}}
+        query = {"ticker": {"$regex": re.escape(q.strip()[:20].upper()), "$options": "i"}}
     assets = await db.assets.find(query, {"_id": 0}).sort("score", -1).to_list(500)
     return {"assets": assets, "count": len(assets)}
 
@@ -155,8 +183,14 @@ async def delete_asset(ticker: str, admin: dict = Depends(get_superadmin)):
 
 @router.post("/universe/refresh")
 async def universe_refresh(limit: Optional[int] = Query(None), admin: dict = Depends(get_superadmin)):
-    from screener_service import refresh_universe
-    count = await refresh_universe(limit=limit)
+    from screener_service import refresh_universe, RefreshCooldownError
+    try:
+        count = await refresh_universe(limit=limit)
+    except RefreshCooldownError as e:
+        raise HTTPException(
+            status_code=429,
+            detail={"message": f"Universe was just refreshed. Try again in {e.retry_after_seconds}s.", "retry_after": e.retry_after_seconds},
+        )
     return {"refreshed": count}
 
 
@@ -191,6 +225,28 @@ async def recent_events(admin: dict = Depends(get_superadmin)):
 async def transactions(admin: dict = Depends(get_superadmin)):
     txs = await db.payment_transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return {"transactions": txs, "count": len(txs)}
+
+
+@router.post("/billing/sync")
+async def sync_billing(admin: dict = Depends(get_superadmin)):
+    """Re-check every unprocessed transaction against Stripe directly.
+
+    This is the manual/on-demand counterpart to the periodic scheduler job
+    (see scheduler.py) — a transaction can otherwise get stuck showing
+    "initiated" forever if the customer never returns to the app after
+    paying and the webhook wasn't configured or was missed.
+    """
+    return await reconcile_pending_transactions()
+
+
+@router.post("/billing/transactions/{transaction_id}/refund")
+async def refund_transaction(transaction_id: str, admin: dict = Depends(get_superadmin)):
+    tx = await db.payment_transactions.find_one({"id": transaction_id})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if tx.get("refunded"):
+        raise HTTPException(status_code=400, detail="Already refunded")
+    return await refund_transaction_charge(tx)
 
 
 @router.get("/config")
@@ -249,6 +305,82 @@ async def load_scoring_settings():
             if section in doc["value"] and isinstance(doc["value"][section], dict):
                 SETTINGS[section].update(doc["value"][section])
         logger.info("Loaded persisted scoring settings.")
+
+
+# --------------------------------------------------------------------------- #
+# AI provider keys (OpenAI / Anthropic / Gemini) — managed from Admin > IA so
+# ops can rotate keys without touching the server. Raw keys are never sent
+# back to the client, only a masked preview, mirroring how Stripe et al. do it.
+# --------------------------------------------------------------------------- #
+from ai_providers import get_ai_settings
+
+AI_FIELDS = {
+    "openai": ("openai_api_key", "OPENAI_API_KEY", "openai_model", "OPENAI_MODEL", "gpt-4o"),
+    "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY", "anthropic_model", "ANTHROPIC_MODEL", "claude-opus-4-8"),
+    "google": ("google_api_key", "GOOGLE_API_KEY", "gemini_model", "GEMINI_MODEL", ""),
+}
+
+
+class AiConfigIn(BaseModel):
+    active_provider: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    google_api_key: Optional[str] = None
+    openai_model: Optional[str] = None
+    anthropic_model: Optional[str] = None
+    gemini_model: Optional[str] = None
+
+
+def _mask_key(key: str) -> str:
+    if len(key) <= 8:
+        return "•" * len(key)
+    return f"{key[:6]}…{key[-4:]}"
+
+
+async def _ai_config_view() -> dict:
+    settings = await get_ai_settings()
+    providers = {}
+    for name, (key_field, key_env, model_field, model_env, default_model) in AI_FIELDS.items():
+        db_key = settings.get(key_field)
+        env_key = os.environ.get(key_env)
+        if db_key:
+            source, masked = "admin", _mask_key(db_key)
+        elif env_key:
+            source, masked = "env", None
+        else:
+            source, masked = None, None
+        providers[name] = {
+            "configured": bool(db_key or env_key),
+            "source": source,  # "admin" (DB, rotatable here) | "env" (.env, read-only here) | None
+            "masked_key": masked,
+            "model": settings.get(model_field) or os.environ.get(model_env) or default_model,
+        }
+    return {
+        "active_provider": settings.get("active_provider") or os.environ.get("AI_PROVIDER", "anthropic"),
+        "providers": providers,
+    }
+
+
+@router.get("/ai-config")
+async def get_ai_config(admin: dict = Depends(get_superadmin)):
+    return await _ai_config_view()
+
+
+@router.put("/ai-config")
+async def update_ai_config(body: AiConfigIn, admin: dict = Depends(get_superadmin)):
+    doc = await db.app_settings.find_one({"id": "ai_providers"})
+    value = (doc or {}).get("value") or {}
+    for field, new_val in body.dict(exclude_unset=True).items():
+        if new_val == "":
+            value.pop(field, None)  # explicit empty string clears a previously-set key/model
+        elif new_val is not None:
+            value[field] = new_val
+    await db.app_settings.update_one(
+        {"id": "ai_providers"},
+        {"$set": {"id": "ai_providers", "value": value, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return await _ai_config_view()
 
 
 # NEW SCHEMAS
@@ -419,22 +551,13 @@ async def stats_charts(admin: dict = Depends(get_superadmin)):
             except Exception:
                 pass
 
-    total_real_signups = sum(real_signups.values())
-    total_real_rev = sum(real_rev.values())
-
     chart_data = []
     cumulative = 0.0
-    
+
     for d in dates:
-        if total_real_signups < 5:
-            # mock values
-            day_hash = sum(ord(c) for c in d)
-            signups = (day_hash % 6) + 1
-            rev = 12.97 if (day_hash % 3 == 0) else (24.99 if day_hash % 5 == 0 else 0.0)
-        else:
-            signups = real_signups.get(d, 0)
-            rev = real_rev.get(d, 0.0)
-            
+        signups = real_signups.get(d, 0)
+        rev = real_rev.get(d, 0.0)
+
         cumulative += rev
         chart_data.append({
             "date": d,
@@ -442,6 +565,6 @@ async def stats_charts(admin: dict = Depends(get_superadmin)):
             "revenue": round(rev, 2),
             "cumulative": round(cumulative, 2),
         })
-        
+
     return {"chart_data": chart_data}
 

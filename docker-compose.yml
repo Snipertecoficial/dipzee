@@ -1,0 +1,62 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      # Root credentials are ONLY for cluster administration (backups,
+      # creating the scoped user below) — the backend never connects with
+      # these, so a compromised backend can't touch other databases, create
+      # users, or change auth config.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_APP_DB: ${DB_NAME}
+      MONGO_APP_USER: ${MONGO_APP_USER}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    networks: [dipzee]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Scoped to readWrite on DB_NAME only (see mongo-init/init-app-user.js)
+      # — deliberately NOT the root user. env_file values don't get
+      # variable-expanded, so this must be set here.
+      MONGO_URL: mongodb://${MONGO_APP_USER}:${MONGO_APP_PASSWORD}@mongo:27017/${DB_NAME}?authSource=${DB_NAME}
+    depends_on: [mongo]
+    networks: [dipzee]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [dipzee]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend, frontend]
+    networks: [dipzee]
+
+networks:
+  dipzee:
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:

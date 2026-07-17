@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,14 +20,16 @@ export default function Register() {
   const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
   const [currency, setCurrency] = useState('USD');
+  const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const locale = i18n.language?.slice(0, 2) || 'en';
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!consent) { toast.error(t('auth.consentRequired')); return; }
     setLoading(true);
     try {
-      await register({ email, password, locale, currency });
+      await register({ email, password, locale, currency, consent_accepted: consent });
       navigate('/app/upgrade', { replace: true });
     } catch (err) {
       const detail = err?.response?.data?.detail;
@@ -59,6 +62,15 @@ export default function Register() {
                   {['CAD', 'USD', 'BRL'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(!!v)} data-testid="register-consent-checkbox" className="mt-0.5" />
+              <Label htmlFor="consent" className="text-xs font-normal text-[var(--dz-muted)] leading-snug cursor-pointer">
+                {t('auth.consentPrefix')}{' '}
+                <Link to="/terms" target="_blank" className="text-[var(--dz-primary)] hover:underline">{t('auth.consentTerms')}</Link>
+                {' '}{t('auth.consentAnd')}{' '}
+                <Link to="/privacy" target="_blank" className="text-[var(--dz-primary)] hover:underline">{t('auth.consentPrivacy')}</Link>
+              </Label>
             </div>
             <Button type="submit" disabled={loading} data-testid="auth-submit-button" className="w-full bg-[var(--dz-primary)] text-white">
               {loading ? t('common.loading') : t('plans.startTrial')}

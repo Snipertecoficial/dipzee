@@ -1,4 +1,5 @@
 """Auth helpers: password hashing, JWT, and the current-user dependency."""
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -11,10 +12,27 @@ from passlib.context import CryptContext
 from database import db
 from plans import plan_capabilities, has_feature
 
+logger = logging.getLogger(__name__)
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET = os.environ.get("JWT_SECRET", "change-me")
+
+ENV = os.environ.get("ENV", "development")
+SECRET = os.environ.get("JWT_SECRET")
+if not SECRET:
+    if ENV == "production":
+        raise RuntimeError("JWT_SECRET must be set in production (ENV=production).")
+    SECRET = "insecure-dev-only-secret"
+    logger.warning(
+        "JWT_SECRET not set — using an insecure development-only fallback. "
+        "This is NOT safe for production; set JWT_SECRET explicitly."
+    )
 ALGO = "HS256"
-EXPIRE_HOURS = int(os.environ.get("JWT_EXPIRE_HOURS", "168"))
+# Deliberately short-lived: this is a stateless JWT with no server-side
+# revocation, so a stolen one is valid until it naturally expires no matter
+# what. Long-lived sessions instead come from the revocable refresh token
+# (see refresh_tokens.py) — the frontend transparently exchanges an expired
+# access token for a new one via POST /auth/refresh.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -34,7 +52,7 @@ def verify_password(password: str, hashed: str) -> bool:
 def create_access_token(user_id: str) -> str:
     payload = {
         "sub": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=EXPIRE_HOURS),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, SECRET, algorithm=ALGO)

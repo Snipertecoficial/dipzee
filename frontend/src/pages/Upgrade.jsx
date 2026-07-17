@@ -17,7 +17,7 @@ const PLAN_META = {
   investor: { icon: Crown, features: ['investorF1', 'investorF2', 'investorF3', 'investorF4', 'investorF5', 'investorF6', 'investorF7'], accent: 'var(--dz-primary)', premium: true },
 };
 
-export function PricingCards({ onChoose, busyPlan }) {
+export function PricingCards({ onChoose, busyPlan, hasActiveSub }) {
   const { t } = useTranslation();
   const { user } = useAuth() || {};
   const [billing, setBilling] = useState('monthly');
@@ -99,7 +99,7 @@ export function PricingCards({ onChoose, busyPlan }) {
                   ? 'bg-[var(--dz-mint)] text-[var(--dz-primary)] hover:brightness-[0.97]'
                   : 'bg-[var(--dz-primary)] text-white hover:brightness-[1.06]'} active:scale-[0.98] transition-[transform,filter]`}
               >
-                {busy ? <Loader2 size={16} className="animate-spin" /> : isCurrent ? t('plans.current') : t('plans.startTrial')}
+                {busy ? <Loader2 size={16} className="animate-spin" /> : isCurrent ? t('plans.current') : hasActiveSub ? t('plans.changePlan') : t('plans.startTrial')}
               </Button>
             </Card>
           );
@@ -117,6 +117,11 @@ export default function Upgrade() {
   const [busyPlan, setBusyPlan] = useState(null);
   const [verifying, setVerifying] = useState(false);
 
+  // A user who already has a live Stripe subscription must never go through
+  // Checkout again — that would start a second, independent subscription and
+  // double-bill them. Existing subscribers switch tiers in place instead.
+  const hasActiveSub = ['starter', 'pro', 'investor'].includes(user?.plan) && !!user?.stripe_subscription_id;
+
   const startCheckout = async (plan, billing) => {
     setBusyPlan(plan);
     try {
@@ -131,6 +136,21 @@ export default function Upgrade() {
       setBusyPlan(null);
     }
   };
+
+  const changePlan = async (plan, billing) => {
+    setBusyPlan(plan);
+    try {
+      const { data } = await api.post('/billing/change-plan', { package_id: `${plan}_${billing}` });
+      if (setUser && user) setUser({ ...user, plan: data.plan });
+      toast.success(t('plans.planChangedToast', { plan: t(`plans.${plan}`) }));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || t('auth.genericError'));
+    } finally {
+      setBusyPlan(null);
+    }
+  };
+
+  const onChoose = (plan, billing) => (hasActiveSub ? changePlan(plan, billing) : startCheckout(plan, billing));
 
   const pollStatus = useCallback(async (sessionId, attempts = 0) => {
     if (attempts >= 8) { setVerifying(false); toast.error(t('auth.genericError')); return; }
@@ -178,7 +198,7 @@ export default function Upgrade() {
           <Loader2 size={16} className="animate-spin" /> {t('common.loading')}
         </div>
       )}
-      <div className="mt-8"><PricingCards onChoose={startCheckout} busyPlan={busyPlan} /></div>
+      <div className="mt-8"><PricingCards onChoose={onChoose} busyPlan={busyPlan} hasActiveSub={hasActiveSub} /></div>
       <div className="mt-8 flex items-center justify-center gap-2 text-xs text-[var(--dz-muted)]">
         <ShieldCheck size={14} className="text-[var(--dz-buy)]" /> {t('plans.trialNote')}
       </div>

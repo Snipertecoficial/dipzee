@@ -9,11 +9,12 @@ Design goals:
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import market_service as ms
 from market_cache import cached
+from security import get_current_user, require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ async def health():
 
 
 @router.get("/quote/{symbol}", response_model=MarketEnvelope)
-async def get_quote(symbol: str):
+async def get_quote(symbol: str, user: dict = Depends(get_current_user)):
     env = await cached(f"quote:{symbol.upper()}", TTL_QUOTE, lambda: ms.quote(symbol))
     return _respond(env, f"quote unavailable for {symbol}")
 
@@ -63,6 +64,7 @@ async def get_history(
     symbol: str,
     period: str = Query("1mo"),
     interval: str = Query("1d"),
+    user: dict = Depends(require_feature("charts")),
 ):
     key = f"history:{symbol.upper()}:{period}:{interval}"
     env = await cached(key, TTL_HISTORY, lambda: ms.history(symbol, period, interval))
@@ -74,6 +76,7 @@ async def get_batch(
     symbols: str = Query(..., description="Comma-separated tickers, e.g. AAPL,MSFT,GOOG"),
     period: str = Query("1mo"),
     interval: str = Query("1d"),
+    user: dict = Depends(require_feature("charts")),
 ):
     syms = [s for s in (symbols or "").split(",") if s.strip()]
     if not syms:
@@ -84,25 +87,25 @@ async def get_batch(
 
 
 @router.get("/summary/{market}", response_model=MarketEnvelope)
-async def get_summary(market: str):
+async def get_summary(market: str, user: dict = Depends(get_current_user)):
     env = await cached(f"summary:{market.upper()}", TTL_SUMMARY, lambda: ms.market_summary(market))
     return _respond(env, f"summary unavailable for {market}")
 
 
 @router.get("/search", response_model=MarketEnvelope)
-async def get_search(q: str = Query(..., min_length=1)):
+async def get_search(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
     env = await cached(f"search:{q.lower().strip()}", TTL_SEARCH, lambda: ms.search(q))
     return _respond(env, "search unavailable")
 
 
 @router.get("/fundamentals/{symbol}", response_model=MarketEnvelope)
-async def get_fundamentals(symbol: str):
+async def get_fundamentals(symbol: str, user: dict = Depends(require_feature("fundamentals"))):
     env = await cached(f"fundamentals:{symbol.upper()}", TTL_FUNDAMENTALS, lambda: ms.fundamentals(symbol))
     return _respond(env, f"fundamentals unavailable for {symbol}")
 
 
 @router.get("/options/{symbol}", response_model=MarketEnvelope)
-async def get_options(symbol: str, expiration: Optional[str] = Query(None)):
+async def get_options(symbol: str, expiration: Optional[str] = Query(None), user: dict = Depends(require_feature("options"))):
     key = f"options:{symbol.upper()}:{expiration or 'dates'}"
     env = await cached(key, TTL_OPTIONS, lambda: ms.options(symbol, expiration))
     return _respond(env, f"options unavailable for {symbol}")
@@ -112,6 +115,7 @@ async def get_options(symbol: str, expiration: Optional[str] = Query(None)):
 async def get_screener(
     type: str = Query("day_gainers", description="Predefined screen key, e.g. day_gainers"),
     count: int = Query(25, ge=1, le=100),
+    user: dict = Depends(get_current_user),
 ):
     key = f"screener:{type}:{count}"
     env = await cached(key, TTL_SCREENER, lambda: ms.screener(type, count))

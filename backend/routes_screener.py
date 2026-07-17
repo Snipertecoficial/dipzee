@@ -1,11 +1,11 @@
 """Screener routes."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from explain import build_explanation
-from screener_service import query_screener, refresh_universe, list_sectors
-from security import get_current_user
+from screener_service import query_screener, refresh_universe, list_sectors, RefreshCooldownError
+from security import require_feature
 
 router = APIRouter(prefix="/screener", tags=["screener"])
 
@@ -17,7 +17,7 @@ async def get_screener(
     min_dividend: Optional[float] = None,
     max_range_position: Optional[float] = None,
     min_upside: Optional[float] = None,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_feature("screener")),
 ):
     filters = {
         "sector": sector,
@@ -37,11 +37,17 @@ async def get_screener(
 
 
 @router.get("/sectors")
-async def sectors(user: dict = Depends(get_current_user)):
+async def sectors(user: dict = Depends(require_feature("screener"))):
     return {"sectors": await list_sectors()}
 
 
 @router.post("/refresh")
-async def refresh(limit: Optional[int] = Query(None), user: dict = Depends(get_current_user)):
-    count = await refresh_universe(limit=limit)
+async def refresh(limit: Optional[int] = Query(None), user: dict = Depends(require_feature("screener"))):
+    try:
+        count = await refresh_universe(limit=limit)
+    except RefreshCooldownError as e:
+        raise HTTPException(
+            status_code=429,
+            detail={"message": f"Screener was just refreshed. Try again in {e.retry_after_seconds}s.", "retry_after": e.retry_after_seconds},
+        )
     return {"refreshed": count}

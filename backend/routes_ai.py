@@ -1,19 +1,20 @@
 """AI Virtual Analyst (LLM) — gated to Pro + Investor.
 
 Generates an educational, structured interpretation of an asset by feeding the
-Dipzee opportunity score + market data into an LLM (OpenAI gpt-5.4 via the
-Emergent universal key). Responses are localized (pt/en/es/fr) and cached per
-``ticker+locale`` in Mongo for 12h to control cost and latency.
+Dipzee opportunity score + market data into an LLM (Anthropic Claude or Google
+Gemini, selected via ``AI_PROVIDER`` — see ``ai_providers.py``). Responses are
+localized (pt/en/es/fr) and cached per ``ticker+locale`` in Mongo for 12h to
+control cost and latency.
 """
 import json
 import logging
-import os
 import re
-import uuid
+import time
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ai_providers import AIProviderError, get_ai_provider
 from asset_service import refresh_asset
 from database import db
 from providers import get_company_news
@@ -25,6 +26,15 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 CACHE_TTL_HOURS = 12
 _LANG_NAMES = {"pt": "Portuguese (Brazil)", "en": "English", "es": "Spanish", "fr": "French"}
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+
+# The 12h cache makes normal usage free after the first request per
+# ticker+locale, but `?refresh=1` deliberately bypasses it and pays for a
+# real LLM call — with no per-user cap, a script could hammer that param and
+# run up real API cost (paid LLM tokens, not just our own compute) well
+# beyond what a single subscription is worth. Throttle forced refreshes
+# per-user, independent of the general per-IP rate limiter.
+_FORCED_REFRESH_COOLDOWN_SECONDS = 120
+_last_forced_refresh: dict = {}  # user_id -> monotonic timestamp
 
 
 def _num(v):
@@ -99,11 +109,11 @@ def _as_list(v):
 
 
 async def _generate(context: dict, headlines: list, locale: str) -> dict:
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    try:
+        provider = await get_ai_provider()
+    except AIProviderError as e:
+        logger.error("[ai analyst] provider not configured: %s", e)
         raise HTTPException(status_code=503, detail="AI analyst not configured")
-
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     lang = _LANG_NAMES.get(locale, "English")
     system = (
@@ -128,13 +138,12 @@ async def _generate(context: dict, headlines: list, locale: str) -> dict:
         + json.dumps(payload, ensure_ascii=False)
     )
 
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"analyst-{context.get('ticker')}-{uuid.uuid4().hex[:8]}",
-        system_message=system,
-    ).with_model("openai", "gpt-5.4")
+    try:
+        completion = await provider.generate(system, user_text)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[ai analyst] %s completion failed: %s", provider.name, e)
+        raise HTTPException(status_code=502, detail="AI analyst failed to generate")
 
-    completion = await chat.send_message(UserMessage(text=user_text))
     parsed = _clean_json(completion)
 
     conf = parsed.get("confidence")
@@ -181,6 +190,15 @@ async def ai_analyst(
                     return cached
             except Exception:  # noqa: BLE001
                 pass
+    else:
+        last = _last_forced_refresh.get(user["id"], 0.0)
+        elapsed = time.monotonic() - last
+        if elapsed < _FORCED_REFRESH_COOLDOWN_SECONDS:
+            raise HTTPException(
+                status_code=429,
+                detail={"message": f"Please wait {int(_FORCED_REFRESH_COOLDOWN_SECONDS - elapsed)}s before forcing another AI refresh."},
+            )
+        _last_forced_refresh[user["id"]] = time.monotonic()
 
     asset = await refresh_asset(ticker)
     if not asset:

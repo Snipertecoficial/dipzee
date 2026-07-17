@@ -62,10 +62,20 @@ app.include_router(api_router)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
+ENV = os.environ.get("ENV", "development")
+_cors_raw = os.environ.get("CORS_ORIGINS")
+if _cors_raw:
+    _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+elif ENV == "production":
+    logger.error("CORS_ORIGINS not set in production — denying all cross-origin requests.")
+    _cors_origins = []
+else:
+    _cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -78,6 +88,15 @@ async def on_startup():
         logger.info("Indexes ensured.")
     except Exception as e:  # noqa: BLE001
         logger.warning("ensure_indexes failed: %s", e)
+
+    # Unlike the other startup steps here, a migration failure is NOT
+    # swallowed — it aborts startup. A missing index or unseeded admin
+    # degrades gracefully; a half-applied data migration doesn't, and this
+    # app moves real money.
+    from database import db as _db
+    from migrations.runner import run_pending_migrations
+    await run_pending_migrations(_db)
+
     try:
         await seed_superadmin()
     except Exception as e:  # noqa: BLE001
@@ -95,11 +114,9 @@ async def on_startup():
 async def seed_superadmin():
     """Create/upgrade the configured superadmin account(s) (idempotent).
 
-    Superadmin emails are taken from SUPERADMIN_EMAIL (comma-separated) MERGED
-    with a built-in fallback list, so the accounts are always ensured on startup
-    even when the environment variables are not configured in the deploy env
-    (e.g. a fresh production deployment). They all share SUPERADMIN_PASSWORD
-    (with a safe fallback) and get role=superadmin, plan=investor.
+    Superadmin emails/password come exclusively from SUPERADMIN_EMAIL
+    (comma-separated) and SUPERADMIN_PASSWORD. If either is unset, no account
+    is created or modified — there is no built-in credential fallback.
     """
     import os
     import uuid
@@ -107,17 +124,11 @@ async def seed_superadmin():
     from database import db
     from security import hash_password
 
-    # Built-in fallback so production always has working superadmins even when
-    # SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD are not set in the deploy env.
-    DEFAULT_SUPERADMINS = ["douglas@snipertec.com.br", "walidhalabi@hotmail.com"]
-    DEFAULT_SUPERADMIN_PASSWORD = "Admin213021#"
-
     raw = os.environ.get("SUPERADMIN_EMAIL") or ""
-    env_emails = [e.strip().lower() for e in raw.split(",") if e.strip()]
-    # Merge env-provided + defaults, preserving order and removing duplicates.
-    emails = list(dict.fromkeys(env_emails + [e.lower() for e in DEFAULT_SUPERADMINS]))
-    password = os.environ.get("SUPERADMIN_PASSWORD") or DEFAULT_SUPERADMIN_PASSWORD
+    emails = list(dict.fromkeys(e.strip().lower() for e in raw.split(",") if e.strip()))
+    password = os.environ.get("SUPERADMIN_PASSWORD") or ""
     if not emails or not password:
+        logger.warning("SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD not set — skipping superadmin seed.")
         return
     for email in emails:
         existing = await db.users.find_one({"email": email})

@@ -4,6 +4,16 @@ import api from '../lib/api';
 
 const AuthContext = createContext(null);
 
+function storeTokens(data) {
+  localStorage.setItem('dz_token', data.access_token);
+  localStorage.setItem('dz_refresh_token', data.refresh_token);
+}
+
+function clearTokens() {
+  localStorage.removeItem('dz_token');
+  localStorage.removeItem('dz_refresh_token');
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +34,7 @@ export function AuthProvider({ children }) {
       setUser(data);
       applyUserPrefs(data);
     } catch (e) {
-      localStorage.removeItem('dz_token');
+      clearTokens();
       setUser(null);
     } finally {
       setLoading(false);
@@ -35,7 +45,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    localStorage.setItem('dz_token', data.access_token);
+    storeTokens(data);
     setUser(data.user);
     applyUserPrefs(data.user);
     return data.user;
@@ -43,15 +53,35 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post('/auth/register', payload);
-    localStorage.setItem('dz_token', data.access_token);
+    storeTokens(data);
     setUser(data.user);
     applyUserPrefs(data.user);
     return data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem('dz_token');
+    const refreshToken = localStorage.getItem('dz_refresh_token');
+    if (refreshToken) {
+      // Best-effort — the session must clear locally either way.
+      api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {});
+    }
+    clearTokens();
     setUser(null);
+  };
+
+  const logoutAllDevices = async () => {
+    await api.post('/auth/logout-all');
+    clearTokens();
+    setUser(null);
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    const { data } = await api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    storeTokens(data);
+    return data;
   };
 
   const updateProfile = async (payload) => {
@@ -67,7 +97,7 @@ export function AuthProvider({ children }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, setUser, can }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, logoutAllDevices, changePassword, updateProfile, setUser, can }}>
       {children}
     </AuthContext.Provider>
   );

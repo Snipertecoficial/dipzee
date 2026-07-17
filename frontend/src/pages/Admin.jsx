@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
-  Users, LineChart, BellRing, CreditCard, SlidersHorizontal, Shield, Database, Megaphone, Landmark, Activity,
+  Users, LineChart, BellRing, CreditCard, SlidersHorizontal, Shield, Database, Megaphone, Landmark, Activity, Sparkles,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ import { AdminSettingsTab } from './admin/AdminSettingsTab';
 import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
 import { AdminAdsTab } from './admin/AdminAdsTab';
 import { AdminHealthTab } from './admin/AdminHealthTab';
+import { AdminAiTab } from './admin/AdminAiTab';
 
 // Admin acts as the orchestrator: it owns all state, data loaders and action
 // handlers, then delegates presentation to focused per-tab subcomponents.
@@ -36,6 +37,7 @@ export default function Admin() {
   const [events, setEvents] = useState([]);
   const [txs, setTxs] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [aiConfig, setAiConfig] = useState(null);
   const [busy, setBusy] = useState('');
 
   const loadStats = useCallback(async () => {
@@ -62,8 +64,28 @@ export default function Admin() {
   const loadTxs = useCallback(async () => {
     try { const { data } = await api.get('/admin/transactions'); setTxs(data.transactions || []); } catch (e) { /* noop */ }
   }, []);
+  const syncBilling = async () => {
+    setBusy('billing-sync');
+    try {
+      const { data } = await api.post('/admin/billing/sync');
+      toast.success(t('admin.billingSyncedToast', { updated: data.updated, checked: data.checked }));
+      loadTxs(); loadStats();
+    } catch (e) { toast.error(t('auth.genericError')); } finally { setBusy(''); }
+  };
+  const refundTransaction = async (id) => {
+    if (!window.confirm(t('admin.confirmRefund'))) return;
+    setBusy('refund-' + id);
+    try {
+      await api.post(`/admin/billing/transactions/${id}/refund`);
+      toast.success(t('admin.refundSuccessToast'));
+      loadTxs();
+    } catch (e) { toast.error(e?.response?.data?.detail || t('auth.genericError')); } finally { setBusy(''); }
+  };
   const loadSettings = useCallback(async () => {
     try { const { data } = await api.get('/admin/settings'); setSettings(data); } catch (e) { /* noop */ }
+  }, []);
+  const loadAiConfig = useCallback(async () => {
+    try { const { data } = await api.get('/admin/ai-config'); setAiConfig(data); } catch (e) { /* noop */ }
   }, []);
 
   useEffect(() => {
@@ -74,7 +96,8 @@ export default function Admin() {
     loadAlerts();
     loadTxs();
     loadSettings();
-  }, [loadStats, loadChartData, loadUsers, loadAssets, loadAlerts, loadTxs, loadSettings]);
+    loadAiConfig();
+  }, [loadStats, loadChartData, loadUsers, loadAssets, loadAlerts, loadTxs, loadSettings, loadAiConfig]);
 
   const updateUser = async (id, payload) => {
     try { await api.put(`/admin/users/${id}`, payload); toast.success(t('admin.userUpdated')); loadUsers(); loadStats(); }
@@ -84,6 +107,12 @@ export default function Admin() {
     if (!window.confirm(t('admin.confirmDeleteUser'))) return;
     try { await api.delete(`/admin/users/${id}`); toast.success(t('admin.userDeleted')); loadUsers(); loadStats(); }
     catch (e) { toast.error(e?.response?.data?.detail || t('auth.genericError')); }
+  };
+  const revokeUserSessions = async (id) => {
+    if (!window.confirm(t('admin.confirmRevokeSessions'))) return;
+    setBusy('revoke-' + id);
+    try { await api.post(`/admin/users/${id}/revoke-sessions`); toast.success(t('admin.sessionsRevoked')); }
+    catch (e) { toast.error(t('auth.genericError')); } finally { setBusy(''); }
   };
   const refreshAsset = async (ticker) => {
     setBusy('asset-' + ticker);
@@ -117,6 +146,23 @@ export default function Admin() {
     } catch (e) { toast.error(t('auth.genericError')); } finally { setBusy(''); }
   };
 
+  const saveAiProvider = async (providerKey, payload) => {
+    setBusy(`ai-${providerKey}`);
+    try {
+      const { data } = await api.put('/admin/ai-config', payload);
+      setAiConfig(data);
+      toast.success(t('admin.settingsSaved'));
+    } catch (e) { toast.error(t('auth.genericError')); } finally { setBusy(''); }
+  };
+  const saveAiActiveProvider = async (activeProvider) => {
+    setBusy('ai-active');
+    try {
+      const { data } = await api.put('/admin/ai-config', { active_provider: activeProvider });
+      setAiConfig(data);
+      toast.success(t('admin.settingsSaved'));
+    } catch (e) { toast.error(t('auth.genericError')); } finally { setBusy(''); }
+  };
+
   if (user && user.role !== 'superadmin') return <Navigate to="/app/dashboard" replace />;
 
   return (
@@ -137,6 +183,7 @@ export default function Admin() {
           <TabsTrigger value="announcements" data-testid="admin-tab-announcements"><Megaphone size={15} className="mr-1.5" />Comunicados</TabsTrigger>
           <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads"><Landmark size={15} className="mr-1.5" />Parceiros</TabsTrigger>
           <TabsTrigger value="health" data-testid="admin-tab-health"><Activity size={15} className="mr-1.5" />Status do Sistema</TabsTrigger>
+          <TabsTrigger value="ai" data-testid="admin-tab-ai"><Sparkles size={15} className="mr-1.5" />IA</TabsTrigger>
           <TabsTrigger value="settings" data-testid="admin-tab-settings"><SlidersHorizontal size={15} className="mr-1.5" />{t('admin.tabs.settings')}</TabsTrigger>
         </TabsList>
 
@@ -145,7 +192,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="users" className="mt-6">
-          <AdminUsersTab users={users} userQ={userQ} setUserQ={setUserQ} onSearch={loadUsers} onUpdateUser={updateUser} onDeleteUser={deleteUser} />
+          <AdminUsersTab users={users} userQ={userQ} setUserQ={setUserQ} onSearch={loadUsers} onUpdateUser={updateUser} onDeleteUser={deleteUser} onRevokeSessions={revokeUserSessions} busy={busy} />
         </TabsContent>
 
         <TabsContent value="assets" className="mt-6">
@@ -162,7 +209,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="billing" className="mt-6">
-          <AdminBillingTab stats={stats} txs={txs} />
+          <AdminBillingTab stats={stats} txs={txs} busy={busy} onSync={syncBilling} onRefund={refundTransaction} />
         </TabsContent>
 
         <TabsContent value="announcements" className="mt-6">
@@ -175,6 +222,10 @@ export default function Admin() {
 
         <TabsContent value="health" className="mt-6">
           <AdminHealthTab />
+        </TabsContent>
+
+        <TabsContent value="ai" className="mt-6">
+          <AdminAiTab aiConfig={aiConfig} onSaveProvider={saveAiProvider} onSaveActive={saveAiActiveProvider} busy={busy} />
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6">

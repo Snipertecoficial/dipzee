@@ -17,6 +17,7 @@ import requests
 
 from email_service import send_email
 from plans import has_feature
+from url_safety import assert_safe_outbound_url
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,12 @@ def _send_telegram(chat_id: str, text: str):
 
 
 def _send_webhook(url: str, payload: dict):
-    requests.post(url, json=payload, timeout=8)
+    # Re-checked here, not just at save time in routes_auth.py: a hostname
+    # can resolve to a public IP when the user saves it and to an internal
+    # one later (DNS rebinding), and a "safe" URL can 302 to an internal one
+    # — hence also disabling redirects rather than following them blindly.
+    assert_safe_outbound_url(url)
+    requests.post(url, json=payload, timeout=8, allow_redirects=False)
 
 
 async def deliver(user: dict, *, ticker: str, event_type: str, message: str,
@@ -47,7 +53,7 @@ async def deliver(user: dict, *, ticker: str, event_type: str, message: str,
 
     if prefs.get("email", True) and user.get("email"):
         try:
-            send_email(user["email"], subject, html)
+            await asyncio.to_thread(send_email, user["email"], subject, html)
         except Exception as e:  # noqa: BLE001
             logger.warning("email delivery failed: %s", e)
 

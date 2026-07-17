@@ -1,0 +1,78 @@
+name: Deploy to VPS
+
+# Push to main -> build sanity check -> SSH into the VPS and redeploy ->
+# verify the live site actually responds before calling it done. Manual
+# "Run workflow" button (workflow_dispatch) is there for an on-demand
+# redeploy without needing an empty commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Sanity checks (catch a broken build before it ever reaches the VPS) ---
+      - name: Backend syntax check
+        run: python3 -m compileall -q backend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Frontend build check
+        working-directory: frontend
+        env:
+          # Dummy value — this build is discarded. The real one happens on
+          # the VPS via docker-compose.yml's build ARG, with the real URL.
+          REACT_APP_BACKEND_URL: https://example.com
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+
+      # --- Deploy over SSH (plain OpenSSH client, no third-party action —
+      # this step touches production credentials, so it doesn't take on a
+      # marketplace action's supply-chain risk for something this simple) ---
+      - name: Deploy over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          install -m 600 -D /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          ssh-keyscan -p "${VPS_SSH_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_DEPLOY_PATH' && \
+             git fetch origin main && \
+             git reset --hard origin/main && \
+             docker compose up -d --build && \
+             docker image prune -f"
+
+      # --- Post-deploy verification: prove the live site actually answers,
+      # not just that the container process started. Retries absorb the
+      # normal few-seconds gap while backend/frontend swap over (Caddy stays
+      # up throughout) plus migration/startup time. ---
+      - name: Verify deployment is live
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          for i in $(seq 1 15); do
+            status=$(curl -s -o /tmp/health.json -w '%{http_code}' "$HEALTHCHECK_URL" || echo "000")
+            if [ "$status" = "200" ] && jq -e '.status == "ok"' /tmp/health.json > /dev/null 2>&1; then
+              echo "Healthy after attempt $i."
+              exit 0
+            fi
+            echo "Attempt $i/15: HTTP $status, not healthy yet — retrying in 5s..."
+            sleep 5
+          done
+          echo "Deployment did not become healthy in time. Last response:"
+          cat /tmp/health.json 2>/dev/null || echo "(no response body)"
+          exit 1

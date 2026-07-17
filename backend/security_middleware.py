@@ -17,10 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 def client_ip(request) -> str:
-    """Best-effort client IP, honouring the ingress' X-Forwarded-For."""
+    """Best-effort client IP, honouring the ingress' X-Forwarded-For.
+
+    Deployment has exactly one trusted reverse-proxy hop (Caddy). Caddy
+    APPENDS the real peer IP to any X-Forwarded-For it receives rather than
+    replacing it, so the LAST entry is the one Caddy itself observed and the
+    only one that isn't attacker-controlled — anything a client sends before
+    that (including a spoofed leading value meant to defeat this rate
+    limiter) ends up earlier in the list. Taking the first entry, as before,
+    let any client bypass per-IP limits simply by sending its own
+    X-Forwarded-For header.
+    """
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        return xff.split(",")[0].strip()
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
     return request.client.host if request.client else "unknown"
 
 

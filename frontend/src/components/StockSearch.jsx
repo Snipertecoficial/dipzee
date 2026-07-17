@@ -47,9 +47,25 @@ export function StockSearch({ onNavigate }) {
     navigate(`/app/asset/${encodeURIComponent(ticker)}`);
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    if (q.trim()) go(q.trim().toUpperCase());
+    const value = q.trim();
+    if (!value) return;
+    // Prefer a real match: the dropdown's top result if it's already loaded.
+    if (results.length > 0) {
+      go(results[0].ticker);
+      return;
+    }
+    // Enter pressed before the debounced search resolved (or box never
+    // opened) — look it up directly rather than treating the typed text as
+    // a literal ticker (a company name like "microsoft" is not a symbol).
+    try {
+      const { data } = await api.get('/assets/search', { params: { q: value } });
+      const first = (data.results || [])[0];
+      go(first ? first.ticker : value.toUpperCase());
+    } catch (err) {
+      go(value.toUpperCase());
+    }
   };
 
   return (

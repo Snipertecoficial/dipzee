@@ -96,6 +96,20 @@ async def news_job():
         logger.warning("[scheduler] news job failed: %s", e)
 
 
+async def billing_sync_job():
+    """Catch payments the app's own redirect-back polling and the webhook
+    both missed (closed tab, misconfigured/unregistered webhook, etc.) so a
+    transaction never sits stuck showing "initiated" after the customer
+    actually paid — see routes_billing.reconcile_pending_transactions."""
+    try:
+        from routes_billing import reconcile_pending_transactions
+        result = await reconcile_pending_transactions()
+        if result.get("updated"):
+            logger.info("[scheduler] billing sync: %d/%d transactions updated", result["updated"], result["checked"])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[scheduler] billing sync job failed: %s", e)
+
+
 def start_scheduler():
     global _scheduler
     if _scheduler is not None:
@@ -107,8 +121,10 @@ def start_scheduler():
     _scheduler.add_job(intraday_refresh_job, IntervalTrigger(minutes=15), id="intraday_refresh", replace_existing=True)
     # News monitoring every 20 minutes
     _scheduler.add_job(news_job, IntervalTrigger(minutes=20), id="news_job", replace_existing=True)
+    # Billing reconciliation every 10 minutes
+    _scheduler.add_job(billing_sync_job, IntervalTrigger(minutes=10), id="billing_sync_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min)")
     return _scheduler
 
 

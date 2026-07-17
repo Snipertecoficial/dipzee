@@ -16,7 +16,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from providers import get_provider, fetch_resilient, normalize_dividend_yield, _derive_exchange
+from providers import fetch_resilient, normalize_dividend_yield, search_resilient, _derive_exchange
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +215,9 @@ def search(query: str) -> dict:
         logger.warning("yfinance search failed for %s: %s", query, e)
 
     if not quotes:
-        # Fallback to the configured provider's search (Finnhub).
+        # yfinance's own search came up empty — try the resilient provider cascade.
         try:
-            for r in (get_provider().search(query) or []):
+            for r in (search_resilient(query) or []):
                 quotes.append({"ticker": r["ticker"], "name": r.get("name") or r["ticker"], "exchange": r.get("exchange") or "", "type": ""})
         except Exception:  # noqa: BLE001
             pass

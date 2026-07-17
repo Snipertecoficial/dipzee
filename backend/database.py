@@ -23,3 +23,7 @@ async def ensure_indexes():
     await db.alert_events.create_index('user_id')
     await db.alert_events.create_index([('user_id', 1), ('read', 1)])
     await db.positions.create_index([('user_id', 1), ('ticker', 1)], unique=True)
+    await db.password_resets.create_index('user_id', unique=True)
+    await db.password_resets.create_index('token_hash')
+    await db.refresh_tokens.create_index('token_hash')
+    await db.refresh_tokens.create_index('user_id')

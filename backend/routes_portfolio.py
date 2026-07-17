@@ -27,7 +27,11 @@ class PositionUpdate(BaseModel):
 async def _compute(user_id: str) -> dict:
     positions = await db.positions.find({"user_id": user_id}, {"_id": 0}).to_list(500)
     items = []
-    totals = {"market_value": 0.0, "cost_basis": 0.0, "pnl": 0.0, "annual_income": 0.0, "currency": "USD"}
+    # Positions can span multiple currencies (e.g. a US stock in USD alongside a
+    # TSX stock in CAD) — summing raw numbers across currencies into one total
+    # would silently produce a meaningless blended figure, so totals are kept
+    # per-currency instead.
+    totals_by_currency: dict = {}
     for p in positions:
         asset = await refresh_asset(p["ticker"]) or {}
         price = asset.get("price")
@@ -54,13 +58,21 @@ async def _compute(user_id: str) -> dict:
             "annual_income": round(annual_income, 2) if annual_income is not None else None,
         })
         if market_value is not None:
-            totals["market_value"] += market_value
-            totals["cost_basis"] += cost_basis
-            totals["pnl"] += pnl
-            totals["annual_income"] += annual_income or 0.0
-            totals["currency"] = currency
-    totals = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in totals.items()}
-    totals["pnl_pct"] = (totals["pnl"] / totals["cost_basis"]) if totals["cost_basis"] else None
+            bucket = totals_by_currency.setdefault(currency, {
+                "currency": currency, "market_value": 0.0, "cost_basis": 0.0, "pnl": 0.0, "annual_income": 0.0,
+            })
+            bucket["market_value"] += market_value
+            bucket["cost_basis"] += cost_basis
+            bucket["pnl"] += pnl
+            bucket["annual_income"] += annual_income or 0.0
+
+    totals = []
+    for bucket in totals_by_currency.values():
+        bucket = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in bucket.items()}
+        bucket["pnl_pct"] = (bucket["pnl"] / bucket["cost_basis"]) if bucket["cost_basis"] else None
+        totals.append(bucket)
+    totals.sort(key=lambda t: t["market_value"], reverse=True)
+
     items.sort(key=lambda x: (x.get("market_value") or 0), reverse=True)
     return {"positions": items, "totals": totals}
 

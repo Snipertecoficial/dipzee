@@ -93,3 +93,15 @@ frontend/node_modules/.cache/default-development/15.pack
 .env
 .env.*
 *.env
+!.env.example
+
+# Mongo backups/dumps — contain real user data (emails, password hashes), never commit.
+*backup*.json
+*dump*.json
+/backups/
+/dumps/
+
+# Working notes — have carried real Stripe account/webhook identifiers in the
+# past; keep them local only, never in git history going forward.
+/plan.md
+/test_result.md

@@ -454,8 +454,8 @@ export default function Landing() {
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--dz-muted)]">{t('landing.footerCompany')}</p>
               <ul className="mt-3 space-y-2 text-sm">
                 <li><a href="#security" className="text-[var(--dz-fg)] hover:text-[var(--dz-primary)] hover:underline" data-testid="footer-security-link">{t('landing.navSecurity')}</a></li>
-                <li><span className="text-[var(--dz-fg)]" data-testid="footer-privacy-policy-link">{t('landing.footerPrivacy')}</span></li>
-                <li><span className="text-[var(--dz-fg)]">{t('landing.footerTerms')}</span></li>
+                <li><Link to="/privacy" className="text-[var(--dz-fg)] hover:text-[var(--dz-primary)] hover:underline" data-testid="footer-privacy-policy-link">{t('landing.footerPrivacy')}</Link></li>
+                <li><Link to="/terms" className="text-[var(--dz-fg)] hover:text-[var(--dz-primary)] hover:underline" data-testid="footer-terms-link">{t('landing.footerTerms')}</Link></li>
               </ul>
             </div>
             <div>

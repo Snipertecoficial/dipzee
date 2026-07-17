@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Crown, Camera, Trash2, Check, Sun, Moon, Monitor, Lock, Loader2, ExternalLink, CalendarClock } from 'lucide-react';
+import { Crown, Camera, Trash2, Check, Sun, Moon, Monitor, Lock, Loader2, ExternalLink, CalendarClock, Download, ShieldAlert, KeyRound, LogOut } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +21,9 @@ const MAX_FILE = 1_100_000; // ~1MB source -> ~1.4MB base64
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { user, updateProfile, can } = useAuth();
+  const { user, updateProfile, can, logout, logoutAllDevices, changePassword } = useAuth();
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
   const fileRef = useRef(null);
 
   const [profile, setProfile] = useState({
@@ -38,6 +39,12 @@ export default function Settings() {
   const canMsg = can('messaging_alerts');
   const [sub, setSub] = useState(null);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [logoutAllBusy, setLogoutAllBusy] = useState(false);
 
   const isPaid = ['starter', 'pro', 'investor'].includes(user?.plan);
 
@@ -57,6 +64,80 @@ export default function Settings() {
     } catch (e) {
       toast.error(e?.response?.status === 400 ? t('settings.noBillingAccount') : t('auth.genericError'));
       setPortalBusy(false);
+    }
+  };
+
+  const doCancel = async () => {
+    if (!window.confirm(t('settings.cancelConfirm'))) return;
+    setCancelBusy(true);
+    try {
+      const { data } = await api.post('/billing/cancel');
+      setSub(data);
+      toast.success(t('settings.cancelSuccessToast'));
+    } catch (e) { toast.error(t('auth.genericError')); }
+    finally { setCancelBusy(false); }
+  };
+
+  const doReactivate = async () => {
+    setCancelBusy(true);
+    try {
+      const { data } = await api.post('/billing/reactivate');
+      setSub(data);
+      toast.success(t('settings.reactivateSuccessToast'));
+    } catch (e) { toast.error(t('auth.genericError')); }
+    finally { setCancelBusy(false); }
+  };
+
+  const exportMyData = async () => {
+    setExportBusy(true);
+    try {
+      const { data } = await api.get('/auth/me/export');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'dipzee-meus-dados.json'; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast.error(t('auth.genericError')); }
+    finally { setExportBusy(false); }
+  };
+
+  const deleteAccount = async () => {
+    if (!window.confirm(t('settings.deleteAccountConfirm'))) return;
+    if (window.prompt(t('settings.deleteAccountPromptType')) !== t('settings.deleteAccountPromptWord')) return;
+    setDeleteBusy(true);
+    try {
+      await api.delete('/auth/me');
+      toast.success(t('settings.deleteAccountSuccessToast'));
+      logout();
+      navigate('/', { replace: true });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || t('auth.genericError'));
+      setDeleteBusy(false);
+    }
+  };
+
+  const doChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwForm.next !== pwForm.confirm) { toast.error(t('auth.passwordMismatch')); return; }
+    setPwBusy(true);
+    try {
+      await changePassword(pwForm.current, pwForm.next);
+      setPwForm({ current: '', next: '', confirm: '' });
+      toast.success(t('settings.passwordChangedToast'));
+    } catch (e) {
+      toast.error(e?.response?.status === 400 ? t('settings.currentPasswordWrong') : t('auth.genericError'));
+    } finally { setPwBusy(false); }
+  };
+
+  const doLogoutAll = async () => {
+    if (!window.confirm(t('settings.logoutAllConfirm'))) return;
+    setLogoutAllBusy(true);
+    try {
+      await logoutAllDevices();
+      navigate('/login', { replace: true });
+    } catch (e) {
+      toast.error(t('auth.genericError'));
+      setLogoutAllBusy(false);
     }
   };
 
@@ -170,6 +251,65 @@ export default function Settings() {
               </Button>
             </div>
           </Card>
+
+          <Card className="mt-6 p-6 border-[var(--dz-border)]" data-testid="settings-security-card">
+            <div className="flex items-center gap-2">
+              <KeyRound size={17} className="text-[var(--dz-primary)]" />
+              <p className="font-heading font-semibold">{t('settings.security')}</p>
+            </div>
+            <form onSubmit={doChangePassword} className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+              <div className="space-y-1.5">
+                <Label htmlFor="pw-current">{t('settings.currentPassword')}</Label>
+                <Input id="pw-current" type="password" required value={pwForm.current} onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })} data-testid="settings-current-password-input" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pw-next">{t('auth.newPassword')}</Label>
+                <Input id="pw-next" type="password" required minLength={6} value={pwForm.next} onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })} data-testid="settings-new-password-input" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pw-confirm">{t('auth.confirmPassword')}</Label>
+                <Input id="pw-confirm" type="password" required minLength={6} value={pwForm.confirm} onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })} data-testid="settings-confirm-password-input" />
+              </div>
+              <div className="sm:col-span-3">
+                <Button type="submit" disabled={pwBusy} data-testid="settings-change-password-button" className="bg-[var(--dz-primary)] text-white">
+                  {pwBusy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <KeyRound size={16} className="mr-2" />}
+                  {t('settings.changePassword')}
+                </Button>
+              </div>
+            </form>
+            <div className="mt-5 border-t border-[var(--dz-border)] pt-4">
+              <p className="text-sm text-[var(--dz-muted)]">{t('settings.logoutAllDesc')}</p>
+              <Button variant="outline" size="sm" onClick={doLogoutAll} disabled={logoutAllBusy} data-testid="settings-logout-all-button" className="mt-2 border-[var(--dz-border)]">
+                {logoutAllBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <LogOut size={14} className="mr-1.5" />}
+                {t('settings.logoutAll')}
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="mt-6 p-6 border-[var(--dz-border)]" data-testid="settings-my-data-card">
+            <p className="font-heading font-semibold">{t('settings.myData')}</p>
+            <p className="text-sm text-[var(--dz-muted)] mt-1">{t('settings.myDataDesc')}</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button variant="outline" onClick={exportMyData} disabled={exportBusy} data-testid="settings-export-data-button" className="border-[var(--dz-border)]">
+                {exportBusy ? <Loader2 size={15} className="mr-2 animate-spin" /> : <Download size={15} className="mr-2" />}
+                {t('settings.exportData')}
+              </Button>
+            </div>
+
+            {user?.role !== 'superadmin' && (
+              <div className="mt-6 border-t border-[var(--dz-border)] pt-5">
+                <div className="flex items-center gap-2 text-[var(--dz-sell)]">
+                  <ShieldAlert size={16} />
+                  <p className="font-medium text-sm">{t('settings.dangerZone')}</p>
+                </div>
+                <p className="text-xs text-[var(--dz-muted)] mt-1 max-w-lg">{t('settings.deleteAccountDesc')}</p>
+                <Button variant="ghost" size="sm" onClick={deleteAccount} disabled={deleteBusy} data-testid="settings-delete-account-button" className="mt-3 text-[var(--dz-sell)] hover:text-[var(--dz-sell)] hover:bg-[rgba(229,72,77,0.08)]">
+                  {deleteBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Trash2 size={14} className="mr-1.5" />}
+                  {t('settings.deleteAccount')}
+                </Button>
+              </div>
+            )}
+          </Card>
         </TabsContent>
 
         {/* APPEARANCE */}
@@ -266,12 +406,15 @@ export default function Settings() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {isPaid && sub?.has_subscription ? (
-                  <Button onClick={openPortal} disabled={portalBusy} data-testid="settings-manage-subscription-button" className="bg-[var(--dz-primary)] text-white">
-                    {portalBusy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <ExternalLink size={16} className="mr-2" />}
-                    {t('settings.manageSubscription')}
-                  </Button>
+                  <>
+                    <Link to="/app/upgrade"><Button variant="outline" data-testid="settings-change-plan-button" className="border-[var(--dz-border)]"><Crown size={16} className="mr-2" />{t('settings.changePlan')}</Button></Link>
+                    <Button onClick={openPortal} disabled={portalBusy} variant="outline" data-testid="settings-manage-subscription-button" className="border-[var(--dz-border)]">
+                      {portalBusy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <ExternalLink size={16} className="mr-2" />}
+                      {t('settings.manageSubscription')}
+                    </Button>
+                  </>
                 ) : (
                   <Link to="/app/upgrade"><Button variant="outline" data-testid="settings-upgrade-button" className="border-[var(--dz-border)]"><Crown size={16} className="mr-2" />{t('nav.upgrade')}</Button></Link>
                 )}
@@ -297,6 +440,27 @@ export default function Settings() {
                       <p className="font-medium tnum">{fmtDate(sub.current_period_end)}</p>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {isPaid && sub?.has_subscription && (
+              <div className="mt-5 border-t border-[var(--dz-border)] pt-5">
+                {sub.cancel_at_period_end ? (
+                  <div className="flex items-center justify-between gap-4 flex-wrap rounded-lg border border-[var(--dz-sell)]/30 bg-[rgba(229,72,77,0.06)] p-4">
+                    <p className="text-sm text-[var(--dz-fg)]">
+                      {t('settings.willCancelOn', { date: fmtDate(sub.current_period_end) })}
+                    </p>
+                    <Button size="sm" onClick={doReactivate} disabled={cancelBusy} data-testid="settings-reactivate-button" className="bg-[var(--dz-primary)] text-white">
+                      {cancelBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : null}
+                      {t('settings.reactivateSubscription')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={doCancel} disabled={cancelBusy} data-testid="settings-cancel-subscription-button" className="text-[var(--dz-sell)] hover:text-[var(--dz-sell)] hover:bg-[rgba(229,72,77,0.08)]">
+                    {cancelBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : null}
+                    {t('settings.cancelSubscription')}
+                  </Button>
                 )}
               </div>
             )}

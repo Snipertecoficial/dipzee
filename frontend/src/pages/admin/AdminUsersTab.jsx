@@ -1,13 +1,13 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, ShieldOff, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TH_CLASS, TD_CLASS, fmtDate } from './AdminShared';
 
-export function AdminUsersTab({ users, userQ, setUserQ, onSearch, onUpdateUser, onDeleteUser }) {
+export function AdminUsersTab({ users, userQ, setUserQ, onSearch, onUpdateUser, onDeleteUser, onRevokeSessions, busy }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.slice(0, 2) || 'en';
   return (
@@ -50,9 +50,14 @@ export function AdminUsersTab({ users, userQ, setUserQ, onSearch, onUpdateUser, 
                 <td className={TD_CLASS + ' tnum'}>{u.alerts_count}</td>
                 <td className={TD_CLASS}>{fmtDate(u.created_at, locale)}</td>
                 <td className={TD_CLASS}>
-                  <Button variant="ghost" size="icon" onClick={() => onDeleteUser(u.id)} disabled={u.role === 'superadmin'} data-testid="admin-user-delete">
-                    <Trash2 size={15} className="text-[var(--dz-sell)]" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => onRevokeSessions(u.id)} disabled={busy === `revoke-${u.id}`} title={t('admin.revokeSessions')} data-testid="admin-user-revoke-sessions">
+                      {busy === `revoke-${u.id}` ? <Loader2 size={15} className="animate-spin" /> : <ShieldOff size={15} className="text-[var(--dz-muted)]" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDeleteUser(u.id)} disabled={u.role === 'superadmin'} data-testid="admin-user-delete">
+                      <Trash2 size={15} className="text-[var(--dz-sell)]" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

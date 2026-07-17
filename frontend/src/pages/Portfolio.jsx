@@ -67,8 +67,7 @@ function PortfolioInner() {
     URL.revokeObjectURL(url);
   };
 
-  const totals = data?.totals || {};
-  const cur = totals.currency || 'USD';
+  const totalsByCurrency = data?.totals?.length ? data.totals : [{ currency: 'USD', market_value: null, cost_basis: null, pnl: null, annual_income: null }];
 
   return (
     <div data-testid="portfolio-inner">
@@ -82,19 +81,26 @@ function PortfolioInner() {
         </Button>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { k: 'value', label: t('portfolio.totalValue'), value: fmt(totals.market_value, cur), icon: Wallet },
-          { k: 'cost', label: t('portfolio.totalCost'), value: fmt(totals.cost_basis, cur), icon: Coins },
-          { k: 'pnl', label: t('portfolio.totalPnl'), value: fmt(totals.pnl, cur), icon: TrendingUp, color: pctColor(totals.pnl) },
-          { k: 'income', label: t('portfolio.annualIncome'), value: fmt(totals.annual_income, cur), icon: Coins },
-        ].map((m, i) => (
-          <Card key={m.k} className="p-4 border-[var(--dz-border)]">
-            <div className="flex items-center gap-2 text-[var(--dz-muted)] text-xs"><m.icon size={14} /> {m.label}</div>
-            <p className="mt-1 font-heading font-bold text-xl tnum" style={{ color: m.color || 'var(--dz-fg)' }} data-testid={`portfolio-metric-${i}`}>{m.value}</p>
-          </Card>
-        ))}
-      </div>
+      {totalsByCurrency.map((totals) => (
+        <div key={totals.currency} className="mt-5">
+          {totalsByCurrency.length > 1 && (
+            <p className="text-xs font-medium text-[var(--dz-muted)] mb-2">{totals.currency}</p>
+          )}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { k: 'value', label: t('portfolio.totalValue'), value: fmt(totals.market_value, totals.currency), icon: Wallet },
+              { k: 'cost', label: t('portfolio.totalCost'), value: fmt(totals.cost_basis, totals.currency), icon: Coins },
+              { k: 'pnl', label: t('portfolio.totalPnl'), value: fmt(totals.pnl, totals.currency), icon: TrendingUp, color: pctColor(totals.pnl) },
+              { k: 'income', label: t('portfolio.annualIncome'), value: fmt(totals.annual_income, totals.currency), icon: Coins },
+            ].map((m, i) => (
+              <Card key={m.k} className="p-4 border-[var(--dz-border)]">
+                <div className="flex items-center gap-2 text-[var(--dz-muted)] text-xs"><m.icon size={14} /> {m.label}</div>
+                <p className="mt-1 font-heading font-bold text-xl tnum" style={{ color: m.color || 'var(--dz-fg)' }} data-testid={`portfolio-metric-${totals.currency}-${i}`}>{m.value}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
 
       <Card className="mt-5 p-5 border-[var(--dz-border)]">
         <p className="font-heading font-semibold">{t('portfolio.addTitle')}</p>

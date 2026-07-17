@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, Activity, Bitcoin, Newspaper, Search, RefreshCw, ExternalLink } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, Activity, Bitcoin, Newspaper, Search, RefreshCw, ExternalLink, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '../lib/api';
 
@@ -35,6 +35,37 @@ function fmtPrice(v, cur = 'USD') {
   catch { return `${Number(v).toFixed(2)}`; }
 }
 
+function MoverCard({ r, onClick }) {
+  const up = r.change_pct == null ? null : r.change_pct >= 0;
+  const color = pctColor(r.change_pct);
+  const TrendIcon = up === null ? null : up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+      <Card
+        onClick={onClick}
+        data-testid="markets-row"
+        className="p-4 sm:p-5 hover:shadow-[var(--dz-elev-2)] transition-shadow cursor-pointer h-full"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="font-heading font-semibold text-[var(--dz-fg)] truncate block">{r.ticker}</span>
+            <p className="text-xs text-[var(--dz-muted)] truncate mt-0.5">{r.name || r.ticker}</p>
+          </div>
+          {TrendIcon && (
+            <div className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>
+              <TrendIcon size={18} />
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex items-end justify-between">
+          <span className="text-lg font-heading font-bold tnum">{fmtPrice(r.price, r.currency)}</span>
+          <span className="text-sm font-medium tnum" style={{ color }}>{fmtPct(r.change_pct)}</span>
+        </div>
+      </Card>
+    </motion.div>
+  );
+}
+
 export default function Markets() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -43,6 +74,9 @@ export default function Markets() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null); // null = not searching -> show the tab's rows
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef(null);
 
   const labelFor = (key) => ({
     day_gainers: t('markets.gainers'), day_losers: t('markets.losers'),
@@ -70,10 +104,39 @@ export default function Markets() {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(tab); setQuery(''); }, [tab, load]);
+  useEffect(() => { load(tab); setQuery(''); setSearchResults(null); }, [tab, load]);
 
-  const filtered = rows.filter((r) =>
-    !query || r.ticker?.toLowerCase().includes(query.toLowerCase()) || (r.name || '').toLowerCase().includes(query.toLowerCase()));
+  // Typing a query searches every asset (not just the ~30 rows the current
+  // tab happens to have loaded) — a name like "microsoft" wouldn't be in
+  // "day_gainers" today, so filtering only the loaded rows looked broken.
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const value = query.trim();
+    if (tab === 'news' || !value) { setSearchResults(null); return; }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data } = await api.get('/assets/search', { params: { q: value } });
+        const top = (data.results || []).slice(0, 15);
+        const quotes = await Promise.all(top.map((r) =>
+          api.get(`/market/quote/${r.ticker}`).then(({ data }) => data.data).catch(() => null)));
+        setSearchResults(top.map((r, i) => ({
+          ticker: r.ticker,
+          name: r.name,
+          price: quotes[i]?.price,
+          change_pct: quotes[i]?.change_pct,
+          currency: quotes[i]?.currency,
+        })));
+      } catch (e) {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [query, tab]);
+
+  const filtered = searchResults !== null ? searchResults : rows;
 
   return (
     <div data-testid="markets-page">
@@ -122,34 +185,18 @@ export default function Markets() {
                   </a>
                 ))}
           </div>
+        ) : (loading || searching) ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-32 rounded-[14px]" />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card className="p-10 text-center text-[var(--dz-muted)]">{t('dashboard.noMatch')}</Card>
         ) : (
-          <Card className="overflow-hidden border-[var(--dz-border)]">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>{t('landing.colTicker')}</TableHead>
-                  <TableHead className="text-right">{t('landing.colPrice')}</TableHead>
-                  <TableHead className="text-right">{t('markets.change')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? [1, 2, 3, 4, 5, 6].map((i) => (
-                  <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                )) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="text-center py-8 text-[var(--dz-muted)]">{t('dashboard.noMatch')}</TableCell></TableRow>
-                ) : filtered.map((r) => (
-                  <TableRow key={r.ticker} className="cursor-pointer hover:bg-[var(--dz-primary-8)]" onClick={() => navigate(`/app/asset/${r.ticker}`)} data-testid="markets-row">
-                    <TableCell>
-                      <div className="font-medium">{r.ticker}</div>
-                      <div className="text-xs text-[var(--dz-muted)] truncate max-w-[260px]">{r.name}</div>
-                    </TableCell>
-                    <TableCell className="text-right tnum">{fmtPrice(r.price, r.currency)}</TableCell>
-                    <TableCell className="text-right tnum font-medium" style={{ color: pctColor(r.change_pct) }}>{fmtPct(r.change_pct)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map((r) => (
+              <MoverCard key={r.ticker} r={r} onClick={() => navigate(`/app/asset/${r.ticker}`)} />
+            ))}
+          </div>
         )}
       </div>
     </div>
