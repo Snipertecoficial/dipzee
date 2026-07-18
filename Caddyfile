@@ -1,4 +1,9 @@
-{$DOMAIN} {
+# Plain HTTP on purpose: this Caddy sits BEHIND an existing Traefik on the
+# VPS (see docker-compose.yml), which is the one terminating TLS at the
+# edge. Caddy no longer needs its own Auto-HTTPS/ACME for a domain — that
+# would mean two ACME clients fighting over the same certificate/rate
+# limit — it just keeps doing the /api/* vs frontend path split.
+:80 {
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
