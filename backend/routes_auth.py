@@ -36,6 +36,14 @@ RESET_TOKEN_TTL_MINUTES = 60
 # each user so we always know which version they agreed to.
 TERMS_VERSION = "2026-07-17"
 
+# A real bcrypt hash of a fixed, unusable value — verified against on every
+# login attempt for an email that doesn't exist, so that branch costs the
+# same bcrypt-bound time as a real "wrong password" check. Without this, an
+# unknown email short-circuits before hashing and returns measurably faster
+# than a registered one, letting an attacker enumerate valid emails purely
+# from response timing even though the response body is identical either way.
+_DUMMY_PASSWORD_HASH = "$2b$12$bM/C6MCqR3O.cZ/M1/jce.zXlR89UBV51096/.ejQXS1dypndp2oy"
+
 VALID_CURRENCIES = {"CAD", "USD", "BRL"}
 VALID_LOCALES = {"en", "fr", "pt", "es"}
 
@@ -254,7 +262,12 @@ async def login(body: LoginIn):
             detail=f"Conta temporariamente bloqueada por tentativas excessivas. Tente novamente em ~{mins} min.",
         )
     user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user["hashed_password"]):
+    # Always run the bcrypt comparison, even for an unknown email (against a
+    # dummy hash) — `or` would otherwise short-circuit and skip it, making
+    # this branch measurably faster than a real "wrong password" and
+    # leaking which emails are registered via response timing.
+    password_ok = verify_password(body.password, (user or {}).get("hashed_password", _DUMMY_PASSWORD_HASH))
+    if not user or not password_ok:
         await login_guard.record_failure(email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await login_guard.record_success(email)

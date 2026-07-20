@@ -16,10 +16,16 @@ i18n
       pt: { translation: pt },
       es: { translation: es },
     },
+    lng: undefined,
     fallbackLng: 'en',
     supportedLngs: ['en', 'fr', 'pt', 'es'],
     detection: {
-      order: ['localStorage', 'navigator'],
+      // English is the product default: only ever switch away from it when
+      // the visitor has explicitly picked a language before (persisted to
+      // dz_locale). Browser/navigator language is deliberately NOT used for
+      // detection so a visitor's OS/browser locale never silently changes
+      // the site's language on first visit.
+      order: ['localStorage'],
       lookupLocalStorage: 'dz_locale',
       caches: ['localStorage'],
     },

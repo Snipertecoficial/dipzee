@@ -180,10 +180,10 @@ export default function Admin() {
           <TabsTrigger value="assets" data-testid="admin-tab-assets"><Database size={15} className="mr-1.5" />{t('admin.tabs.assets')}</TabsTrigger>
           <TabsTrigger value="alerts" data-testid="admin-tab-alerts"><BellRing size={15} className="mr-1.5" />{t('admin.tabs.alerts')}</TabsTrigger>
           <TabsTrigger value="billing" data-testid="admin-tab-billing"><CreditCard size={15} className="mr-1.5" />{t('admin.tabs.billing')}</TabsTrigger>
-          <TabsTrigger value="announcements" data-testid="admin-tab-announcements"><Megaphone size={15} className="mr-1.5" />Comunicados</TabsTrigger>
-          <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads"><Landmark size={15} className="mr-1.5" />Parceiros</TabsTrigger>
-          <TabsTrigger value="health" data-testid="admin-tab-health"><Activity size={15} className="mr-1.5" />Status do Sistema</TabsTrigger>
-          <TabsTrigger value="ai" data-testid="admin-tab-ai"><Sparkles size={15} className="mr-1.5" />IA</TabsTrigger>
+          <TabsTrigger value="announcements" data-testid="admin-tab-announcements"><Megaphone size={15} className="mr-1.5" />{t('admin.tabs.announcements')}</TabsTrigger>
+          <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads"><Landmark size={15} className="mr-1.5" />{t('admin.tabs.partnerAds')}</TabsTrigger>
+          <TabsTrigger value="health" data-testid="admin-tab-health"><Activity size={15} className="mr-1.5" />{t('admin.tabs.health')}</TabsTrigger>
+          <TabsTrigger value="ai" data-testid="admin-tab-ai"><Sparkles size={15} className="mr-1.5" />{t('admin.tabs.ai')}</TabsTrigger>
           <TabsTrigger value="settings" data-testid="admin-tab-settings"><SlidersHorizontal size={15} className="mr-1.5" />{t('admin.tabs.settings')}</TabsTrigger>
         </TabsList>
 

@@ -8,7 +8,28 @@
         <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/favicon.svg" />
         <link rel="apple-touch-icon" href="%PUBLIC_URL%/favicon.svg" />
         <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-        <meta name="description" content="Dipzee — buy low, earn dividends, sell high with a clear Opportunity Score." />
+        <meta name="description" content="Dipzee turns four numbers into one clear Opportunity Score, so you know what to buy, hold or sell in seconds. Buy low, earn dividends, sell high — automatically." />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href="https://dipzee.com/" />
+
+        <!-- Open Graph (Facebook, LinkedIn, WhatsApp, etc.) -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Dipzee" />
+        <meta property="og:url" content="https://dipzee.com/" />
+        <meta property="og:title" content="Dipzee — Buy low. Earn dividends. Sell high — automatically." />
+        <meta property="og:description" content="Dipzee turns four numbers into one clear Opportunity Score, so you know what to buy, hold or sell in seconds." />
+        <meta property="og:image" content="https://dipzee.com/favicon.svg" />
+        <meta property="og:locale" content="en_US" />
+        <meta property="og:locale:alternate" content="pt_BR" />
+        <meta property="og:locale:alternate" content="es_ES" />
+        <meta property="og:locale:alternate" content="fr_FR" />
+
+        <!-- Twitter Card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Dipzee — Buy low. Earn dividends. Sell high — automatically." />
+        <meta name="twitter:description" content="Dipzee turns four numbers into one clear Opportunity Score, so you know what to buy, hold or sell in seconds." />
+        <meta name="twitter:image" content="https://dipzee.com/favicon.svg" />
+
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
@@ -25,7 +46,115 @@
         work correctly both with client-side routing and a non-root public URL.
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
-        <title>Dipzee — Opportunity Score</title>
+        <title>Dipzee — Buy Low, Earn Dividends, Sell High | Opportunity Score</title>
+
+        <!-- Structured data (schema.org): read by search engines and AI answer
+             engines (Perplexity, Google AI Overviews, ChatGPT browsing, etc.)
+             to understand and cite what Dipzee is, without needing to execute
+             the app's JS — this is a client-rendered SPA, so this static block
+             is the only guaranteed-visible description for crawlers that don't
+             run JavaScript. -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                {
+                    "@type": "Organization",
+                    "@id": "https://dipzee.com/#organization",
+                    "name": "Dipzee",
+                    "url": "https://dipzee.com/",
+                    "logo": "https://dipzee.com/favicon.svg",
+                    "description": "Dipzee is a stock market analytics SaaS that scores stocks 0-100 (the Opportunity Score) from price position, upside to analyst targets, and dividend yield, with real-time alerts and watchlists."
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "@id": "https://dipzee.com/#software",
+                    "name": "Dipzee",
+                    "applicationCategory": "FinanceApplication",
+                    "operatingSystem": "Web",
+                    "url": "https://dipzee.com/",
+                    "description": "Dipzee turns four numbers into one clear Opportunity Score, so you know what to buy, hold or sell in seconds. Includes real-time alerts, watchlists, a dividend tracker, and a market screener covering US and international exchanges.",
+                    "offers": [
+                        {
+                            "@type": "Offer",
+                            "name": "Starter",
+                            "price": "4.97",
+                            "priceCurrency": "USD",
+                            "billingIncrement": "P1M"
+                        },
+                        {
+                            "@type": "Offer",
+                            "name": "Pro",
+                            "price": "12.97",
+                            "priceCurrency": "USD",
+                            "billingIncrement": "P1M"
+                        },
+                        {
+                            "@type": "Offer",
+                            "name": "Investor",
+                            "price": "24.99",
+                            "priceCurrency": "USD",
+                            "billingIncrement": "P1M"
+                        }
+                    ]
+                },
+                {
+                    "@type": "FAQPage",
+                    "@id": "https://dipzee.com/#faq",
+                    "mainEntity": [
+                        {
+                            "@type": "Question",
+                            "name": "How is the Dipzee Opportunity Score calculated?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Our algorithm cross-references dozens of real-time indicators, including current price versus 52-week high/low, dividend yield, and global analyst projections. It condenses everything into a single Score from 0 to 100 so you know exactly the stock's strength."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "Where do the real-time quotes and data come from?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Dipzee uses a pool of premium market data providers connected directly to the markets, with multiple institutional providers and bank-grade redundancy (fallback) mechanisms to guarantee precision and speed."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "How do the instant alerts work?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "You set the conditions (e.g. if the stock drops below a price or hits the Score Buy Zone) and Dipzee's engines operate 24/7. When the condition is met, you're notified instantly within the platform and via email."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "Can I use Dipzee to invest in foreign markets?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Yes. Dipzee provides global market data with smart currency adaptation, letting you view metrics in Brazilian Reais (BRL), US Dollars (USD), or Canadian Dollars (CAD)."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "What is included in the 7-day free trial?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Full premium access: the entire platform, including the Opportunity Score for any global asset, the Screener, and unlimited Alerts."
+                            }
+                        },
+                        {
+                            "@type": "Question",
+                            "name": "Is Dipzee a broker?",
+                            "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "No. Dipzee does not hold customer funds and is not a brokerage. It is a SaaS analytics platform focused on tracking and discovering opportunities for users to trade at their own preferred broker."
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        </script>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
     </head>

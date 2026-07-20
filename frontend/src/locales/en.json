@@ -14,7 +14,10 @@
     "remove": "Remove",
     "all": "All",
     "retry": "Retry",
-    "none": "None"
+    "none": "None",
+    "sponsored": "Sponsored",
+    "sponsoredPartner": "Business Partner",
+    "tradeNow": "Trade Now"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -436,6 +439,10 @@
       "assets": "Assets",
       "alerts": "Alerts",
       "billing": "Billing",
+      "announcements": "Announcements",
+      "partnerAds": "Partners",
+      "health": "System Status",
+      "ai": "AI",
       "settings": "Scoring"
     },
     "metrics": {
@@ -453,6 +460,8 @@
     "planInvestor": "Investor",
     "recentUsers": "Recent users",
     "topAssets": "Top assets by score",
+    "activeAnnouncements": "Active Announcements",
+    "partnersAndCampaigns": "Partners & Campaigns",
     "colEmail": "Email",
     "colPlan": "Plan",
     "colRole": "Role",

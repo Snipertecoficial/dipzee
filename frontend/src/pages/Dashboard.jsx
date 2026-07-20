@@ -125,7 +125,7 @@ export default function Dashboard() {
               )}
             </div>
             <div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--dz-muted)]">Parceiro Comercial</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--dz-muted)]">{t('common.sponsoredPartner')}</span>
               <h4 className="font-heading font-semibold text-sm text-[var(--dz-fg)] flex items-center gap-1">
                 {ad.partner_name} <Sparkles size={13} className="text-amber-500" />
               </h4>
@@ -133,7 +133,7 @@ export default function Dashboard() {
             </div>
           </div>
           <Button className="shrink-0 gap-1.5 h-8 text-xs" size="sm">
-            Negociar Agora <Plus size={13} />
+            {t('common.tradeNow')} <Plus size={13} />
           </Button>
         </Card>
       ))}

@@ -138,7 +138,7 @@ export function AdminAnnouncementsTab() {
 
       {/* Announcements list */}
       <Card className="p-5 lg:col-span-2 overflow-x-auto">
-        <h3 className="font-heading font-semibold text-lg mb-4">Comunicados Ativos</h3>
+        <h3 className="font-heading font-semibold text-lg mb-4">{t('admin.activeAnnouncements')}</h3>
         {announcements.length === 0 ? (
           <p className="text-sm text-[var(--dz-muted)] text-center py-8">Nenhum comunicado criado ainda.</p>
         ) : (

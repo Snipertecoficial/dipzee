@@ -14,7 +14,10 @@
     "remove": "Retirer",
     "all": "Tous",
     "retry": "Réessayer",
-    "none": "Aucun"
+    "none": "Aucun",
+    "sponsored": "Sponsorisé",
+    "sponsoredPartner": "Partenaire Commercial",
+    "tradeNow": "Négocier Maintenant"
   },
   "nav": {
     "dashboard": "Tableau de bord",

@@ -14,7 +14,10 @@
     "remove": "Remover",
     "all": "Todos",
     "retry": "Tentar novamente",
-    "none": "Nenhum"
+    "none": "Nenhum",
+    "sponsored": "Patrocinado",
+    "sponsoredPartner": "Parceiro Comercial",
+    "tradeNow": "Negociar Agora"
   },
   "nav": {
     "dashboard": "Painel",
@@ -436,6 +439,10 @@
       "assets": "Ativos",
       "alerts": "Alertas",
       "billing": "Faturamento",
+      "announcements": "Comunicados",
+      "partnerAds": "Parceiros",
+      "health": "Status do Sistema",
+      "ai": "IA",
       "settings": "Score"
     },
     "metrics": {
@@ -453,6 +460,8 @@
     "planInvestor": "Investidor",
     "recentUsers": "Usuários recentes",
     "topAssets": "Melhores ativos por score",
+    "activeAnnouncements": "Comunicados Ativos",
+    "partnersAndCampaigns": "Parceiros e Campanhas",
     "colEmail": "E-mail",
     "colPlan": "Plano",
     "colRole": "Função",

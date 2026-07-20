@@ -14,7 +14,10 @@
     "remove": "Quitar",
     "all": "Todos",
     "retry": "Reintentar",
-    "none": "Ninguno"
+    "none": "Ninguno",
+    "sponsored": "Patrocinado",
+    "sponsoredPartner": "Socio Comercial",
+    "tradeNow": "Operar Ahora"
   },
   "nav": {
     "dashboard": "Panel",

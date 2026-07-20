@@ -101,7 +101,7 @@ function NavItem({ item, collapsed, onClick }) {
   return content;
 }
 
-function SidebarBody({ collapsed, onNavigate }) {
+function SidebarBody({ collapsed, onNavigate, isMobile }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { core, account, admin } = useNavSections();
@@ -149,12 +149,23 @@ function SidebarBody({ collapsed, onNavigate }) {
         {admin.length > 0 && <Section label={t('nav.sectionAdmin')} items={admin} />}
       </ScrollArea>
 
+      {/* Language/currency: only rendered here for the mobile Sheet nav — the
+          desktop top bar already shows these directly (TopBar header, hidden
+          sm:flex block), so showing them again in the desktop sidebar would
+          duplicate the control. */}
+      {isMobile && (
+        <div className="mx-3 my-2 flex items-center gap-2 px-1" data-testid="mobile-sidebar-switchers">
+          <LanguageSwitcher />
+          <CurrencySwitcher />
+        </div>
+      )}
+
       {/* Partner Ad */}
       {!collapsed && sidebarAds.length > 0 && (
         <div className="mx-3 my-2 p-3 rounded-[14px] border border-amber-500/20 bg-amber-500/5 flex flex-col gap-1.5 transition-all hover:bg-amber-500/10">
           <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-800 shrink-0">
             <Landmark size={11} />
-            Patrocinado
+            {t('common.sponsored')}
           </div>
           {sidebarAds.slice(0, 1).map((ad) => (
             <div key={ad.id} className="cursor-pointer select-none" onClick={() => handleAdClick(ad)}>
@@ -357,7 +368,7 @@ export function AppShell({ children }) {
               <SheetTitle asChild><Logo /></SheetTitle>
             </SheetHeader>
             <div className="h-[calc(100vh-4rem)]">
-              <SidebarBody collapsed={false} onNavigate={() => setMobileOpen(false)} />
+              <SidebarBody collapsed={false} onNavigate={() => setMobileOpen(false)} isMobile />
             </div>
           </SheetContent>
         </Sheet>

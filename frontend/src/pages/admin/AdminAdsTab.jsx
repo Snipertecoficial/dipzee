@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import { toast } from 'sonner';
 
 export function AdminAdsTab() {
+  const { t } = useTranslation();
   const [ads, setAds] = useState([]);
   const [partnerName, setPartnerName] = useState('');
   const [description, setDescription] = useState('');
@@ -161,7 +162,7 @@ export function AdminAdsTab() {
 
       {/* Ads list */}
       <Card className="p-5 lg:col-span-2 overflow-x-auto">
-        <h3 className="font-heading font-semibold text-lg mb-4">Parceiros e Campanhas</h3>
+        <h3 className="font-heading font-semibold text-lg mb-4">{t('admin.partnersAndCampaigns')}</h3>
         {ads.length === 0 ? (
           <p className="text-sm text-[var(--dz-muted)] text-center py-8">Nenhum parceiro comercial cadastrado.</p>
         ) : (

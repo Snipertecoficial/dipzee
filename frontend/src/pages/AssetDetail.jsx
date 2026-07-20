@@ -113,9 +113,9 @@ export default function AssetDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-start sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {asset.logo && <img src={asset.logo} alt="" className="h-8 w-8 rounded-md object-contain bg-white border border-[var(--dz-border)]" onError={(e) => { e.target.style.display = 'none'; }} />}
             <h1 className="font-heading font-bold text-2xl sm:text-3xl">{asset.ticker}</h1>
             <span className="text-xs uppercase rounded px-1.5 py-0.5 bg-white text-[var(--dz-muted)] border border-[var(--dz-border)]">{asset.exchange}</span>
@@ -167,7 +167,7 @@ export default function AssetDetail() {
               </div>
               <div className="min-w-0">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                  Patrocinado <ExternalLink size={8} />
+                  {t('common.sponsored')} <ExternalLink size={8} />
                 </span>
                 <h4 className="font-heading font-semibold text-xs text-[var(--dz-fg)] mt-0.5">{ad.partner_name}</h4>
                 <p className="text-[11px] text-[var(--dz-muted)] mt-0.5 leading-tight">{ad.description.replace('{ticker}', asset.ticker)}</p>
