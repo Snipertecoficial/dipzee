@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/sonner';
 import '@/App.css';
 import { AuthProvider } from './context/AuthContext';
@@ -32,6 +33,7 @@ const Protected = ({ children }) => (
 function App() {
   return (
     <div className="App">
+      <HelmetProvider>
       <ThemeProvider>
         <BrowserRouter>
           <AuthProvider>
@@ -60,6 +62,7 @@ function App() {
           </AuthProvider>
         </BrowserRouter>
       </ThemeProvider>
+      </HelmetProvider>
     </div>
   );
 }

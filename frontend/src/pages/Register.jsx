@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AuthLayout } from '../components/AuthLayout';
+import { Seo } from '../components/Seo';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
@@ -41,6 +42,7 @@ export default function Register() {
 
   return (
     <AuthLayout>
+      <Seo title={t('auth.registerTitle')} description={t('landing.heroSubtitle')} path="/register" />
       <Card className="w-full p-8">
           <h1 className="font-heading font-bold text-2xl">{t('auth.registerTitle')}</h1>
           <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.registerSubtitle')}</p>

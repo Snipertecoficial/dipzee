@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { AuthLayout } from '../components/AuthLayout';
+import { Seo } from '../components/Seo';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -35,6 +36,7 @@ export default function Login() {
 
   return (
     <AuthLayout>
+      <Seo title={t('auth.loginTitle')} description={t('auth.loginSubtitle')} path="/login" />
       <Card className="w-full p-8">
         <h1 className="font-heading font-bold text-2xl">{t('auth.loginTitle')}</h1>
         <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.loginSubtitle')}</p>

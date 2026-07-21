@@ -174,18 +174,20 @@ export default function Admin() {
       <p className="mt-1 text-[var(--dz-muted)]">{t('admin.subtitle')}</p>
 
       <Tabs defaultValue="overview" className="mt-6">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="overview" data-testid="admin-tab-overview"><LineChart size={15} className="mr-1.5" />{t('admin.tabs.overview')}</TabsTrigger>
-          <TabsTrigger value="users" data-testid="admin-tab-users"><Users size={15} className="mr-1.5" />{t('admin.tabs.users')}</TabsTrigger>
-          <TabsTrigger value="assets" data-testid="admin-tab-assets"><Database size={15} className="mr-1.5" />{t('admin.tabs.assets')}</TabsTrigger>
-          <TabsTrigger value="alerts" data-testid="admin-tab-alerts"><BellRing size={15} className="mr-1.5" />{t('admin.tabs.alerts')}</TabsTrigger>
-          <TabsTrigger value="billing" data-testid="admin-tab-billing"><CreditCard size={15} className="mr-1.5" />{t('admin.tabs.billing')}</TabsTrigger>
-          <TabsTrigger value="announcements" data-testid="admin-tab-announcements"><Megaphone size={15} className="mr-1.5" />{t('admin.tabs.announcements')}</TabsTrigger>
-          <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads"><Landmark size={15} className="mr-1.5" />{t('admin.tabs.partnerAds')}</TabsTrigger>
-          <TabsTrigger value="health" data-testid="admin-tab-health"><Activity size={15} className="mr-1.5" />{t('admin.tabs.health')}</TabsTrigger>
-          <TabsTrigger value="ai" data-testid="admin-tab-ai"><Sparkles size={15} className="mr-1.5" />{t('admin.tabs.ai')}</TabsTrigger>
-          <TabsTrigger value="settings" data-testid="admin-tab-settings"><SlidersHorizontal size={15} className="mr-1.5" />{t('admin.tabs.settings')}</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto -mx-1 px-1">
+          <TabsList className="flex-nowrap h-auto w-max justify-start">
+            <TabsTrigger value="overview" data-testid="admin-tab-overview" className="shrink-0"><LineChart size={15} className="mr-1.5" />{t('admin.tabs.overview')}</TabsTrigger>
+            <TabsTrigger value="users" data-testid="admin-tab-users" className="shrink-0"><Users size={15} className="mr-1.5" />{t('admin.tabs.users')}</TabsTrigger>
+            <TabsTrigger value="assets" data-testid="admin-tab-assets" className="shrink-0"><Database size={15} className="mr-1.5" />{t('admin.tabs.assets')}</TabsTrigger>
+            <TabsTrigger value="alerts" data-testid="admin-tab-alerts" className="shrink-0"><BellRing size={15} className="mr-1.5" />{t('admin.tabs.alerts')}</TabsTrigger>
+            <TabsTrigger value="billing" data-testid="admin-tab-billing" className="shrink-0"><CreditCard size={15} className="mr-1.5" />{t('admin.tabs.billing')}</TabsTrigger>
+            <TabsTrigger value="announcements" data-testid="admin-tab-announcements" className="shrink-0"><Megaphone size={15} className="mr-1.5" />{t('admin.tabs.announcements')}</TabsTrigger>
+            <TabsTrigger value="partner-ads" data-testid="admin-tab-partner-ads" className="shrink-0"><Landmark size={15} className="mr-1.5" />{t('admin.tabs.partnerAds')}</TabsTrigger>
+            <TabsTrigger value="health" data-testid="admin-tab-health" className="shrink-0"><Activity size={15} className="mr-1.5" />{t('admin.tabs.health')}</TabsTrigger>
+            <TabsTrigger value="ai" data-testid="admin-tab-ai" className="shrink-0"><Sparkles size={15} className="mr-1.5" />{t('admin.tabs.ai')}</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="admin-tab-settings" className="shrink-0"><SlidersHorizontal size={15} className="mr-1.5" />{t('admin.tabs.settings')}</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
           <AdminOverviewTab stats={stats} config={config} chartData={chartData} busy={busy} onRefreshUniverse={refreshUniverse} onRunDaily={runDaily} />

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { AuthLayout } from '../components/AuthLayout';
+import { Seo } from '../components/Seo';
 import api from '../lib/api';
 
 export default function ResetPassword() {
@@ -38,6 +39,7 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <AuthLayout>
+        <Seo title={t('auth.resetInvalidToken')} path="/reset-password" noindex />
         <Card className="w-full p-8 text-center" data-testid="reset-password-no-token">
           <XCircle size={36} className="mx-auto text-[var(--dz-sell)]" />
           <h1 className="mt-3 font-heading font-bold text-2xl">{t('auth.resetInvalidToken')}</h1>
@@ -49,6 +51,7 @@ export default function ResetPassword() {
 
   return (
     <AuthLayout>
+      <Seo title={t('auth.resetTitle')} path="/reset-password" noindex />
       <Card className="w-full p-8">
         {done ? (
           <div className="text-center" data-testid="reset-password-done">

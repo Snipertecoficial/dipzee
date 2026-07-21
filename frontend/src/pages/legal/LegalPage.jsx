@@ -2,11 +2,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Logo } from '../../components/Logo';
+import { Seo } from '../../components/Seo';
 import { LanguageSwitcher } from '../../components/Switchers';
 
 export function LegalPage({ title, lastUpdated, sections, testId }) {
   return (
     <div className="min-h-screen bg-[var(--dz-bg)]">
+      <Seo title={title} path={testId === 'privacy-policy-page' ? '/privacy' : '/terms'} />
       <div className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[var(--dz-border)]">
         <Link to="/"><Logo /></Link>
         <LanguageSwitcher />

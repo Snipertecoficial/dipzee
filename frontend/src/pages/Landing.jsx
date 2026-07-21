@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Logo } from '../components/Logo';
+import { Seo } from '../components/Seo';
 import { LanguageSwitcher } from '../components/Switchers';
 import { ScoreDial } from '../components/ScoreDial';
 import { RangeGauge52w } from '../components/RangeGauge';
@@ -161,6 +162,10 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-[var(--dz-bg)] text-[var(--dz-fg)]">
+      <Seo
+        description={t('landing.heroSubtitle')}
+        path="/"
+      />
       {/* Topbar */}
       <header className={`sticky top-0 z-40 h-16 bg-[var(--dz-surface)]/90 backdrop-blur transition-shadow duration-200 ${scrolled ? 'shadow-[var(--dz-elev-1)] border-b border-[var(--dz-border)]' : 'border-b border-transparent'}`} data-testid="public-topbar">
         <div className="mx-auto max-w-6xl h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { AuthLayout } from '../components/AuthLayout';
+import { Seo } from '../components/Seo';
 import api from '../lib/api';
 
 export default function ForgotPassword() {
@@ -31,6 +32,7 @@ export default function ForgotPassword() {
 
   return (
     <AuthLayout>
+      <Seo title={t('auth.forgotTitle')} path="/forgot-password" noindex />
       <Card className="w-full p-8">
         {sent ? (
           <div className="text-center" data-testid="forgot-password-sent">
