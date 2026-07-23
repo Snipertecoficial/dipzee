@@ -9,6 +9,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
+// Fallback only, used until GET /billing/config resolves (or if it fails) so
+// the pricing cards never render blank. The source of truth for what Stripe
+// actually charges is always the fetched `packages` — this constant exists
+// solely to avoid a loading flash, and must be kept roughly in sync with
+// backend/routes_billing.py's PACKAGES for that brief window.
 const BASE_PRICES = { starter: 4.97, pro: 12.97, investor: 24.99 };
 
 const PLAN_META = {
@@ -21,13 +26,22 @@ export function PricingCards({ onChoose, busyPlan, hasActiveSub }) {
   const { t } = useTranslation();
   const { user } = useAuth() || {};
   const [billing, setBilling] = useState('monthly');
+  const [packages, setPackages] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.get('/billing/config')
+      .then(({ data }) => { if (alive && data.packages) setPackages(data.packages); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const order = ['starter', 'pro', 'investor'];
 
   const priceFor = (id) => {
-    const monthly = BASE_PRICES[id];
-    if (billing === 'annual') return { amount: (monthly * 12 * 0.8).toFixed(2), suffix: t('plans.perYear') };
-    return { amount: monthly.toFixed(2), suffix: t('plans.perMonth') };
+    const pkg = packages?.[`${id}_${billing}`];
+    const amount = pkg ? pkg.amount : billing === 'annual' ? BASE_PRICES[id] * 12 * 0.8 : BASE_PRICES[id];
+    return { amount: Number(amount).toFixed(2), suffix: billing === 'annual' ? t('plans.perYear') : t('plans.perMonth') };
   };
 
   return (

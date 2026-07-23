@@ -25,12 +25,13 @@ export function AdminAnnouncementsTab() {
       const { data } = await api.get('/admin/announcements');
       setAnnouncements(data.announcements || []);
     } catch (e) {
-      toast.error('Erro ao carregar comunicados');
+      toast.error(t('admin.announcements.toastLoadError'));
     }
   };
 
   useEffect(() => {
     loadAnnouncements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreate = async (e) => {
@@ -44,12 +45,12 @@ export function AdminAnnouncementsTab() {
         active,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       });
-      toast.success('Comunicado criado com sucesso');
+      toast.success(t('admin.announcements.toastCreated'));
       setContent('');
       setExpiresAt('');
       loadAnnouncements();
     } catch (err) {
-      toast.error('Erro ao criar comunicado');
+      toast.error(t('admin.announcements.toastCreateError'));
     } finally {
       setBusy(false);
     }
@@ -61,21 +62,21 @@ export function AdminAnnouncementsTab() {
         ...item,
         active: !item.active,
       });
-      toast.success('Status atualizado');
+      toast.success(t('admin.announcements.toastStatusUpdated'));
       loadAnnouncements();
     } catch (err) {
-      toast.error('Erro ao atualizar status');
+      toast.error(t('admin.announcements.toastUpdateError'));
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Tem certeza que deseja excluir este comunicado?')) return;
+    if (!window.confirm(t('admin.announcements.confirmDelete'))) return;
     try {
       await api.delete(`/admin/announcements/${id}`);
-      toast.success('Comunicado excluído');
+      toast.success(t('admin.announcements.toastDeleted'));
       loadAnnouncements();
     } catch (err) {
-      toast.error('Erro ao excluir comunicado');
+      toast.error(t('admin.announcements.toastDeleteError'));
     }
   };
 
@@ -85,34 +86,34 @@ export function AdminAnnouncementsTab() {
       <Card className="p-5 lg:col-span-1 h-fit">
         <div className="flex items-center gap-2 mb-4">
           <Megaphone size={18} className="text-[var(--dz-primary)]" />
-          <h3 className="font-heading font-semibold text-lg">Novo Comunicado</h3>
+          <h3 className="font-heading font-semibold text-lg">{t('admin.announcements.newAnnouncement')}</h3>
         </div>
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">Mensagem do Comunicado</label>
+            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">{t('admin.announcements.messageLabel')}</label>
             <textarea
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Digite o aviso para todos os usuários..."
+              placeholder={t('admin.announcements.messagePh')}
               required
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">Tipo de Alerta</label>
+            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">{t('admin.announcements.alertTypeLabel')}</label>
             <Select value={type} onValueChange={setType}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="info">Info (Azul)</SelectItem>
-                <SelectItem value="warning">Aviso (Laranja)</SelectItem>
-                <SelectItem value="success">Sucesso (Verde)</SelectItem>
+                <SelectItem value="info">{t('admin.announcements.typeInfo')}</SelectItem>
+                <SelectItem value="warning">{t('admin.announcements.typeWarning')}</SelectItem>
+                <SelectItem value="success">{t('admin.announcements.typeSuccess')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">Data de Expiração (Opcional)</label>
+            <label className="text-xs font-medium text-[var(--dz-muted)] block mb-1">{t('admin.announcements.expiresLabel')}</label>
             <Input
               type="date"
               value={expiresAt}
@@ -127,11 +128,11 @@ export function AdminAnnouncementsTab() {
               onChange={(e) => setActive(e.target.checked)}
               className="rounded border-[var(--dz-border)] text-[var(--dz-primary)] focus:ring-0"
             />
-            <label htmlFor="ann-active" className="text-xs font-medium text-[var(--dz-muted)] cursor-pointer">Ativar imediatamente</label>
+            <label htmlFor="ann-active" className="text-xs font-medium text-[var(--dz-muted)] cursor-pointer">{t('admin.activateNow')}</label>
           </div>
           <Button type="submit" className="w-full mt-2" disabled={busy}>
             {busy ? <Loader2 size={16} className="animate-spin mr-1" /> : <Plus size={16} className="mr-1" />}
-            Criar Comunicado
+            {t('admin.announcements.createCta')}
           </Button>
         </form>
       </Card>
@@ -140,16 +141,16 @@ export function AdminAnnouncementsTab() {
       <Card className="p-5 lg:col-span-2 overflow-x-auto">
         <h3 className="font-heading font-semibold text-lg mb-4">{t('admin.activeAnnouncements')}</h3>
         {announcements.length === 0 ? (
-          <p className="text-sm text-[var(--dz-muted)] text-center py-8">Nenhum comunicado criado ainda.</p>
+          <p className="text-sm text-[var(--dz-muted)] text-center py-8">{t('admin.announcements.noAnnouncementsYet')}</p>
         ) : (
           <table className="w-full min-w-[500px]">
             <thead>
               <tr>
-                <th className={TH_CLASS}>Mensagem</th>
-                <th className={TH_CLASS}>Tipo</th>
-                <th className={TH_CLASS}>Expira em</th>
-                <th className={TH_CLASS}>Status</th>
-                <th className={TH_CLASS}>Ações</th>
+                <th className={TH_CLASS}>{t('admin.colMessage')}</th>
+                <th className={TH_CLASS}>{t('admin.colType')}</th>
+                <th className={TH_CLASS}>{t('admin.colExpiresAt')}</th>
+                <th className={TH_CLASS}>{t('admin.colStatus')}</th>
+                <th className={TH_CLASS}>{t('admin.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +166,7 @@ export function AdminAnnouncementsTab() {
                       {item.type}
                     </span>
                   </td>
-                  <td className={TD_CLASS}>{item.expires_at ? fmtDate(item.expires_at, locale) : 'Nunca'}</td>
+                  <td className={TD_CLASS}>{item.expires_at ? fmtDate(item.expires_at, locale) : t('admin.never')}</td>
                   <td className={TD_CLASS}>
                     <Button
                       variant="outline"
@@ -173,7 +174,7 @@ export function AdminAnnouncementsTab() {
                       className={`h-7 px-3 text-xs ${item.active ? 'text-[var(--dz-buy)] border-[var(--dz-buy)]/30 bg-green-50/50' : 'text-[var(--dz-muted)]'}`}
                       onClick={() => handleToggleActive(item)}
                     >
-                      {item.active ? 'Ativo' : 'Inativo'}
+                      {item.active ? t('admin.ads.statusActive') : t('admin.ads.statusInactive')}
                     </Button>
                   </td>
                   <td className={TD_CLASS}>
