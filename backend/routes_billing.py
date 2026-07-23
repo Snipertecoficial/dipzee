@@ -131,6 +131,20 @@ async def create_checkout(body: CheckoutIn, user: dict = Depends(get_current_use
     if not pkg:
         raise HTTPException(status_code=400, detail="Invalid package")
 
+    # Never let an already-subscribed user start a second Checkout — that would
+    # create an independent second subscription on the same customer and
+    # double-bill them. Existing subscribers must switch tiers in place via
+    # /billing/change-plan. The frontend already routes them there; this is the
+    # server-side enforcement so a direct API call can't bypass it. Re-read the
+    # live record (the Depends() user may be stale) and gate on the real Stripe
+    # status, so a canceled/lapsed user CAN check out again.
+    fresh = await db.users.find_one({"id": user["id"]})
+    if (fresh or {}).get("stripe_subscription_id") and (fresh or {}).get("subscription_status") in _ACTIVE_SUB_STATES:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have an active subscription. Use change-plan to switch tiers.",
+        )
+
     customer_id = await _get_or_create_customer(user)
     origin = body.origin_url.rstrip("/")
     success_url = f"{origin}/app/upgrade?session_id={{CHECKOUT_SESSION_ID}}"
@@ -311,6 +325,43 @@ async def reconcile_pending_transactions(max_age_days: int = 30) -> dict:
     return {"checked": len(pending), "updated": updated}
 
 
+async def reconcile_active_subscriptions() -> dict:
+    """Backstop for missed SUBSCRIPTION-lifecycle webhooks.
+
+    ``reconcile_pending_transactions`` only sweeps checkout transactions; a
+    missed ``customer.subscription.deleted``/``updated`` (webhook down when it
+    fired) would otherwise leave a user on a paid plan forever, or stuck
+    ``past_due``. Here we re-read every user who currently looks active from
+    Stripe directly and re-apply their real state — so plan state converges on
+    Stripe even if a lifecycle webhook was never delivered.
+    """
+    api_key = os.environ.get("STRIPE_API_KEY")
+    if not api_key or api_key in ("", "sk_test_emergent"):
+        return {"checked": 0, "updated": 0}
+    stripe.api_key = api_key
+
+    users = await db.users.find(
+        {"stripe_subscription_id": {"$nin": [None, ""]},
+         "subscription_status": {"$in": list(_ACTIVE_SUB_STATES)}}
+    ).to_list(1000)
+
+    updated = 0
+    for u in users:
+        sub_id = u.get("stripe_subscription_id")
+        try:
+            sub = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+        except stripe.error.StripeError as e:  # noqa
+            logger.warning("[billing reconcile] could not retrieve subscription %s: %s", sub_id, getattr(e, "user_message", e))
+            continue
+        sub_dict = dict(sub)
+        before = u.get("subscription_status")
+        plan = (sub_dict.get("metadata") or {}).get("plan") or u.get("plan")
+        await _apply_subscription_state(u["id"], plan, sub_dict)
+        if sub_dict.get("status") != before:
+            updated += 1
+    return {"checked": len(users), "updated": updated}
+
+
 async def refund_transaction_charge(tx: dict) -> dict:
     """Refund the underlying charge for a transaction's subscription.
 
@@ -357,6 +408,20 @@ async def refund_transaction_charge(tx: dict) -> dict:
             "refunded_at": datetime.now(timezone.utc).isoformat(),
         }},
     )
+
+    # A refund without cancellation would leave the customer on their paid plan
+    # and re-bill them next cycle — so cancel the subscription immediately and
+    # downgrade the user. Best-effort: the money is already back, so a cancel
+    # failure is logged but must not fail the whole refund operation (an admin
+    # can then cancel by hand from the Stripe dashboard).
+    sub_id = sub.get("id") if isinstance(sub, dict) else sub
+    if sub_id:
+        try:
+            canceled = await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
+            await _apply_subscription_state(tx.get("user_id"), "none", dict(canceled))
+        except stripe.error.StripeError as e:  # noqa
+            logger.warning("[stripe refund] refunded but failed to cancel subscription %s: %s", sub_id, getattr(e, "user_message", e))
+
     return {"ok": True, "refund_id": refund.id, "status": refund.status}
 
 
@@ -586,16 +651,15 @@ async def stripe_webhook(request: Request):
     event_id = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
     event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
 
-    # Idempotency: skip already-processed events.
+    # Idempotency: skip already-processed events. The event is recorded as
+    # processed ONLY after its handler succeeds (below) — not here — so that a
+    # handler failure returns 500 and Stripe retries, instead of being marked
+    # "seen" and silently lost. Every handler is idempotent (they converge on
+    # _apply_subscription_state), so re-processing on retry is safe.
     if event_id:
         already = await db.stripe_events.find_one({"event_id": event_id})
         if already:
             return {"received": True, "duplicate": True}
-        await db.stripe_events.insert_one({
-            "event_id": event_id,
-            "type": event_type,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
 
     data_obj = (event.get("data") or {}).get("object") if isinstance(event, dict) else event.data.object
     data_obj = dict(data_obj) if data_obj else {}
@@ -630,6 +694,21 @@ async def stripe_webhook(request: Request):
                 {"$set": {"payment_status": "expired", "status": "expired", "processed": False}},
             )
     except Exception as e:  # noqa: BLE001
-        logger.warning("[stripe webhook] handler error (%s): %s", event_type, e)
+        # Do NOT record the event as processed — return 500 so Stripe retries.
+        logger.error("[stripe webhook] handler error (%s), returning 500 for retry: %s", event_type, e)
+        raise HTTPException(status_code=500, detail="Webhook handler error")
+
+    # Handler succeeded — record the event so a redelivery is a no-op. The
+    # unique index on event_id (see database.ensure_indexes) makes a concurrent
+    # double-delivery race safe: the loser's insert fails and is ignored.
+    if event_id:
+        try:
+            await db.stripe_events.insert_one({
+                "event_id": event_id,
+                "type": event_type,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:  # noqa: BLE001
+            logger.info("[stripe webhook] event %s already recorded (race): %s", event_id, e)
 
     return {"received": True}

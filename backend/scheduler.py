@@ -102,10 +102,13 @@ async def billing_sync_job():
     transaction never sits stuck showing "initiated" after the customer
     actually paid — see routes_billing.reconcile_pending_transactions."""
     try:
-        from routes_billing import reconcile_pending_transactions
+        from routes_billing import reconcile_pending_transactions, reconcile_active_subscriptions
         result = await reconcile_pending_transactions()
         if result.get("updated"):
             logger.info("[scheduler] billing sync: %d/%d transactions updated", result["updated"], result["checked"])
+        subs = await reconcile_active_subscriptions()
+        if subs.get("updated"):
+            logger.info("[scheduler] billing sync: %d/%d subscriptions re-synced", subs["updated"], subs["checked"])
     except Exception as e:  # noqa: BLE001
         logger.warning("[scheduler] billing sync job failed: %s", e)
 
