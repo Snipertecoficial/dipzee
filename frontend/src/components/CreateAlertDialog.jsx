@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
@@ -24,6 +24,19 @@ export function CreateAlertDialog({ defaultTicker = '', currency = 'USD', trigge
   const [type, setType] = useState('buy_zone');
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [newsAvailable, setNewsAvailable] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    api.get('/notifications/config')
+      .then(({ data }) => { if (alive && data) setNewsAvailable(!!data.news_available); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Don't offer the "news" alert type when the server has no news provider
+  // configured — it would create an alert that can never fire.
+  const availableTypes = newsAvailable ? TYPES : TYPES.filter((ty) => ty !== 'news');
 
   const needsValue = NEEDS_PRICE.includes(type) || NEEDS_SCORE.includes(type) || NEEDS_PCT.includes(type);
 
@@ -71,7 +84,7 @@ export function CreateAlertDialog({ defaultTicker = '', currency = 'USD', trigge
             <Select value={type} onValueChange={(v) => setType(v)}>
               <SelectTrigger data-testid="create-alert-type-select"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {TYPES.map((ty) => (<SelectItem key={ty} value={ty}>{t(`alerts.types.${ty}`)}</SelectItem>))}
+                {availableTypes.map((ty) => (<SelectItem key={ty} value={ty}>{t(`alerts.types.${ty}`)}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>

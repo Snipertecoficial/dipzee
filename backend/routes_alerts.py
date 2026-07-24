@@ -1,4 +1,6 @@
 """Alerts + notifications routes."""
+import asyncio
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -8,8 +10,9 @@ from pydantic import BaseModel
 
 from asset_service import refresh_asset
 from database import db
-from plans import limit_for
+from plans import has_feature, limit_for
 from security import get_current_user
+from notify_service import telegram_configured, send_telegram_message
 
 router = APIRouter(tags=["alerts"])
 
@@ -124,4 +127,32 @@ async def mark_read(event_id: str, user: dict = Depends(get_current_user)):
 @router.post("/notifications/read-all")
 async def mark_all_read(user: dict = Depends(get_current_user)):
     await db.alert_events.update_many({"user_id": user["id"], "read": False}, {"$set": {"read": True}})
+    return {"ok": True}
+
+
+@router.get("/notifications/config")
+async def notifications_config(user: dict = Depends(get_current_user)):
+    """Which alert channels/types are actually available server-side, so the UI
+    doesn't offer (and let users configure) a channel that will never fire —
+    e.g. Telegram without a bot token, or 'news' alerts without a news key."""
+    return {
+        "telegram_configured": telegram_configured(),
+        "news_available": bool(os.environ.get("FINNHUB_API_KEY")),
+    }
+
+
+@router.post("/notifications/telegram/test")
+async def test_telegram(user: dict = Depends(get_current_user)):
+    """Send a test message to the user's saved Telegram chat id, so they can
+    confirm their setup works before relying on it for alerts."""
+    if not has_feature(user.get("plan"), "messaging_alerts"):
+        raise HTTPException(status_code=403, detail={"code": "upgrade_required", "message": "Telegram alerts are an Investor feature."})
+    if not telegram_configured():
+        raise HTTPException(status_code=503, detail={"code": "telegram_unconfigured", "message": "Telegram is not configured on the server."})
+    chat_id = (user.get("telegram_chat_id") or "").strip()
+    if not chat_id:
+        raise HTTPException(status_code=400, detail={"code": "no_chat_id", "message": "Save your Telegram chat id first."})
+    ok = await asyncio.to_thread(send_telegram_message, chat_id, "\U0001F4C8 Dipzee — your Telegram alerts are connected. ✅")
+    if not ok:
+        raise HTTPException(status_code=502, detail={"code": "send_failed", "message": "Could not send. Check your chat id and that you've started a chat with the bot."})
     return {"ok": True}

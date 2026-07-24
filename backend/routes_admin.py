@@ -505,6 +505,7 @@ async def system_health(admin: dict = Depends(get_superadmin)):
     scheduler_running = is_scheduler_running()
     
     from providers import get_provider
+    from email_service import is_really_configured as _email_is_really_configured
 
     return {
         "db_connected": db_ok,
@@ -518,6 +519,10 @@ async def system_health(admin: dict = Depends(get_superadmin)):
         "marketstack_key_present": bool(os.environ.get("MARKETSTACK_API_KEY")),
         "stripe_key_present": bool(os.environ.get("STRIPE_API_KEY")),
         "resend_key_present": bool(os.environ.get("RESEND_API_KEY")),
+        # Distinct from mere presence: false when the key is the placeholder,
+        # so a misconfigured email setup shows red instead of a false green.
+        "email_configured": _email_is_really_configured(),
+        "telegram_configured": bool(os.environ.get("TELEGRAM_BOT_TOKEN")),
         "provider": get_provider().name,
     }
 

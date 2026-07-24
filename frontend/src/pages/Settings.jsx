@@ -37,6 +37,8 @@ export default function Settings() {
   const [channels, setChannels] = useState({ telegram_chat_id: user?.telegram_chat_id || '', webhook_url: user?.webhook_url || '' });
   const [saving, setSaving] = useState(false);
   const canMsg = can('messaging_alerts');
+  const [notifConfig, setNotifConfig] = useState({ telegram_configured: true, news_available: true });
+  const [tgTestBusy, setTgTestBusy] = useState(false);
   const [sub, setSub] = useState(null);
   const [portalBusy, setPortalBusy] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -53,8 +55,23 @@ export default function Settings() {
     api.get('/billing/subscription')
       .then(({ data }) => { if (alive) setSub(data); })
       .catch(() => { if (alive) setSub({}); });
+    api.get('/notifications/config')
+      .then(({ data }) => { if (alive && data) setNotifConfig(data); })
+      .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  const testTelegram = async () => {
+    setTgTestBusy(true);
+    try {
+      await api.post('/notifications/telegram/test');
+      toast.success(t('settings.telegramTestOk'));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail?.message || t('settings.telegramTestFail'));
+    } finally {
+      setTgTestBusy(false);
+    }
+  };
 
   const openPortal = async () => {
     setPortalBusy(true);
@@ -371,9 +388,26 @@ export default function Settings() {
               <div className={`mt-4 space-y-4 ${!canMsg ? 'opacity-60 pointer-events-none' : ''}`}>
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1"><Label>{t('settings.telegram')}</Label><p className="text-sm text-[var(--dz-muted)]">{t('settings.telegramDesc')}</p></div>
-                  <Switch checked={!!prefs.telegram} onCheckedChange={(v) => setPrefs({ ...prefs, telegram: v })} data-testid="settings-telegram-switch" disabled={!canMsg} />
+                  <Switch checked={!!prefs.telegram} onCheckedChange={(v) => setPrefs({ ...prefs, telegram: v })} data-testid="settings-telegram-switch" disabled={!canMsg || !notifConfig.telegram_configured} />
                 </div>
-                <Input value={channels.telegram_chat_id} onChange={(e) => setChannels({ ...channels, telegram_chat_id: e.target.value })} placeholder={t('settings.telegramPh')} data-testid="settings-telegram-input" disabled={!canMsg} />
+                {canMsg && !notifConfig.telegram_configured && (
+                  <p className="text-xs text-[var(--dz-hold)] flex items-center gap-1.5"><ShieldAlert size={13} /> {t('settings.telegramUnavailable')}</p>
+                )}
+                <Input value={channels.telegram_chat_id} onChange={(e) => setChannels({ ...channels, telegram_chat_id: e.target.value })} placeholder={t('settings.telegramPh')} data-testid="settings-telegram-input" disabled={!canMsg || !notifConfig.telegram_configured} />
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--dz-primary)] inline-flex items-center gap-1 hover:underline">
+                    {t('settings.telegramHelp')} <ExternalLink size={11} />
+                  </a>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={testTelegram}
+                    disabled={!canMsg || !notifConfig.telegram_configured || !channels.telegram_chat_id || tgTestBusy}
+                    data-testid="settings-telegram-test-button"
+                    className="h-8 text-xs border-[var(--dz-border)]"
+                  >
+                    {tgTestBusy ? <Loader2 size={13} className="animate-spin mr-1.5" /> : null}{t('settings.telegramTest')}
+                  </Button>
+                </div>
                 <div className="flex items-center justify-between gap-4 border-t border-[var(--dz-border)] pt-4">
                   <div className="flex-1"><Label>{t('settings.webhook')}</Label><p className="text-sm text-[var(--dz-muted)]">{t('settings.webhookDesc')}</p></div>
                   <Switch checked={!!prefs.webhook} onCheckedChange={(v) => setPrefs({ ...prefs, webhook: v })} data-testid="settings-webhook-switch" disabled={!canMsg} />

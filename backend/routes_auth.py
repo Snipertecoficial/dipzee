@@ -16,6 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from database import db
 from email_service import send_email
+from email_templates import welcome_email, reset_email
 import login_guard
 import refresh_tokens
 from routes_billing import cancel_subscription_silently
@@ -152,20 +153,6 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _welcome_email_html(display_name: str) -> str:
-    return (
-        f"<h2>Bem-vindo ao Dipzee, {display_name}!</h2>"
-        "<p>Sua conta foi criada com sucesso. Boas análises e bons investimentos!</p>"
-    )
-
-
-def _reset_email_html(link: str) -> str:
-    return (
-        "<h2>Redefinir senha — Dipzee</h2>"
-        f"<p>Clique no link abaixo para criar uma nova senha. Ele expira em {RESET_TOKEN_TTL_MINUTES} minutos.</p>"
-        f'<p><a href="{link}">{link}</a></p>'
-        "<p>Se você não pediu essa alteração, pode ignorar este e-mail com segurança.</p>"
-    )
 
 
 @router.post("/register")
@@ -201,7 +188,8 @@ async def register(body: RegisterIn):
     }
     await db.users.insert_one(user)
     try:
-        await asyncio.to_thread(send_email, email, "Bem-vindo ao Dipzee", _welcome_email_html(user["display_name"]))
+        subject, html = welcome_email(user["display_name"], locale)
+        await asyncio.to_thread(send_email, email, subject, html)
     except Exception as e:  # noqa: BLE001
         logger.warning("welcome email failed for %s: %s", email, e)
     return await _auth_response(user)
@@ -225,10 +213,13 @@ async def forgot_password(body: ForgotIn):
             upsert=True,
         )
         link = f"{body.origin_url.rstrip('/')}/reset-password?token={raw_token}"
-        try:
-            await asyncio.to_thread(send_email, email, "Redefinir sua senha — Dipzee", _reset_email_html(link))
-        except Exception as e:  # noqa: BLE001
-            logger.warning("reset email failed for %s: %s", email, e)
+        subject, html = reset_email(link, RESET_TOKEN_TTL_MINUTES, user.get("locale"))
+        sent = await asyncio.to_thread(send_email, email, subject, html)
+        if not sent:
+            # The user is still told the generic message (no account enumeration),
+            # but a failed reset email is a real incident — someone locked out
+            # can't recover — so surface it loudly for ops instead of hiding it.
+            logger.error("[auth] reset email FAILED to send for %s (RESEND_API_KEY missing/invalid?)", email)
     return {"message": "If that email exists, a password reset link has been sent."}
 
 

@@ -24,14 +24,39 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
 
+def telegram_configured() -> bool:
+    """Whether the Telegram bot token is set (read live, not just at import)."""
+    return bool(os.environ.get("TELEGRAM_BOT_TOKEN"))
+
+
 def _send_telegram(chat_id: str, text: str):
-    if not TELEGRAM_TOKEN:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
         return
     requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        f"https://api.telegram.org/bot{token}/sendMessage",
         json={"chat_id": chat_id, "text": text, "disable_web_page_preview": False},
         timeout=8,
     )
+
+
+def send_telegram_message(chat_id: str, text: str) -> bool:
+    """Public, blocking send used by the Settings 'Test' button. Returns True on
+    a 2xx from Telegram, False otherwise — so the UI can tell the user whether
+    their chat id + bot setup actually works."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},
+            timeout=8,
+        )
+        return r.status_code < 400
+    except Exception as e:  # noqa: BLE001
+        logger.warning("telegram test send failed: %s", e)
+        return False
 
 
 def _send_webhook(url: str, payload: dict):
