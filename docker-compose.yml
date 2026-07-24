@@ -20,7 +20,12 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
-    env_file: .env
+    # List form (not the `env_file: .env` scalar shorthand): it's the
+    # canonical Compose spec form and, unlike the scalar, is accepted by the
+    # Hostinger panel's stricter YAML validator. Keep this in the list form so
+    # a `git reset --hard` on deploy never reintroduces the rejected scalar.
+    env_file:
+      - .env
     environment:
       # Scoped to readWrite on DB_NAME only (see mongo-init/init-app-user.js)
       # — deliberately NOT the root user. env_file values don't get
