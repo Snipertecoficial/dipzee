@@ -6,6 +6,7 @@ Design goals:
   fall back to the last-known-good snapshot (flagged `stale=true`) when Yahoo is
   rate-limited or unreachable. A hard 502 only happens when no data ever existed.
 """
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -57,6 +58,38 @@ async def health():
 async def get_quote(symbol: str, user: dict = Depends(get_current_user)):
     env = await cached(f"quote:{symbol.upper()}", TTL_QUOTE, lambda: ms.quote(symbol))
     return _respond(env, f"quote unavailable for {symbol}")
+
+
+@router.get("/quotes")
+async def get_quotes(symbols: str = Query(..., description="Comma-separated tickers"),
+                     user: dict = Depends(get_current_user)):
+    """Lightweight batch quotes in ONE round-trip (ticker/name/price/change/
+    currency), parallelized server-side and reusing the per-symbol 15s cache.
+    Replaces the client-side N+1 fan-out of /quote/{symbol}."""
+    syms = [s.strip().upper() for s in (symbols or "").split(",") if s.strip()][:30]
+    if not syms:
+        raise HTTPException(status_code=400, detail={"error": "bad_request", "message": "symbols is required"})
+
+    async def _one(s: str):
+        def _loader(sym=s):
+            return ms.quote(sym)
+        try:
+            env = await cached(f"quote:{s}", TTL_QUOTE, _loader)
+        except Exception:  # noqa: BLE001
+            env = None
+        d = (env or {}).get("data") if isinstance(env, dict) else None
+        if not d:
+            return None
+        return {
+            "ticker": d.get("ticker") or s,
+            "name": d.get("name"),
+            "price": d.get("price"),
+            "change_pct": d.get("change_pct"),
+            "currency": d.get("currency"),
+        }
+
+    results = await asyncio.gather(*[_one(s) for s in syms])
+    return {"ok": True, "data": [r for r in results if r]}
 
 
 @router.get("/history/{symbol}", response_model=MarketEnvelope)

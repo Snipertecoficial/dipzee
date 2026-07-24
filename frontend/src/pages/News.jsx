@@ -29,7 +29,7 @@ export default function News() {
           <h1 className="font-heading font-bold text-2xl sm:text-3xl flex items-center gap-2"><Newspaper size={24} />{t('news.title')}</h1>
           <p className="mt-1 text-[var(--dz-muted)]">{t('news.subtitle')}</p>
         </div>
-        <Button variant="outline" onClick={load} data-testid="news-refresh-button"><RefreshCw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} />{t('common.retry')}</Button>
+        <Button variant="outline" onClick={load} disabled={loading} data-testid="news-refresh-button"><RefreshCw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} />{t('common.retry')}</Button>
       </div>
 
       {loading ? null : news.length === 0 ? (

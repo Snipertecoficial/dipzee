@@ -90,9 +90,8 @@ export default function Markets() {
         const { data } = await api.get('/news/market');
         setNews(data.news || []);
       } else if (key === 'crypto') {
-        const results = await Promise.all(CRYPTO.map((s) =>
-          api.get(`/market/quote/${s}`).then(({ data }) => data.data).catch(() => null)));
-        setRows(results.filter(Boolean).map((d) => ({
+        const { data } = await api.get('/market/quotes', { params: { symbols: CRYPTO.join(',') } });
+        setRows((data.data || []).map((d) => ({
           ticker: d.ticker, name: d.name, price: d.price, change_pct: d.change_pct, currency: d.currency,
         })));
       } else {
@@ -118,14 +117,14 @@ export default function Markets() {
       try {
         const { data } = await api.get('/assets/search', { params: { q: value } });
         const top = (data.results || []).slice(0, 15);
-        const quotes = await Promise.all(top.map((r) =>
-          api.get(`/market/quote/${r.ticker}`).then(({ data }) => data.data).catch(() => null)));
-        setSearchResults(top.map((r, i) => ({
+        const { data: qd } = await api.get('/market/quotes', { params: { symbols: top.map((r) => r.ticker).join(',') } });
+        const byTicker = Object.fromEntries((qd.data || []).map((q) => [q.ticker, q]));
+        setSearchResults(top.map((r) => ({
           ticker: r.ticker,
           name: r.name,
-          price: quotes[i]?.price,
-          change_pct: quotes[i]?.change_pct,
-          currency: quotes[i]?.currency,
+          price: byTicker[r.ticker]?.price,
+          change_pct: byTicker[r.ticker]?.change_pct,
+          currency: byTicker[r.ticker]?.currency,
         })));
       } catch (e) {
         setSearchResults([]);

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   Search, Bell, ListChecks, Coins, Globe, Wallet, ArrowRight, ShieldCheck, Lock,
-  Eye, KeyRound, Activity, Menu, TrendingUp, RefreshCw, CheckCircle2, Star,
+  Eye, KeyRound, Activity, Menu, TrendingUp, CheckCircle2, Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -314,14 +314,9 @@ export default function Landing() {
       {/* Live top opportunities table */}
       <section id="opportunities" className="bg-[var(--dz-surface)] border-y border-[var(--dz-border)]">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20" data-testid="home-top-opportunities-section">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.topTitle')}</h2>
-              <p className="mt-2 text-[var(--dz-muted)] max-w-[60ch]">{t('landing.topSubtitle')}</p>
-            </div>
-            <Button variant="outline" onClick={loadOps} data-testid="home-top-opportunities-refresh-button" className="self-start bg-[var(--dz-surface)] border-[var(--dz-border)] text-[var(--dz-primary)]">
-              <RefreshCw size={15} className={`mr-2 ${loadingOps ? 'animate-spin' : ''}`} /> {t('landing.refresh')}
-            </Button>
+          <div>
+            <h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('landing.topTitle')}</h2>
+            <p className="mt-2 text-[var(--dz-muted)] max-w-[60ch]">{t('landing.topSubtitle')}</p>
           </div>
 
           <div className="mt-6 rounded-[var(--dz-radius-md,14px)] border border-[var(--dz-border)] overflow-hidden bg-[var(--dz-surface)]">

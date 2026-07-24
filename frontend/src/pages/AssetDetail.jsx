@@ -69,10 +69,25 @@ export default function AssetDetail() {
 
   useEffect(() => { load(); loadWatch(); loadNews(); loadAds(); }, [load, loadWatch, loadNews, loadAds]);
 
-  // Real-time: poll the quote every 20s while the page is open.
+  // Real-time: poll the quote periodically, but ONLY while the tab is actually
+  // visible — a backgrounded/forgotten tab used to keep hitting the data
+  // providers every 20s indefinitely. 60s + visibility-gating cuts that load
+  // dramatically, and we refresh immediately when the user returns to the tab.
   useEffect(() => {
-    const id = setInterval(() => load(true), 20000);
-    return () => clearInterval(id);
+    let id = null;
+    const start = () => { if (id === null) id = setInterval(() => load(true), 60000); };
+    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        load(true);  // catch up on return
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
   }, [load]);
 
   const toggleWatch = async () => {
