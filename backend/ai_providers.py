@@ -25,6 +25,11 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
+# Hard ceiling on any single LLM call. Without this the SDKs fall back to their
+# own multi-minute defaults, and a hung provider ties up the worker thread that
+# routes_ai runs the call in. 45s comfortably covers a 1024-token completion.
+LLM_TIMEOUT_SECONDS = 45
+
 
 class AIProviderError(RuntimeError):
     """Raised when a provider is misconfigured or a completion call fails."""
@@ -49,7 +54,7 @@ class AnthropicProvider(AIProvider):
     async def generate(self, system: str, user_text: str) -> str:
         from anthropic import AsyncAnthropic
 
-        client = AsyncAnthropic(api_key=self._api_key)
+        client = AsyncAnthropic(api_key=self._api_key, timeout=LLM_TIMEOUT_SECONDS)
         resp = await client.messages.create(
             model=self._model,
             max_tokens=1024,
@@ -72,7 +77,7 @@ class GeminiProvider(AIProvider):
 
         genai.configure(api_key=self._api_key)
         model = genai.GenerativeModel(model_name=self._model, system_instruction=system)
-        resp = await model.generate_content_async(user_text)
+        resp = await model.generate_content_async(user_text, request_options={"timeout": LLM_TIMEOUT_SECONDS})
         return resp.text
 
 
@@ -86,7 +91,7 @@ class OpenAIProvider(AIProvider):
     async def generate(self, system: str, user_text: str) -> str:
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI(api_key=self._api_key)
+        client = AsyncOpenAI(api_key=self._api_key, timeout=LLM_TIMEOUT_SECONDS)
         resp = await client.chat.completions.create(
             model=self._model,
             messages=[

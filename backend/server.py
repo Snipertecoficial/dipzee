@@ -25,6 +25,23 @@ import routes_ai
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# Optional error tracking: only initializes when SENTRY_DSN is set, so it's a
+# no-op in dev and doesn't require any account. Defensive import so a missing
+# package can never block startup.
+_sentry_dsn = os.environ.get("SENTRY_DSN")
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get("ENV", "development"),
+            traces_sample_rate=0.0,  # errors only, no perf tracing (no cost surprise)
+            send_default_pii=False,
+        )
+        logger.info("Sentry error tracking enabled.")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Sentry init failed (continuing without it): %s", e)
+
 app = FastAPI(title="Dipzee API")
 
 api_router = APIRouter(prefix="/api")
@@ -33,6 +50,31 @@ api_router = APIRouter(prefix="/api")
 @api_router.get("/")
 async def root():
     return {"message": "Dipzee API", "status": "ok"}
+
+
+@api_router.get("/health")
+async def health():
+    """Unauthenticated readiness probe for the load balancer / uptime monitor
+    and the CI post-deploy check. Unlike ``/`` (a static "ok"), this actually
+    verifies the DB responds and the background scheduler is running, and
+    returns 503 if either is down — so a process that booted but is broken
+    (Mongo unreachable, scheduler failed to start) is reported unhealthy
+    instead of silently serving a green light.
+    """
+    from fastapi.responses import JSONResponse
+    from database import db as _db
+    from scheduler import is_scheduler_running
+
+    checks = {"db": False, "scheduler": is_scheduler_running()}
+    try:
+        await _db.command("ping")
+        checks["db"] = True
+    except Exception as e:  # noqa: BLE001
+        logger.error("[health] DB ping failed: %s", e)
+
+    ok = checks["db"] and checks["scheduler"]
+    body = {"status": "ok" if ok else "degraded", "checks": checks}
+    return JSONResponse(body, status_code=200 if ok else 503)
 
 
 @api_router.get("/settings/scoring")
@@ -108,7 +150,11 @@ async def on_startup():
     try:
         start_scheduler()
     except Exception as e:  # noqa: BLE001
-        logger.warning("scheduler start failed: %s", e)
+        # Logged at ERROR (not warning): if the scheduler doesn't start, no
+        # background refresh / alert evaluation / billing reconciliation runs.
+        # The /api/health readiness probe reports "degraded" (scheduler=false)
+        # so this surfaces to the uptime monitor instead of booting green.
+        logger.error("scheduler start failed — background jobs are NOT running: %s", e)
 
 
 async def seed_superadmin():
