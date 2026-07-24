@@ -1,0 +1,20 @@
+# Production override — use pre-built images from GHCR instead of building on
+# the VPS. The VPS is a small host shared with Traefik + another project, and
+# react-scripts `yarn build` is memory-hungry enough to get OOM-killed there,
+# which is what intermittently broke `docker compose up -d --build`. CI builds
+# and pushes the images; the VPS only pulls.
+#
+# Used together with the base file (order matters — this overrides it):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Local dev is unaffected: `docker compose up --build` (base file only) still
+# builds from source as before.
+services:
+  backend:
+    image: ghcr.io/snipertecoficial/dipzee-backend:latest
+    pull_policy: always
+
+  frontend:
+    image: ghcr.io/snipertecoficial/dipzee-frontend:latest
+    pull_policy: always

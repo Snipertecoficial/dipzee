@@ -1,41 +1,69 @@
 name: Deploy to VPS
 
-# Push to main -> build sanity check -> SSH into the VPS and redeploy ->
-# verify the live site actually responds before calling it done. Manual
-# "Run workflow" button (workflow_dispatch) is there for an on-demand
-# redeploy without needing an empty commit.
+# Build the images IN CI, push them to GHCR, then have the VPS only PULL and
+# run them. The VPS never builds — react-scripts `yarn build` is memory-heavy
+# and OOMs on the small shared host, which is what intermittently broke the old
+# `docker compose up -d --build` deploys. This is the standard build-once /
+# deploy-many pipeline. Manual "Run workflow" button (workflow_dispatch) allows
+# an on-demand redeploy without an empty commit.
 on:
   push:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BACKEND_IMAGE: ghcr.io/snipertecoficial/dipzee-backend
+  FRONTEND_IMAGE: ghcr.io/snipertecoficial/dipzee-frontend
+
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # --- Sanity checks (catch a broken build before it ever reaches the VPS) ---
-      - name: Backend syntax check
-        run: python3 -m compileall -q backend
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      # --- Backend: build, then run the test suite INSIDE the built image
+      # (dummy env vars — the tests mock Mongo/Stripe and never connect out), so
+      # a red test blocks the deploy. Only push after tests pass. ---
+      - name: Build backend image
+        run: docker build -t "$BACKEND_IMAGE:${{ github.sha }}" -t "$BACKEND_IMAGE:latest" ./backend
 
-      - name: Frontend build check
-        working-directory: frontend
-        env:
-          # Dummy value — this build is discarded. The real one happens on
-          # the VPS via docker-compose.yml's build ARG, with the real URL.
-          REACT_APP_BACKEND_URL: https://example.com
+      - name: Run backend tests
         run: |
-          yarn install --frozen-lockfile
-          yarn build
+          docker run --rm \
+            -e MONGO_URL=mongodb://localhost:27017 \
+            -e DB_NAME=ci_test \
+            -e JWT_SECRET=ci-test-secret \
+            "$BACKEND_IMAGE:${{ github.sha }}" \
+            python -m pytest tests/ -q
 
-      # --- Deploy over SSH (plain OpenSSH client, no third-party action —
-      # this step touches production credentials, so it doesn't take on a
-      # marketplace action's supply-chain risk for something this simple) ---
+      - name: Push backend image
+        run: docker push --all-tags "$BACKEND_IMAGE"
+
+      # --- Frontend: the API URL is compile-time (baked into the JS bundle), so
+      # CI must build with the real production URL, not a dummy. ---
+      - name: Build & push frontend image
+        run: |
+          docker build \
+            --build-arg REACT_APP_BACKEND_URL="${{ vars.REACT_APP_BACKEND_URL || 'https://dipzee.com' }}" \
+            -t "$FRONTEND_IMAGE:${{ github.sha }}" -t "$FRONTEND_IMAGE:latest" ./frontend
+          docker push --all-tags "$FRONTEND_IMAGE"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      # --- Deploy over SSH (plain OpenSSH, no third-party action — this step
+      # touches production credentials). The VPS pulls the pre-built images and
+      # runs them via the prod override; it never builds. GHCR auth uses the
+      # ephemeral GITHUB_TOKEN (valid only for this run), so no long-lived
+      # registry token lives on the VPS. ---
       - name: Deploy over SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -43,6 +71,8 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           install -m 600 -D /dev/null ~/.ssh/deploy_key
@@ -53,13 +83,14 @@ jobs:
             "cd '$VPS_DEPLOY_PATH' && \
              git fetch origin main && \
              git reset --hard origin/main && \
-             docker compose up -d --build && \
+             printf '%s' '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USER' --password-stdin && \
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d && \
+             docker logout ghcr.io && \
              docker image prune -f"
 
-      # --- Post-deploy verification: prove the live site actually answers,
-      # not just that the container process started. Retries absorb the
-      # normal few-seconds gap while backend/frontend swap over (Caddy stays
-      # up throughout) plus migration/startup time. ---
+      # --- Post-deploy verification: prove the live site actually answers, not
+      # just that the container process started. ---
       - name: Verify deployment is live
         env:
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
