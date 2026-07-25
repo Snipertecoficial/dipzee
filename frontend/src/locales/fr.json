@@ -17,7 +17,10 @@
     "none": "Aucun",
     "sponsored": "Sponsorisé",
     "sponsoredPartner": "Partenaire Commercial",
-    "tradeNow": "Négocier Maintenant"
+    "tradeNow": "Négocier Maintenant",
+    "errorTitle": "Une erreur est survenue",
+    "errorDesc": "Une erreur inattendue s'est produite. Recharger la page suffit généralement.",
+    "reload": "Recharger la page"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -243,6 +246,7 @@
     "btAvg": "Moy / trade",
     "noData": "Aucune donnée",
     "incomeStatement": "Compte de résultat (annuel)",
+    "item": "Poste",
     "period": "Période",
     "btWhatTitle": "Qu'est-ce qu'un backtest ?",
     "btWhatDesc": "Un backtest simule le comportement passé d'une stratégie à partir de prix historiques réels. Il aide à comprendre le risque et le rendement potentiels d'une règle d'achat/vente AVANT de risquer de l'argent réel. Les performances passées ne garantissent pas les résultats futurs.",
@@ -576,6 +580,43 @@
     "never": "Jamais",
     "colExpiresAt": "Expire le",
     "activateNow": "Activer immédiatement",
+    "ai": {
+      "activeProvider": "Fournisseur d'IA actif",
+      "activeProviderDesc": "Quelle IA l'Analyste Virtuel utilise pour générer les analyses maintenant.",
+      "configuredHere": "Configuré ici",
+      "configuredEnv": "Configuré via .env",
+      "envHint": "Provient du .env du serveur. Enregistrer une clé ici la remplace.",
+      "apiKey": "Clé d'API",
+      "model": "Modèle",
+      "modelPh": "ex : gpt-4o"
+    },
+    "health": {
+      "title": "État et Santé du Système",
+      "database": "Base de données",
+      "connected": "Connecté",
+      "disconnected": "Déconnecté",
+      "pingLatency": "Latence du Ping",
+      "dbUnstable": "Connexion MongoDB instable",
+      "scheduler": "Planificateur (Cron)",
+      "running": "En cours",
+      "stopped": "Arrêté",
+      "schedulerDesc": "APScheduler actif pour les tâches en arrière-plan",
+      "marketProvider": "Fournisseur de Marché",
+      "providerActive": "Accès au fournisseur configuré actif",
+      "providerFallback": "Accès de secours d'urgence actif",
+      "apiKeysHealth": "Intégrité des clés d'API externes",
+      "present": "Configurée",
+      "absent": "Absente"
+    },
+    "overview": {
+      "performanceGrowth": "Performance et Croissance (15 derniers jours)",
+      "loadingChart": "Chargement des données du graphique...",
+      "planDistribution": "Répartition des Forfaits",
+      "loadingPlans": "Chargement des données des forfaits...",
+      "revenueAccrued": "Revenus Cumulés (US$)",
+      "signups": "Inscriptions",
+      "planNoneTrial": "Aucun / Essai"
+    },
     "ads": {
       "newPartner": "Nouveau partenaire",
       "partnerNameLabel": "Nom du partenaire (courtier, etc.)",

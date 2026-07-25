@@ -17,7 +17,10 @@
     "none": "Nenhum",
     "sponsored": "Patrocinado",
     "sponsoredPartner": "Parceiro Comercial",
-    "tradeNow": "Negociar Agora"
+    "tradeNow": "Negociar Agora",
+    "errorTitle": "Algo deu errado",
+    "errorDesc": "Ocorreu um erro inesperado. Recarregar a página costuma resolver.",
+    "reload": "Recarregar página"
   },
   "nav": {
     "dashboard": "Painel",
@@ -243,6 +246,7 @@
     "btAvg": "Média / operação",
     "noData": "Sem dados disponíveis",
     "incomeStatement": "DRE (anual)",
+    "item": "Item",
     "period": "Período",
     "btWhatTitle": "O que é um backtest?",
     "btWhatDesc": "Um backtest simula como uma estratégia teria se comportado no passado usando preços históricos reais. Serve para você entender o risco e o retorno potencial de uma regra de compra/venda ANTES de arriscar dinheiro real. Resultados passados não garantem retornos futuros.",
@@ -532,6 +536,43 @@
     "never": "Nunca",
     "colExpiresAt": "Expira em",
     "activateNow": "Ativar imediatamente",
+    "ai": {
+      "activeProvider": "Provedor de IA ativo",
+      "activeProviderDesc": "Qual IA o Analista Virtual usa para gerar as análises agora.",
+      "configuredHere": "Configurado aqui",
+      "configuredEnv": "Configurado via .env",
+      "envHint": "Vem do .env do servidor. Salvar uma chave aqui passa a valer no lugar dela.",
+      "apiKey": "Chave de API",
+      "model": "Modelo",
+      "modelPh": "ex: gpt-4o"
+    },
+    "health": {
+      "title": "Status e Saúde do Sistema",
+      "database": "Banco de Dados",
+      "connected": "Conectado",
+      "disconnected": "Desconectado",
+      "pingLatency": "Latência do Ping",
+      "dbUnstable": "Conexão do MongoDB instável",
+      "scheduler": "Agendador (Cron)",
+      "running": "Executando",
+      "stopped": "Parado",
+      "schedulerDesc": "APScheduler ativo para tarefas de background",
+      "marketProvider": "Provedor de Mercado",
+      "providerActive": "Acesso ao provedor configurado ativo",
+      "providerFallback": "Acesso fallback de emergência ativo",
+      "apiKeysHealth": "Integridade das Chaves de API externas",
+      "present": "Configurada",
+      "absent": "Ausente"
+    },
+    "overview": {
+      "performanceGrowth": "Performance e Crescimento (Últimos 15 dias)",
+      "loadingChart": "Carregando dados do gráfico...",
+      "planDistribution": "Distribuição de Planos",
+      "loadingPlans": "Carregando dados dos planos...",
+      "revenueAccrued": "Receita Acumulada (US$)",
+      "signups": "Cadastros",
+      "planNoneTrial": "Nenhum / Trial"
+    },
     "ads": {
       "newPartner": "Novo Parceiro",
       "partnerNameLabel": "Nome do Parceiro (Corretora, etc.)",

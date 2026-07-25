@@ -27,10 +27,10 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
   const { t } = useTranslation();
 
   const planData = stats?.plan_counts ? [
-    { name: 'Nenhum / Trial', value: stats.plan_counts.none || 0, color: '#94a3b8' },
-    { name: 'Starter', value: stats.plan_counts.starter || 0, color: '#818cf8' },
-    { name: 'Pro', value: stats.plan_counts.pro || 0, color: '#16e0a3' },
-    { name: 'Investor', value: stats.plan_counts.investor || 0, color: '#1e1b4b' },
+    { name: t('admin.overview.planNoneTrial'), value: stats.plan_counts.none || 0, color: '#94a3b8' },
+    { name: t('admin.planStarter'), value: stats.plan_counts.starter || 0, color: '#818cf8' },
+    { name: t('admin.planPro'), value: stats.plan_counts.pro || 0, color: '#16e0a3' },
+    { name: t('admin.planInvestor'), value: stats.plan_counts.investor || 0, color: '#1e1b4b' },
   ].filter(p => p.value > 0) : [];
 
   return (
@@ -54,7 +54,7 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
         <Card className="p-5 lg:col-span-2">
           <h3 className="font-heading font-semibold mb-4 flex items-center gap-1.5">
             <BarChart3 size={18} className="text-[var(--dz-primary)]" />
-            Performance e Crescimento (Últimos 15 dias)
+            {t('admin.overview.performanceGrowth')}
           </h3>
           <div className="h-72 w-full text-xs">
             {chartData && chartData.length > 0 ? (
@@ -76,12 +76,12 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
                   <YAxis yAxisId="right" orientation="right" stroke="var(--dz-muted)" />
                   <RechartsTooltip contentStyle={{ backgroundColor: 'var(--dz-surface)', borderColor: 'var(--dz-border)', borderRadius: '8px' }} />
                   <Legend />
-                  <Area yAxisId="left" type="monotone" dataKey="cumulative" name="Receita Acumulada (US$)" stroke="#16e0a3" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
-                  <Area yAxisId="right" type="monotone" dataKey="signups" name="Cadastros" stroke="#818cf8" fillOpacity={1} fill="url(#colorSignups)" strokeWidth={2} />
+                  <Area yAxisId="left" type="monotone" dataKey="cumulative" name={t('admin.overview.revenueAccrued')} stroke="#16e0a3" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
+                  <Area yAxisId="right" type="monotone" dataKey="signups" name={t('admin.overview.signups')} stroke="#818cf8" fillOpacity={1} fill="url(#colorSignups)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-[var(--dz-muted)]">Carregando dados do gráfico...</div>
+              <div className="h-full flex items-center justify-center text-[var(--dz-muted)]">{t('admin.overview.loadingChart')}</div>
             )}
           </div>
         </Card>
@@ -91,7 +91,7 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
           <div>
             <h3 className="font-heading font-semibold mb-4 flex items-center gap-1.5">
               <PieIcon size={18} className="text-[var(--dz-primary)]" />
-              Distribuição de Planos
+              {t('admin.overview.planDistribution')}
             </h3>
             <div className="h-56 w-full flex items-center justify-center">
               {planData.length > 0 ? (
@@ -114,7 +114,7 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-[var(--dz-muted)] text-sm">Carregando dados dos planos...</div>
+                <div className="text-[var(--dz-muted)] text-sm">{t('admin.overview.loadingPlans')}</div>
               )}
             </div>
           </div>

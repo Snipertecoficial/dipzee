@@ -71,7 +71,7 @@ export function StockSearch({ onNavigate }) {
   return (
     <div className="relative w-full max-w-md" ref={boxRef}>
       <form onSubmit={onSubmit}>
-        <div className="flex items-center gap-2 rounded-[var(--dz-radius-pill,9999px)] border border-[var(--dz-border)] bg-white px-3 h-10 focus-within:ring-2 focus-within:ring-[var(--dz-focus)]">
+        <div className="flex items-center gap-2 rounded-[var(--dz-radius-pill,9999px)] border border-[var(--dz-border)] bg-[var(--dz-surface)] px-3 h-10 focus-within:ring-2 focus-within:ring-[var(--dz-focus)]">
           <Search size={16} className="text-[var(--dz-muted)]" />
           <input
             data-testid="stock-search-input"
@@ -85,7 +85,7 @@ export function StockSearch({ onNavigate }) {
         </div>
       </form>
       {open && results.length > 0 && (
-        <div className="absolute z-50 mt-2 w-full rounded-[14px] border border-[var(--dz-border)] bg-white shadow-[var(--dz-elev-2)] overflow-hidden">
+        <div className="absolute z-50 mt-2 w-full rounded-[14px] border border-[var(--dz-border)] bg-[var(--dz-surface)] shadow-[var(--dz-elev-2)] overflow-hidden">
           {results.map((r) => (
             <button
               key={r.ticker}

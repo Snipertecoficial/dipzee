@@ -133,7 +133,7 @@ export default function AssetDetail() {
           <div className="flex items-center gap-2 flex-wrap">
             {asset.logo && <img src={asset.logo} alt="" className="h-8 w-8 rounded-md object-contain bg-white border border-[var(--dz-border)]" onError={(e) => { e.target.style.display = 'none'; }} />}
             <h1 className="font-heading font-bold text-2xl sm:text-3xl">{asset.ticker}</h1>
-            <span className="text-xs uppercase rounded px-1.5 py-0.5 bg-white text-[var(--dz-muted)] border border-[var(--dz-border)]">{asset.exchange}</span>
+            <span className="text-xs uppercase rounded px-1.5 py-0.5 bg-[var(--dz-canvas)] text-[var(--dz-muted)] border border-[var(--dz-border)]">{asset.exchange}</span>
             {asset.source === 'finnhub' && (
               <span className="inline-flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5 bg-[rgba(22,224,163,0.15)] text-[var(--dz-buy-deep)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--dz-buy)] animate-pulse" />{t('asset.live')}
@@ -161,7 +161,7 @@ export default function AssetDetail() {
           <Card className="p-6 flex flex-col items-center">
             <ScoreDial score={asset.score} classification={asset.classification} size="hero" />
             <div className="mt-6 w-full flex flex-col gap-2">
-              <Button onClick={toggleWatch} data-testid="asset-add-to-watchlist-button" className={inWatch ? 'bg-white border border-[var(--dz-border)] text-[var(--dz-primary)]' : 'bg-[var(--dz-primary)] text-white'}>
+              <Button onClick={toggleWatch} data-testid="asset-add-to-watchlist-button" className={inWatch ? 'bg-[var(--dz-surface)] border border-[var(--dz-border)] text-[var(--dz-primary)]' : 'bg-[var(--dz-primary)] text-white'}>
                 <Star size={16} className="mr-2" fill={inWatch ? 'currentColor' : 'none'} />
                 {inWatch ? t('asset.removeFromWatchlist') : t('asset.addToWatchlist')}
               </Button>

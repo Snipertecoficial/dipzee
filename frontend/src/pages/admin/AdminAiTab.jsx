@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, XCircle, KeyRound } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ const PROVIDERS = [
 ];
 
 function ProviderCard({ meta, status, busy, onSave }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState({});
 
   const setField = (field, value) => setDraft((d) => ({ ...d, [field]: value }));
@@ -32,11 +34,11 @@ function ProviderCard({ meta, status, busy, onSave }) {
         <h4 className="font-heading font-semibold">{meta.label}</h4>
         {status.configured ? (
           <span className="inline-flex items-center gap-1 text-xs text-[var(--dz-buy)] shrink-0">
-            <CheckCircle2 size={14} /> {status.source === 'admin' ? 'Configurado aqui' : 'Configurado via .env'}
+            <CheckCircle2 size={14} /> {status.source === 'admin' ? t('admin.ai.configuredHere') : t('admin.ai.configuredEnv')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-[var(--dz-muted)] shrink-0">
-            <XCircle size={14} /> Não configurado
+            <XCircle size={14} /> {t('admin.notConfigured')}
           </span>
         )}
       </div>
@@ -45,12 +47,12 @@ function ProviderCard({ meta, status, busy, onSave }) {
       )}
       {status.source === 'env' && (
         <p className="mt-1 text-[11px] text-[var(--dz-muted)]">
-          Vem do <code>.env</code> do servidor. Salvando uma chave aqui passa a valer no lugar dela.
+          {t('admin.ai.envHint')}
         </p>
       )}
       <div className="mt-4 space-y-3">
         <div className="space-y-1">
-          <Label className="text-xs">Chave de API</Label>
+          <Label className="text-xs">{t('admin.ai.apiKey')}</Label>
           <Input
             type="password"
             autoComplete="off"
@@ -61,9 +63,9 @@ function ProviderCard({ meta, status, busy, onSave }) {
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Modelo</Label>
+          <Label className="text-xs">{t('admin.ai.model')}</Label>
           <Input
-            placeholder={status.model || 'ex: gpt-4o'}
+            placeholder={status.model || t('admin.ai.modelPh')}
             value={draft[meta.modelField] ?? ''}
             onChange={(e) => setField(meta.modelField, e.target.value)}
             data-testid={`admin-ai-model-${meta.key}`}
@@ -76,7 +78,7 @@ function ProviderCard({ meta, status, busy, onSave }) {
           onClick={save}
           data-testid={`admin-ai-save-${meta.key}`}
         >
-          {busy ? 'Salvando...' : 'Salvar'}
+          {busy ? t('common.saving') : t('common.save')}
         </Button>
       </div>
     </Card>
@@ -84,6 +86,7 @@ function ProviderCard({ meta, status, busy, onSave }) {
 }
 
 export function AdminAiTab({ aiConfig, onSaveProvider, onSaveActive, busy }) {
+  const { t } = useTranslation();
   if (!aiConfig) return null;
 
   return (
@@ -91,10 +94,10 @@ export function AdminAiTab({ aiConfig, onSaveProvider, onSaveActive, busy }) {
       <Card className="p-6 max-w-md">
         <div className="flex items-center gap-2">
           <KeyRound size={18} className="text-[var(--dz-primary)]" />
-          <h3 className="font-heading font-semibold">Provedor de IA ativo</h3>
+          <h3 className="font-heading font-semibold">{t('admin.ai.activeProvider')}</h3>
         </div>
         <p className="text-sm text-[var(--dz-muted)] mt-1">
-          Qual IA o Analista Virtual usa para gerar as análises agora.
+          {t('admin.ai.activeProviderDesc')}
         </p>
         <div className="mt-4">
           <Select value={aiConfig.active_provider} onValueChange={onSaveActive}>

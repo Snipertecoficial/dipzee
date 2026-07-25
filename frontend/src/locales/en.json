@@ -17,7 +17,10 @@
     "none": "None",
     "sponsored": "Sponsored",
     "sponsoredPartner": "Business Partner",
-    "tradeNow": "Trade Now"
+    "tradeNow": "Trade Now",
+    "errorTitle": "Something went wrong",
+    "errorDesc": "An unexpected error occurred. Reloading usually fixes it.",
+    "reload": "Reload page"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -243,6 +246,7 @@
     "btAvg": "Avg / trade",
     "noData": "No data available",
     "incomeStatement": "Income statement (annual)",
+    "item": "Item",
     "period": "Period",
     "btWhatTitle": "What is a backtest?",
     "btWhatDesc": "A backtest simulates how a strategy would have performed in the past using real historical prices. It helps you understand the potential risk and return of a buy/sell rule BEFORE risking real money. Past results don't guarantee future performance.",
@@ -532,6 +536,43 @@
     "never": "Never",
     "colExpiresAt": "Expires at",
     "activateNow": "Activate immediately",
+    "ai": {
+      "activeProvider": "Active AI provider",
+      "activeProviderDesc": "Which AI the Virtual Analyst uses to generate analyses now.",
+      "configuredHere": "Configured here",
+      "configuredEnv": "Configured via .env",
+      "envHint": "Comes from the server's .env. Saving a key here overrides it.",
+      "apiKey": "API Key",
+      "model": "Model",
+      "modelPh": "e.g. gpt-4o"
+    },
+    "health": {
+      "title": "System Status & Health",
+      "database": "Database",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "pingLatency": "Ping latency",
+      "dbUnstable": "MongoDB connection unstable",
+      "scheduler": "Scheduler (Cron)",
+      "running": "Running",
+      "stopped": "Stopped",
+      "schedulerDesc": "APScheduler active for background tasks",
+      "marketProvider": "Market Provider",
+      "providerActive": "Configured provider access active",
+      "providerFallback": "Emergency fallback access active",
+      "apiKeysHealth": "External API keys integrity",
+      "present": "Configured",
+      "absent": "Missing"
+    },
+    "overview": {
+      "performanceGrowth": "Performance & Growth (Last 15 days)",
+      "loadingChart": "Loading chart data...",
+      "planDistribution": "Plan Distribution",
+      "loadingPlans": "Loading plan data...",
+      "revenueAccrued": "Accrued Revenue (US$)",
+      "signups": "Signups",
+      "planNoneTrial": "None / Trial"
+    },
     "ads": {
       "newPartner": "New Partner",
       "partnerNameLabel": "Partner Name (Broker, etc.)",

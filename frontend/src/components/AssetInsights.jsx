@@ -94,7 +94,7 @@ function FundamentalsTab({ ticker }) {
           <p className="font-heading font-semibold mb-3">{t('asset.incomeStatement')}</p>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Item</TableHead>{periods.map((p) => <TableHead key={p} className="text-right">{p}</TableHead>)}</TableRow></TableHeader>
+              <TableHeader><TableRow className="hover:bg-transparent"><TableHead>{t('asset.item')}</TableHead>{periods.map((p) => <TableHead key={p} className="text-right">{p}</TableHead>)}</TableRow></TableHeader>
               <TableBody>
                 {income.map((row) => (
                   <TableRow key={row.item}>

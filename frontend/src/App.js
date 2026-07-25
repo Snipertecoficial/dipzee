@@ -6,6 +6,7 @@ import '@/App.css';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/TopBar';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -33,6 +34,7 @@ const Protected = ({ children }) => (
 function App() {
   return (
     <div className="App">
+      <ErrorBoundary>
       <HelmetProvider>
       <ThemeProvider>
         <BrowserRouter>
@@ -63,6 +65,7 @@ function App() {
         </BrowserRouter>
       </ThemeProvider>
       </HelmetProvider>
+      </ErrorBoundary>
     </div>
   );
 }
