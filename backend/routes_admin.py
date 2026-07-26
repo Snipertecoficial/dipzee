@@ -227,6 +227,24 @@ async def transactions(admin: dict = Depends(get_superadmin)):
     return {"transactions": txs, "count": len(txs)}
 
 
+@router.post("/backup/run")
+async def run_backup(admin: dict = Depends(get_superadmin)):
+    """Trigger an on-demand database snapshot (the same one the scheduler runs
+    daily) — local always, offsite if configured."""
+    from backup_service import create_backup
+    return await create_backup()
+
+
+@router.get("/backup/status")
+async def backup_status(admin: dict = Depends(get_superadmin)):
+    """Recent local snapshots + whether offsite upload is configured."""
+    from backup_service import list_local_backups
+    return {
+        "offsite_configured": bool(os.environ.get("BACKUP_S3_BUCKET") and os.environ.get("BACKUP_S3_ACCESS_KEY")),
+        "recent": list_local_backups()[:10],
+    }
+
+
 @router.post("/billing/sync")
 async def sync_billing(admin: dict = Depends(get_superadmin)):
     """Re-check every unprocessed transaction against Stripe directly.

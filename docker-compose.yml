@@ -15,6 +15,12 @@ services:
     volumes:
       - mongo_data:/data/db
       - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks: [dipzee]
 
   backend:
@@ -31,7 +37,23 @@ services:
       # — deliberately NOT the root user. env_file values don't get
       # variable-expanded, so this must be set here.
       MONGO_URL: mongodb://${MONGO_APP_USER}:${MONGO_APP_PASSWORD}@mongo:27017/${DB_NAME}?authSource=${DB_NAME}
-    depends_on: [mongo]
+    volumes:
+      # Persistent, redeploy-proof store for the daily DB snapshots
+      # (backup_service.py). A named volume survives `git reset --hard` +
+      # `up -d`, so backups outlive image swaps.
+      - backup_data:/data/backups
+    healthcheck:
+      # Uses the readiness probe (DB ping + scheduler), so the container is
+      # only "healthy" when it can actually serve — not just when the process
+      # started.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      mongo:
+        condition: service_healthy
     networks: [dipzee]
 
   frontend:
@@ -79,5 +101,6 @@ networks:
 
 volumes:
   mongo_data:
+  backup_data:
   caddy_data:
   caddy_config:

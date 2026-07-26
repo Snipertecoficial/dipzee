@@ -113,6 +113,17 @@ async def billing_sync_job():
         logger.warning("[scheduler] billing sync job failed: %s", e)
 
 
+async def backup_job():
+    """Daily database snapshot (local always + offsite if configured). Isolated
+    so a backup failure never affects the other jobs."""
+    try:
+        from backup_service import create_backup
+        result = await create_backup()
+        logger.info("[scheduler] backup: %d docs, offsite=%s", result.get("documents"), result.get("offsite"))
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] backup job failed: %s", e)
+
+
 def start_scheduler():
     global _scheduler
     if _scheduler is not None:
@@ -126,8 +137,10 @@ def start_scheduler():
     _scheduler.add_job(news_job, IntervalTrigger(minutes=20), id="news_job", replace_existing=True)
     # Billing reconciliation every 10 minutes
     _scheduler.add_job(billing_sync_job, IntervalTrigger(minutes=10), id="billing_sync_job", replace_existing=True)
+    # Daily database backup at 03:30 ET (quiet hours, well clear of the 16:15 refresh)
+    _scheduler.add_job(backup_job, CronTrigger(hour=3, minute=30, timezone=ET), id="backup_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET)")
     return _scheduler
 
 
