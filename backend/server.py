@@ -196,7 +196,7 @@ async def seed_superadmin():
             "country": "",
             "telegram_chat_id": "",
             "webhook_url": "",
-            "locale": "pt",
+            "locale": "en",
             "currency": "USD",
             "plan": "investor",
             "role": "superadmin",

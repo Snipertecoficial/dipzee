@@ -193,7 +193,7 @@ export default function Markets() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((r) => (
-              <MoverCard key={r.ticker} r={r} onClick={() => navigate(`/app/asset/${r.ticker}`)} />
+              <MoverCard key={r.ticker} r={r} onClick={() => navigate(`/app/asset/${encodeURIComponent(r.ticker)}`)} />
             ))}
           </div>
         )}

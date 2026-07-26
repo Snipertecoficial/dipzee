@@ -141,7 +141,7 @@ function PortfolioInner() {
             ) : data.positions.map((p) => (
               <TableRow key={p.id} className="hover:bg-[var(--dz-primary-8)]">
                 <TableCell>
-                  <button className="font-medium hover:text-[var(--dz-primary)]" onClick={() => navigate(`/app/asset/${p.ticker}`)}>{p.ticker}</button>
+                  <button className="font-medium hover:text-[var(--dz-primary)]" onClick={() => navigate(`/app/asset/${encodeURIComponent(p.ticker)}`)}>{p.ticker}</button>
                   <div className="text-xs text-[var(--dz-muted)] flex items-center gap-2">
                     {p.classification && <SignalBadge classification={p.classification} size="sm" />}
                   </div>

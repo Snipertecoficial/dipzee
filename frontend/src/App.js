@@ -47,6 +47,7 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
               <Route path="/app/dashboard" element={<Protected><Dashboard /></Protected>} />
               <Route path="/app/markets" element={<Protected><Markets /></Protected>} />
               <Route path="/app/portfolio" element={<Protected><Portfolio /></Protected>} />
