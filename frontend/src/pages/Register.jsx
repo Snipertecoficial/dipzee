@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ShieldCheck } from 'lucide-react';
@@ -11,15 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { AuthLayout } from '../components/AuthLayout';
 import { Seo } from '../components/Seo';
+import { isStrongPassword } from '../lib/validation';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
   const { t, i18n } = useTranslation();
   const { register } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [email, setEmail] = useState(location.state?.email || '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,8 @@ export default function Register() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!isStrongPassword(password)) { toast.error(t('auth.passwordWeak')); return; }
+    if (password !== confirm) { toast.error(t('auth.passwordMismatch')); return; }
     if (!consent) { toast.error(t('auth.consentRequired')); return; }
     setLoading(true);
     try {
@@ -53,8 +56,12 @@ export default function Register() {
             </div>
             <div className="space-y-1.5">
               <Label>{t('auth.password')}</Label>
-              <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password-input" />
+              <Input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password-input" />
               <p className="text-xs text-[var(--dz-muted)]">{t('auth.passwordHint')}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('auth.confirmPassword')}</Label>
+              <Input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} data-testid="register-confirm-input" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('nav.currency')}</Label>

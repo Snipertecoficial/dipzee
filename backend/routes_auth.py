@@ -12,7 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from PIL import Image
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from database import db
 from email_service import send_email
@@ -33,6 +33,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 RESET_TOKEN_TTL_MINUTES = 60
+# Server-side password policy (authoritative — the client mirrors it for UX but
+# a client can always be bypassed). At least 8 chars, with a letter and a digit.
+_PASSWORD_RE = re.compile(r"^(?=.*[A-Za-z])(?=.*\d).{8,}$")
+
+
+def _check_password_strength(v: str) -> str:
+    if not _PASSWORD_RE.match(v or ""):
+        raise ValueError("Password must be at least 8 characters and include a letter and a number.")
+    return v
 # Bump when the Terms/Privacy Policy content materially changes; stored on
 # each user so we always know which version they agreed to.
 TERMS_VERSION = "2026-07-17"
@@ -59,10 +68,12 @@ def _sanitize_text(v: Optional[str]) -> str:
 
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str
     locale: str = "en"
     currency: str = "USD"
     consent_accepted: bool = False
+
+    _pw = field_validator("password")(_check_password_strength)
 
 
 class LoginIn(BaseModel):
@@ -77,7 +88,9 @@ class ForgotIn(BaseModel):
 
 class ResetIn(BaseModel):
     token: str
-    password: str = Field(min_length=6)
+    password: str
+
+    _pw = field_validator("password")(_check_password_strength)
 
 
 class RefreshIn(BaseModel):
@@ -90,7 +103,9 @@ class LogoutIn(BaseModel):
 
 class ChangePasswordIn(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=6)
+    new_password: str
+
+    _pw = field_validator("new_password")(_check_password_strength)
 
 
 class ProfileIn(BaseModel):

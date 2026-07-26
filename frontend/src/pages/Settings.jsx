@@ -14,6 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { isStrongPassword } from '../lib/validation';
 import api from '../lib/api';
 
 const LANGS = [{ code: 'en', label: 'English' }, { code: 'fr', label: 'Fran\u00e7ais' }, { code: 'pt', label: 'Portugu\u00eas' }, { code: 'es', label: 'Espa\u00f1ol' }];
@@ -135,6 +136,7 @@ export default function Settings() {
 
   const doChangePassword = async (e) => {
     e.preventDefault();
+    if (!isStrongPassword(pwForm.next)) { toast.error(t('auth.passwordWeak')); return; }
     if (pwForm.next !== pwForm.confirm) { toast.error(t('auth.passwordMismatch')); return; }
     setPwBusy(true);
     try {
@@ -281,7 +283,7 @@ export default function Settings() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pw-next">{t('auth.newPassword')}</Label>
-                <Input id="pw-next" type="password" required minLength={6} value={pwForm.next} onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })} data-testid="settings-new-password-input" />
+                <Input id="pw-next" type="password" required minLength={8} value={pwForm.next} onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })} data-testid="settings-new-password-input" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pw-confirm">{t('auth.confirmPassword')}</Label>
@@ -357,7 +359,7 @@ export default function Settings() {
                 <Label>{t('settings.currency')}</Label>
                 <Select value={currency} onValueChange={setCurrency}>
                   <SelectTrigger className="mt-1.5" data-testid="settings-currency-select"><SelectValue /></SelectTrigger>
-                  <SelectContent>{['USD', 'CAD', 'BRL', 'EUR'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <SelectContent>{['USD', 'CAD', 'BRL'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
@@ -502,7 +504,7 @@ export default function Settings() {
             {user?.capabilities?.features?.length > 0 && (
               <ul className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {user.capabilities.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[var(--dz-muted)]"><Check size={14} className="text-[var(--dz-buy)]" /> {f}</li>
+                  <li key={f} className="flex items-center gap-2 text-sm text-[var(--dz-muted)]"><Check size={14} className="text-[var(--dz-buy)]" /> {t(`settings.features.${f}`, f)}</li>
                 ))}
               </ul>
             )}

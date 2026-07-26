@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { AuthLayout } from '../components/AuthLayout';
 import { Seo } from '../components/Seo';
+import { isStrongPassword } from '../lib/validation';
 import api from '../lib/api';
 
 export default function ResetPassword() {
@@ -23,6 +24,7 @@ export default function ResetPassword() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!isStrongPassword(password)) { toast.error(t('auth.passwordWeak')); return; }
     if (password !== confirm) { toast.error(t('auth.passwordMismatch')); return; }
     setLoading(true);
     try {
