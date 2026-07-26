@@ -38,13 +38,20 @@ function PortfolioInner() {
 
   const add = async (e) => {
     e.preventDefault();
-    if (!form.ticker || !form.quantity || !form.avg_cost) return;
+    const qty = parseFloat(form.quantity);
+    const cost = parseFloat(form.avg_cost);
+    // Reject non-positive / NaN quantity or cost before it reaches the backend
+    // — a negative or zero position is nonsensical and would corrupt totals.
+    if (!form.ticker.trim() || !(qty > 0) || !(cost > 0)) {
+      toast.error(t('portfolio.invalidInput'));
+      return;
+    }
     setBusy(true);
     try {
       const res = await api.post('/portfolio', {
         ticker: form.ticker.trim().toUpperCase(),
-        quantity: parseFloat(form.quantity),
-        avg_cost: parseFloat(form.avg_cost),
+        quantity: qty,
+        avg_cost: cost,
       });
       setData(res.data);
       setForm({ ticker: '', quantity: '', avg_cost: '' });
@@ -71,12 +78,12 @@ function PortfolioInner() {
 
   return (
     <div data-testid="portfolio-inner">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="font-heading font-bold text-2xl sm:text-3xl">{t('portfolio.title')}</h1>
           <p className="mt-1 text-[var(--dz-muted)]">{t('portfolio.subtitle')}</p>
         </div>
-        <Button variant="outline" onClick={exportCsv} data-testid="portfolio-export-button" className="border-[var(--dz-border)]">
+        <Button variant="outline" onClick={exportCsv} data-testid="portfolio-export-button" className="border-[var(--dz-border)] self-start sm:self-auto">
           <Download size={15} className="mr-2" /> CSV
         </Button>
       </div>

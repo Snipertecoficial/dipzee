@@ -20,7 +20,8 @@
     "tradeNow": "Operar Ahora",
     "errorTitle": "Algo salió mal",
     "errorDesc": "Ocurrió un error inesperado. Recargar la página suele solucionarlo.",
-    "reload": "Recargar página"
+    "reload": "Recargar página",
+    "loadError": "No se pudo cargar. Inténtalo de nuevo."
   },
   "nav": {
     "dashboard": "Panel",
@@ -303,6 +304,7 @@
     "delete": "Eliminar alerta",
     "created": "Alerta creada",
     "deleted": "Alerta eliminada",
+    "valueRequired": "Introduce un valor para este tipo de alerta.",
     "limitReached": "El plan gratuito permite 3 alertas activas. Mejora para alertas ilimitadas.",
     "types": {
       "buy_zone": "Entró en zona de compra",
@@ -694,7 +696,8 @@
     "value": "Valor",
     "pnl": "P&L",
     "addTitle": "Agregar posición",
-    "saved": "Cartera actualizada"
+    "saved": "Cartera actualizada",
+    "invalidInput": "Introduce un ticker, cantidad y costo válidos (mayores que cero)."
   },
   "gate": {
     "lockedTitle": "Desbloquea esta función",

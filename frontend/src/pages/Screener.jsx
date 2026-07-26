@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetCard } from '../components/AssetCard';
 import { FeatureGate } from '../components/FeatureGate';
+import { ListState } from '../components/ListState';
 import api from '../lib/api';
 
 const SIGNALS = ['strong_buy', 'buy', 'hold', 'reduce', 'sell'];
@@ -19,11 +20,12 @@ function ScreenerInner() {
   const [results, setResults] = useState([]);
   const [sectors, setSectors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [f, setF] = useState({ sector: 'all', classification: 'any', min_dividend: '', max_range_position: '', min_upside: '' });
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError(false);
     try {
       const params = {};
       if (f.sector !== 'all') params.sector = f.sector;
@@ -33,7 +35,7 @@ function ScreenerInner() {
       if (f.min_upside !== '') params.min_upside = Number(f.min_upside) / 100;
       const { data } = await api.get('/screener', { params });
       setResults(data.results || []);
-    } catch (e) { /* noop */ } finally { setLoading(false); }
+    } catch (e) { setError(true); } finally { setLoading(false); }
   }, [f]);
 
   const loadSectors = useCallback(async () => {
@@ -105,7 +107,7 @@ function ScreenerInner() {
         </div>
       </Card>
 
-      {loading ? null : results.length === 0 ? (
+      {loading || error ? <ListState loading={loading} error={error} onRetry={load} /> : results.length === 0 ? (
         <Card className="mt-6 p-10 text-center text-[var(--dz-muted)]">{t('screener.empty')}</Card>
       ) : (
         <>

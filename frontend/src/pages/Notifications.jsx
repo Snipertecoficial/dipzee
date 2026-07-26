@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Bell, CheckCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ListState } from '../components/ListState';
 import { LOCALE_MAP } from '../lib/format';
 import api from '../lib/api';
 
@@ -12,18 +14,25 @@ export default function Notifications() {
   const [events, setEvents] = useState([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const locale = i18n.language?.slice(0, 2) || 'en';
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError(false);
     try { const { data } = await api.get('/notifications'); setEvents(data.events || []); setUnread(data.unread || 0); }
-    catch (e) { /* noop */ } finally { setLoading(false); }
+    catch (e) { setError(true); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const markAll = async () => { await api.post('/notifications/read-all'); load(); };
-  const markOne = async (id) => { await api.post(`/notifications/${id}/read`); load(); };
+  const markAll = async () => {
+    try { await api.post('/notifications/read-all'); load(); }
+    catch (e) { toast.error(t('common.loadError')); }
+  };
+  const markOne = async (id) => {
+    try { await api.post(`/notifications/${id}/read`); load(); }
+    catch (e) { /* non-critical: the badge just stays until next load */ }
+  };
 
   const fmtDate = (iso) => {
     try { return new Date(iso).toLocaleString(LOCALE_MAP[locale] || 'en-CA', { dateStyle: 'medium', timeStyle: 'short' }); }
@@ -40,7 +49,7 @@ export default function Notifications() {
         {unread > 0 && <Button variant="outline" onClick={markAll}><CheckCheck size={16} className="mr-2" />{t('notifications.markAllRead')}</Button>}
       </div>
 
-      {loading ? null : events.length === 0 ? (
+      {loading || error ? <ListState loading={loading} error={error} onRetry={load} /> : events.length === 0 ? (
         <Card className="mt-8 p-10 text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-[var(--dz-canvas)] flex items-center justify-center"><Bell className="text-[var(--dz-muted)]" /></div>
           <p className="mt-4 text-[var(--dz-muted)]">{t('notifications.empty')}</p>

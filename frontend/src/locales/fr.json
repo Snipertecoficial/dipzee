@@ -20,7 +20,8 @@
     "tradeNow": "Négocier Maintenant",
     "errorTitle": "Une erreur est survenue",
     "errorDesc": "Une erreur inattendue s'est produite. Recharger la page suffit généralement.",
-    "reload": "Recharger la page"
+    "reload": "Recharger la page",
+    "loadError": "Le chargement a échoué. Veuillez réessayer."
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -303,6 +304,7 @@
     "delete": "Supprimer l'alerte",
     "created": "Alerte créée",
     "deleted": "Alerte supprimée",
+    "valueRequired": "Saisissez une valeur pour ce type d'alerte.",
     "limitReached": "Le forfait gratuit permet 3 alertes actives. Passez à supérieur pour des alertes illimitées.",
     "types": {
       "buy_zone": "Entrée en zone d'achat",
@@ -694,7 +696,8 @@
     "value": "Valeur",
     "pnl": "P&L",
     "addTitle": "Ajouter une position",
-    "saved": "Portefeuille mis à jour"
+    "saved": "Portefeuille mis à jour",
+    "invalidInput": "Saisissez un ticker, une quantité et un coût valides (supérieurs à zéro)."
   },
   "gate": {
     "lockedTitle": "Débloquez cette fonction",

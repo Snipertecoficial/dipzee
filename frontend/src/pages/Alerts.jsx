@@ -7,17 +7,19 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { CreateAlertDialog } from '../components/CreateAlertDialog';
+import { ListState } from '../components/ListState';
 import api from '../lib/api';
 
 export default function Alerts() {
   const { t } = useTranslation();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError(false);
     try { const { data } = await api.get('/alerts'); setAlerts(data || []); }
-    catch (e) { /* noop */ } finally { setLoading(false); }
+    catch (e) { setError(true); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -52,7 +54,7 @@ export default function Alerts() {
         <CreateAlertDialog onCreated={load} />
       </div>
 
-      {loading ? null : alerts.length === 0 ? (
+      {loading || error ? <ListState loading={loading} error={error} onRetry={load} /> : alerts.length === 0 ? (
         <Card className="mt-8 p-10 text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-[var(--dz-canvas)] flex items-center justify-center"><BellRing className="text-[var(--dz-muted)]" /></div>
           <h3 className="mt-4 font-heading font-semibold text-lg">{t('alerts.none')}</h3>

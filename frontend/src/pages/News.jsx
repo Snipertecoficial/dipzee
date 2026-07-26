@@ -3,17 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { Newspaper, ExternalLink, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ListState } from '../components/ListState';
 import api from '../lib/api';
 
 export default function News() {
   const { t } = useTranslation();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError(false);
     try { const { data } = await api.get('/news/market'); setNews(data.news || []); }
-    catch (e) { /* noop */ } finally { setLoading(false); }
+    catch (e) { setError(true); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -32,7 +34,7 @@ export default function News() {
         <Button variant="outline" onClick={load} disabled={loading} data-testid="news-refresh-button"><RefreshCw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} />{t('common.retry')}</Button>
       </div>
 
-      {loading ? null : news.length === 0 ? (
+      {loading || error ? <ListState loading={loading} error={error} onRetry={load} /> : news.length === 0 ? (
         <Card className="mt-6 p-10 text-center text-[var(--dz-muted)]">{t('news.empty')}</Card>
       ) : (
         <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="market-news-grid">

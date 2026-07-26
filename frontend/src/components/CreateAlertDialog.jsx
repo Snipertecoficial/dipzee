@@ -47,6 +47,12 @@ export function CreateAlertDialog({ defaultTicker = '', currency = 'USD', trigge
 
   const submit = async () => {
     if (!ticker.trim()) return;
+    // A threshold alert (price/score/daily-drop) with no value would be created
+    // but could never fire — require a valid number before submitting.
+    if (needsValue && (value === '' || Number.isNaN(Number(value)))) {
+      toast.error(t('alerts.valueRequired'));
+      return;
+    }
     setSubmitting(true);
     try {
       const params = needsValue && value !== '' ? { value: Number(value) } : {};
