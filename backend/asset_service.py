@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from database import db
-from providers import fetch_resilient, get_yf_target
+from providers import fetch_resilient, get_yf_target, fmp_target
 from scoring import compute_opportunity_score, SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -49,13 +49,17 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
         logger.warning("No provider data for %s; returning cached doc if any", ticker)
         return existing
 
-    # Analyst target: Finnhub free has no access -> use yfinance (cached).
+    # Analyst target feeds the Opportunity Score's upside sub-score. Prefer the
+    # licensed FMP consensus; keep the cached value when present (unless the
+    # daily job forces a refresh); yfinance is the last-resort fallback.
     target = data.get("target_mean")
     if target is None:
         if existing and existing.get("target_mean") and not force_target:
             target = existing.get("target_mean")
         else:
-            target = await asyncio.to_thread(get_yf_target, ticker)
+            target = await asyncio.to_thread(fmp_target, ticker)
+            if target is None:
+                target = await asyncio.to_thread(get_yf_target, ticker)
 
     score_res = compute_opportunity_score(
         data.get("price"), data.get("low_52w"), data.get("high_52w"),

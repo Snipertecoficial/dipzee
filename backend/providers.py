@@ -860,6 +860,166 @@ def get_yf_target(symbol: str):
 
 
 # --------------------------------------------------------------------------- #
+# FMP loaders for the paid features (charts / fundamentals / screener / target).
+# These exist so those features run on a LICENSED provider when FMP_API_KEY is
+# set, instead of yfinance (personal-use only). Every one returns None on any
+# gap (no key, 4xx, empty) so the caller can cleanly fall back to yfinance —
+# licensing is improved when FMP answers, and nothing breaks when it doesn't.
+# --------------------------------------------------------------------------- #
+_FMP = FMPProvider()
+
+_PERIOD_DAYS = {"1mo": 31, "3mo": 93, "6mo": 186, "1y": 366, "2y": 731, "5y": 1830, "10y": 3660, "ytd": 366, "max": 3660}
+
+
+def fmp_history(symbol: str, period: str = "1mo") -> Optional[list]:
+    """Daily OHLCV ascending by date, mapped to the same shape yfinance history
+    returns (date/open/high/low/close/volume). None if unavailable."""
+    if not _FMP._key():
+        return None
+    from datetime import date, timedelta
+    days = _PERIOD_DAYS.get((period or "1mo").lower(), 31)
+    frm = (date.today() - timedelta(days=days)).isoformat()
+    rows = _FMP._get("/historical-price-eod/full", {"symbol": symbol.strip().upper(), "from": frm})
+    if not isinstance(rows, list) or not rows:
+        return None
+    out = []
+    for r in rows:
+        out.append({
+            "date": r.get("date"),
+            "open": r.get("open"), "high": r.get("high"), "low": r.get("low"),
+            "close": r.get("close"), "volume": r.get("volume"),
+        })
+    out.sort(key=lambda x: x.get("date") or "")  # yfinance returns oldest-first
+    return out or None
+
+
+def fmp_target(symbol: str) -> Optional[float]:
+    """Analyst consensus price target via FMP (licensed) — feeds the score."""
+    if not _FMP._key():
+        return None
+    d = _FMP._get("/price-target-consensus", {"symbol": symbol.strip().upper()})
+    if isinstance(d, list) and d:
+        t = d[0].get("targetConsensus") or d[0].get("targetMedian")
+        try:
+            return float(t) if t else None
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+# Income-statement line items to surface, in display order: (FMP field, label).
+_FMP_INCOME_ROWS = [
+    ("revenue", "Total Revenue"),
+    ("costOfRevenue", "Cost of Revenue"),
+    ("grossProfit", "Gross Profit"),
+    ("operatingExpenses", "Operating Expenses"),
+    ("operatingIncome", "Operating Income"),
+    ("netIncome", "Net Income"),
+    ("eps", "EPS"),
+    ("ebitda", "EBITDA"),
+]
+_FMP_BALANCE_ROWS = [
+    ("totalAssets", "Total Assets"),
+    ("totalLiabilities", "Total Liabilities"),
+    ("totalEquity", "Total Equity"),
+    ("cashAndCashEquivalents", "Cash & Equivalents"),
+    ("totalDebt", "Total Debt"),
+]
+_FMP_CASHFLOW_ROWS = [
+    ("netCashProvidedByOperatingActivities", "Operating Cash Flow"),
+    ("netCashProvidedByInvestingActivities", "Investing Cash Flow"),
+    ("netCashProvidedByFinancingActivities", "Financing Cash Flow"),
+    ("freeCashFlow", "Free Cash Flow"),
+]
+
+
+def _fmp_statement(path: str, symbol: str, rows_spec: list, limit: int = 4) -> list:
+    """Transpose FMP's period-object list into yfinance's line-item-row shape:
+    each output row is {item, <period-date>: value, ...}."""
+    data = _FMP._get(path, {"symbol": symbol, "limit": limit})
+    if not isinstance(data, list) or not data:
+        return []
+    periods = [p.get("date") for p in data if p.get("date")]
+    out = []
+    for field, label in rows_spec:
+        row = {"item": label}
+        present = False
+        for p in data:
+            d = p.get("date")
+            if not d:
+                continue
+            val = p.get(field)
+            row[d] = val
+            if val is not None:
+                present = True
+        if present:
+            out.append(row)
+    return out if periods else []
+
+
+def fmp_fundamentals(symbol: str) -> Optional[dict]:
+    """income_stmt / balance_sheet / cashflow / analyst_price_targets, matching
+    the shape market_service.fundamentals returns. None if the key is unset."""
+    if not _FMP._key():
+        return None
+    sym = symbol.strip().upper()
+    income = _fmp_statement("/income-statement", sym, _FMP_INCOME_ROWS)
+    balance = _fmp_statement("/balance-sheet-statement", sym, _FMP_BALANCE_ROWS)
+    cashflow = _fmp_statement("/cash-flow-statement", sym, _FMP_CASHFLOW_ROWS)
+    # If FMP returned nothing usable at all, let the caller fall back.
+    if not (income or balance or cashflow):
+        return None
+    targets = {}
+    td = _FMP._get("/price-target-consensus", {"symbol": sym})
+    if isinstance(td, list) and td:
+        targets = {"low": td[0].get("targetLow"), "mean": td[0].get("targetConsensus"), "high": td[0].get("targetHigh")}
+    return {
+        "ticker": sym,
+        "income_stmt": income,
+        "balance_sheet": balance,
+        "cashflow": cashflow,
+        "analyst_price_targets": targets,
+        "calendar": {},
+        "source": "fmp",
+    }
+
+
+# yfinance predefined-screen key -> FMP /stable endpoint.
+_FMP_SCREEN_MAP = {
+    "day_gainers": "/biggest-gainers",
+    "day_losers": "/biggest-losers",
+    "most_actives": "/most-actives",
+}
+
+
+def fmp_screener(screen_type: str, count: int = 25) -> Optional[dict]:
+    """Predefined gainers/losers/most-actives via FMP. None if unmapped/no key."""
+    if not _FMP._key():
+        return None
+    path = _FMP_SCREEN_MAP.get((screen_type or "").strip())
+    if not path:
+        return None  # e.g. crypto or an exotic screen FMP doesn't cover -> yfinance
+    data = _FMP._get(path, {})
+    if not isinstance(data, list) or not data:
+        return None
+    quotes = []
+    for q in data[:count]:
+        sym = q.get("symbol")
+        if not sym:
+            continue
+        quotes.append({
+            "ticker": sym,
+            "name": q.get("name") or sym,
+            "price": q.get("price"),
+            "change_pct": q.get("changesPercentage"),
+            "currency": "USD",
+            "exchange": q.get("exchange"),
+            "market_cap": None,
+        })
+    return {"type": screen_type, "count": len(quotes), "quotes": quotes} if quotes else None
+
+
+# --------------------------------------------------------------------------- #
 # Resilient multi-source cascade (works without paid API keys)
 # --------------------------------------------------------------------------- #
 # Circuit breaker for fragile scraping sources (e.g. Investing.com internal

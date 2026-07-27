@@ -4,10 +4,14 @@ Every function here is synchronous and is invoked through
 ``market_cache.cached`` which adds TTL caching, exponential-backoff retries and
 a stale-on-error fallback. Keep these functions pure data-fetch + normalize.
 
-NOTE (honesty): yfinance uses Yahoo's public/undocumented endpoints and is
-intended for personal/research use. For commercial production, swap the loaders
-below for a licensed provider (FMP / Finnhub / Polygon / Twelve Data). The
-router and cache layers stay identical.
+NOTE (honesty / licensing): yfinance uses Yahoo's public/undocumented endpoints
+and is intended for personal/research use. To keep the paid features on a
+LICENSED source, the quote/history/fundamentals/screener paths and the analyst
+target now use FMP first (see providers.fmp_*) whenever FMP_API_KEY is set, and
+fall back to yfinance only when FMP has no data or no key. The one paid feature
+still on yfinance is the OPTIONS chain — FMP (and most providers) don't offer
+equity option chains — so `options()` below remains yfinance-only; treat that as
+the known residual until a licensed options source is added.
 """
 import logging
 import math
@@ -16,7 +20,10 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
-from providers import fetch_resilient, normalize_dividend_yield, search_resilient, _derive_exchange
+from providers import (
+    fetch_resilient, normalize_dividend_yield, search_resilient, _derive_exchange,
+    fmp_history, fmp_fundamentals, fmp_screener,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +147,12 @@ def quote(symbol: str) -> Optional[dict]:
 
 def history(symbol: str, period: str = "1mo", interval: str = "1d") -> list:
     symbol = symbol.strip().upper()
+    # FMP (licensed) covers daily history; use it first and fall back to
+    # yfinance for it or for any intraday interval FMP's EOD feed can't serve.
+    if interval == "1d":
+        fmp = fmp_history(symbol, period)
+        if fmp:
+            return fmp
     df = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=False)
     if df is None or df.empty:
         return []
@@ -226,6 +239,11 @@ def search(query: str) -> dict:
 
 def fundamentals(symbol: str) -> dict:
     symbol = symbol.strip().upper()
+    # FMP (licensed) first; fall back to yfinance if the key is unset or FMP
+    # returned nothing usable.
+    fmp = fmp_fundamentals(symbol)
+    if fmp:
+        return fmp
     t = yf.Ticker(symbol)
     out = {"ticker": symbol}
 
@@ -294,6 +312,11 @@ PREDEFINED_SCREENS = {
 
 def screener(screen_type: str = "day_gainers", count: int = 25) -> dict:
     screen_type = (screen_type or "day_gainers").strip()
+    # FMP (licensed) covers gainers/losers/most-actives; fall back to yfinance
+    # for those without a key, or for screens FMP doesn't map.
+    fmp = fmp_screener(screen_type, count)
+    if fmp:
+        return fmp
     try:
         body = yf.screen(screen_type, count=count)
     except TypeError:

@@ -98,11 +98,22 @@ Cloudflare R2 are large enough).
 
 ## Market data (commercial note)
 
-`yfinance` is the built-in fallback but is **not licensed for commercial
-redistribution**. Set a licensed provider key (`FMP_API_KEY`, `FINNHUB_API_KEY`,
-…) before charging users; the resilient cascade in `backend/providers.py` /
-`market_service.py` uses it automatically. See `backend/market_service.py` for
-the honest per-feature coverage note.
+`yfinance` is **not licensed for commercial redistribution**, so the paid
+features use **FMP (licensed)** first when `FMP_API_KEY` is set, falling back to
+yfinance only when FMP has no data:
+
+| Feature | Source when FMP key set |
+|---|---|
+| Quote / 52w / dividend | FMP |
+| Charts / history | FMP (daily) |
+| Fundamentals (income/balance/cashflow) | FMP |
+| Analyst price target (feeds the Score) | FMP |
+| Predefined screener (gainers/losers/actives) | FMP |
+| **Options chain** | **yfinance only — known residual** (FMP/most providers don't sell equity option chains) |
+
+So with `FMP_API_KEY` set, only the options tab still relies on yfinance.
+Everything else runs on the licensed source. See `backend/providers.py`
+(`fmp_*`) and `backend/market_service.py` for the mapping.
 
 ## Testing
 
