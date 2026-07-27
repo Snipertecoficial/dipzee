@@ -68,6 +68,12 @@ _LIMITS = (
     ("/api/auth/register", 6),
     ("/api/auth/forgot", 6),
     ("/api/auth/reset", 6),
+    # Sends an outbound Telegram message — keep well below the default so it
+    # can't be used to spam (even though it only targets the caller's own chat).
+    ("/api/notifications/telegram/test", 6),
+    # Full DB dump — superadmin-only and trusted, but a stricter cap prevents a
+    # runaway loop from hammering Mongo.
+    ("/api/admin/backup/run", 6),
 )
 _DEFAULT_LIMIT = 300
 
