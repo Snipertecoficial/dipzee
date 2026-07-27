@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Logo } from '../components/Logo';
+import { Reveal } from '../components/Reveal';
 import { Seo } from '../components/Seo';
 import { LanguageSwitcher } from '../components/Switchers';
 import { ScoreDial } from '../components/ScoreDial';
@@ -26,27 +27,6 @@ import api from '../lib/api';
 
 const TELUS = { price: 11.10, low_52w: 11.04, high_52w: 16.74, target_mean: 17.33, dividend_yield: 0.108, currency: 'CAD', score: 96 };
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
-};
-
-function Reveal({ children, className = '', delay = 0 }) {
-  return (
-    <motion.div 
-      variants={{
-        hidden: { opacity: 0, y: 15 },
-        show: { opacity: 1, y: 0, transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] } }
-      }} 
-      initial="hidden" 
-      whileInView="show" 
-      viewport={{ once: true, margin: '-60px' }} 
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 function TestimonialsCarousel() {
   const { t, i18n } = useTranslation();
@@ -378,11 +358,11 @@ export default function Landing() {
       {/* Security & trust */}
       <section id="security" className="bg-[var(--dz-surface)] border-y border-[var(--dz-border)]">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center" data-testid="home-security-trust">
-          <div>
+          <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full bg-[var(--dz-mint-10)] text-[var(--dz-buy-deep)] px-3 py-1 text-xs font-medium"><ShieldCheck size={14} /> {t('landing.navSecurity')}</span>
             <h2 className="mt-4 font-heading font-semibold text-2xl sm:text-3xl">{t('landing.secTitle')}</h2>
             <p className="mt-3 text-[var(--dz-muted)] max-w-[58ch] leading-relaxed">{t('landing.secSubtitle')}</p>
-          </div>
+          </Reveal>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {security.map((s) => (
               <div key={s.label} className="flex items-start gap-3 rounded-[var(--dz-radius-md,14px)] border border-[var(--dz-border)] bg-[var(--dz-bg)] p-4">
@@ -396,10 +376,10 @@ export default function Landing() {
 
       {/* Pricing */}
       <section id="pricing" className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20" data-testid="home-pricing">
-        <div className="text-center max-w-2xl mx-auto">
+        <Reveal className="text-center max-w-2xl mx-auto">
           <h2 className="font-heading font-semibold text-2xl sm:text-3xl">{t('plans.upgradeTitle')}</h2>
           <p className="mt-2 text-[var(--dz-muted)]">{t('plans.upgradeSubtitle')}</p>
-        </div>
+        </Reveal>
         <div className="mt-10"><PricingCards onChoose={goRegister} /></div>
         <p className="mt-6 flex items-center justify-center gap-2 text-xs text-[var(--dz-muted)]"><Lock size={13} className="text-[var(--dz-buy)]" /> {t('landing.microTrial')}</p>
       </section>
@@ -407,7 +387,7 @@ export default function Landing() {
       {/* FAQ */}
       <section id="faq" className="bg-[var(--dz-surface)] border-y border-[var(--dz-border)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20" data-testid="home-faq">
-          <h2 className="font-heading font-semibold text-2xl sm:text-3xl text-center">{t('landing.faqTitle')}</h2>
+          <Reveal><h2 className="font-heading font-semibold text-2xl sm:text-3xl text-center">{t('landing.faqTitle')}</h2></Reveal>
           <Accordion type="single" collapsible className="mt-6">
             {faqs.map((f, i) => (
               <AccordionItem key={f.q} value={`faq-${i}`}>
@@ -421,6 +401,7 @@ export default function Landing() {
 
       {/* Final CTA */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-20" data-testid="home-final-cta">
+        <Reveal>
         <Card
           className="relative overflow-hidden p-10 sm:p-14 text-center bg-[var(--dz-primary)] border-0"
           style={{ backgroundImage: 'radial-gradient(700px 320px at 50% 0%, rgba(22,224,163,0.16) 0%, rgba(22,224,163,0) 60%)' }}
@@ -432,6 +413,7 @@ export default function Landing() {
           </Button>
           <p className="mt-3 text-xs text-[rgba(255,255,255,0.7)]">{t('landing.microTrial')}</p>
         </Card>
+        </Reveal>
       </section>
 
       {/* Footer */}

@@ -38,11 +38,19 @@
     /* Derived institutional tokens (do not change base palette) */
     --dz-surface-2: color-mix(in srgb, var(--dz-surface) 94%, var(--dz-primary));
     --dz-primary-8: rgba(26, 31, 77, 0.08);
+    --dz-primary-10: rgba(26, 31, 77, 0.10);
     --dz-primary-12: rgba(26, 31, 77, 0.12);
     --dz-mint-10: rgba(22, 224, 163, 0.10);
     --dz-mint-16: rgba(22, 224, 163, 0.16);
     --dz-shadow-card: 0 1px 2px rgba(15, 20, 36, 0.06), 0 12px 28px rgba(15, 20, 36, 0.08);
     --dz-shadow-float: 0 18px 40px rgba(15, 20, 36, 0.14);
+
+    /* Radius scale — referenced with inline fallbacks across the app; define
+       them here so the values are consistent and tokenized in one place. */
+    --dz-radius-sm: 10px;
+    --dz-radius-md: 14px;
+    --dz-radius-lg: 20px;
+    --dz-radius-pill: 9999px;
 }
 
 @layer base {
@@ -120,6 +128,7 @@
     --dz-shadow: rgba(0, 0, 0, 0.5);
     --dz-shadow-strong: rgba(0, 0, 0, 0.65);
     --dz-primary-8: rgba(255, 255, 255, 0.06);
+    --dz-primary-10: rgba(255, 255, 255, 0.08);
     --dz-primary-12: rgba(255, 255, 255, 0.10);
     --dz-mint-10: rgba(22, 224, 163, 0.12);
     --dz-mint-16: rgba(22, 224, 163, 0.18);
