@@ -62,12 +62,16 @@ class FakeCollection:
             return _Result(matched_count=0, modified_count=0, upserted_id=1)
         return _Result(matched_count=0, modified_count=0, upserted_id=None)
 
-    def find(self, flt):
+    def find(self, flt, projection=None):
         items = [copy.deepcopy(d) for d in self.docs if self._match(d, flt)]
 
         class _Cursor:
             def __init__(self, rows):
                 self._rows = rows
+
+            def sort(self, key, direction=1):
+                self._rows.sort(key=lambda d: d.get(key), reverse=direction < 0)
+                return self
 
             async def to_list(self, n):
                 return self._rows[: n if n else None]

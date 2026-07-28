@@ -245,6 +245,33 @@ async def backup_status(admin: dict = Depends(get_superadmin)):
     }
 
 
+@router.get("/lse/status")
+async def lse_status(admin: dict = Depends(get_superadmin)):
+    """LSE health for the admin panel: configured?, vault export budget usage,
+    this process's call count, and the last ingestion run."""
+    import lse_service
+    from lse_ingest import last_ingest
+    return {
+        "configured": lse_service.is_configured(),
+        "raw_exposure": lse_service.client_raw_exposure_enabled(),
+        "calls_last_hour": lse_service.local_calls_last_hour(),
+        "max_calls_per_hour": lse_service.LSE_MAX_CALLS_PER_HOUR,
+        "vault_usage": await lse_service.vault_usage(),
+        "last_ingest": await last_ingest(),
+    }
+
+
+@router.post("/lse/ingest")
+async def lse_ingest_now(admin: dict = Depends(get_superadmin)):
+    """Trigger an on-demand LSE ingestion of the tracked universe (budget-aware,
+    the same run the scheduler does daily). No-op when LSE isn't configured."""
+    import lse_service
+    if not lse_service.is_configured():
+        raise HTTPException(status_code=503, detail="LSE is not configured")
+    from lse_ingest import run_ingestion
+    return await run_ingestion()
+
+
 @router.post("/billing/sync")
 async def sync_billing(admin: dict = Depends(get_superadmin)):
     """Re-check every unprocessed transaction against Stripe directly.

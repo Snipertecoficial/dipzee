@@ -124,6 +124,22 @@ async def backup_job():
         logger.error("[scheduler] backup job failed: %s", e)
 
 
+async def lse_ingest_job():
+    """Daily LSE ingestion for the tracked universe (budget-aware, isolated).
+    No-op when LSE isn't configured, so it's safe to schedule unconditionally."""
+    try:
+        import lse_service
+        if not lse_service.is_configured():
+            return
+        from lse_ingest import run_ingestion
+        summary = await run_ingestion()
+        logger.info("[scheduler] lse ingest: %d/%d symbols, %d candles, budget_stopped=%s",
+                    summary.get("symbols_done"), summary.get("symbols_requested"),
+                    summary.get("candles"), summary.get("budget_stopped"))
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] lse ingest job failed: %s", e)
+
+
 def start_scheduler():
     global _scheduler
     if _scheduler is not None:
@@ -139,8 +155,10 @@ def start_scheduler():
     _scheduler.add_job(billing_sync_job, IntervalTrigger(minutes=10), id="billing_sync_job", replace_existing=True)
     # Daily database backup at 03:30 ET (quiet hours, well clear of the 16:15 refresh)
     _scheduler.add_job(backup_job, CronTrigger(hour=3, minute=30, timezone=ET), id="backup_job", replace_existing=True)
+    # Daily LSE ingestion at 17:00 ET (after the 16:15 refresh, before backup). No-op if LSE unconfigured.
+    _scheduler.add_job(lse_ingest_job, CronTrigger(day_of_week="mon-fri", hour=17, minute=0, timezone=ET), id="lse_ingest_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET)")
     return _scheduler
 
 

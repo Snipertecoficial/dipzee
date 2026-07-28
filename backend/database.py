@@ -33,3 +33,18 @@ async def ensure_indexes():
     await db.stripe_events.create_index('event_id', unique=True)
     await db.payment_transactions.create_index('session_id', unique=True)
     await db.billing_subscriptions.create_index('stripe_subscription_id', unique=True)
+
+    # LSE intelligence layer. Normalized, point-in-time correct: the unique
+    # composite keys let re-ingestion of the same period upsert in place rather
+    # than duplicate rows. Only the tracked universe is stored, never the full
+    # catalog, so these stay small.
+    await db.lse_candles.create_index([('symbol', 1), ('timeframe', 1), ('ts', 1)], unique=True)
+    await db.lse_candles.create_index([('symbol', 1), ('timeframe', 1), ('ts', -1)])
+    await db.lse_fundamentals.create_index('symbol', unique=True)
+    await db.lse_dividends.create_index([('symbol', 1), ('ex_date', 1)], unique=True)
+    await db.lse_splits.create_index([('symbol', 1), ('date', 1)], unique=True)
+    await db.lse_options_flow.create_index([('symbol', 1), ('ts', -1)])
+    await db.lse_macro_series.create_index([('series', 1), ('date', 1)], unique=True)
+    await db.lse_econ_calendar.create_index([('region', 1), ('date', 1)])
+    await db.lse_insider.create_index([('symbol', 1), ('date', -1)])
+    await db.lse_ingest_log.create_index([('at', -1)])

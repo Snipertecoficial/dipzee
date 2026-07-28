@@ -74,6 +74,9 @@ _LIMITS = (
     # Full DB dump — superadmin-only and trusted, but a stricter cap prevents a
     # runaway loop from hammering Mongo.
     ("/api/admin/backup/run", 6),
+    # On-demand LSE ingestion spends real export budget — cap it hard even for
+    # the trusted superadmin so a stuck retry can't drain the allowance.
+    ("/api/admin/lse/ingest", 4),
 )
 _DEFAULT_LIMIT = 300
 
