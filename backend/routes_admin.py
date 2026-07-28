@@ -272,6 +272,30 @@ async def lse_ingest_now(admin: dict = Depends(get_superadmin)):
     return await run_ingestion()
 
 
+@router.get("/kg/status")
+async def kg_status(admin: dict = Depends(get_superadmin)):
+    """Knowledge-graph size + node breakdown by kind."""
+    from knowledge_graph import graph_status
+    return await graph_status(db)
+
+
+@router.post("/kg/rebuild")
+async def kg_rebuild(admin: dict = Depends(get_superadmin)):
+    """Rebuild the knowledge graph from curated seed + the assets collection."""
+    from knowledge_graph import rebuild_graph
+    return await rebuild_graph(db)
+
+
+@router.get("/kg/affected/{kind}/{key}")
+async def kg_affected(kind: str, key: str, admin: dict = Depends(get_superadmin)):
+    """Preview: companies a macro/commodity/sector node propagates to (debug view)."""
+    from knowledge_graph import node_id, affected_assets
+    if kind not in ("macro", "commodity", "sector", "company"):
+        raise HTTPException(status_code=400, detail="kind must be macro|commodity|sector|company")
+    companies = await affected_assets(db, node_id(kind, key))
+    return {"seed": node_id(kind, key), "count": len(companies), "companies": companies[:50]}
+
+
 @router.post("/billing/sync")
 async def sync_billing(admin: dict = Depends(get_superadmin)):
     """Re-check every unprocessed transaction against Stripe directly.

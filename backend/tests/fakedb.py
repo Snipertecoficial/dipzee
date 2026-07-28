@@ -49,6 +49,22 @@ class FakeCollection:
         self.docs.append(copy.deepcopy(doc))
         return _Result(inserted_id=doc.get("id"))
 
+    async def insert_many(self, docs):
+        ids = []
+        for d in docs:
+            self.docs.append(copy.deepcopy(d))
+            ids.append(d.get("id"))
+        return _Result(inserted_ids=ids)
+
+    async def delete_many(self, flt):
+        keep = [d for d in self.docs if not self._match(d, flt)]
+        removed = len(self.docs) - len(keep)
+        self.docs = keep
+        return _Result(deleted_count=removed)
+
+    async def count_documents(self, flt):
+        return sum(1 for d in self.docs if self._match(d, flt))
+
     async def update_one(self, flt, update, upsert=False):
         setv = update.get("$set", {})
         for d in self.docs:
@@ -75,6 +91,17 @@ class FakeCollection:
 
             async def to_list(self, n):
                 return self._rows[: n if n else None]
+
+            def __aiter__(self):
+                self._i = 0
+                return self
+
+            async def __anext__(self):
+                if self._i >= len(self._rows):
+                    raise StopAsyncIteration
+                row = self._rows[self._i]
+                self._i += 1
+                return row
 
         return _Cursor(items)
 

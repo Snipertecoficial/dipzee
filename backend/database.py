@@ -48,3 +48,9 @@ async def ensure_indexes():
     await db.lse_econ_calendar.create_index([('region', 1), ('date', 1)])
     await db.lse_insider.create_index([('symbol', 1), ('date', -1)])
     await db.lse_ingest_log.create_index([('at', -1)])
+
+    # Knowledge graph (L1): nodes keyed by id, edges by src for fast fan-out.
+    await db.kg_nodes.create_index('id', unique=True)
+    await db.kg_nodes.create_index('kind')
+    await db.kg_edges.create_index('src')
+    await db.kg_edges.create_index([('src', 1), ('dst', 1)])

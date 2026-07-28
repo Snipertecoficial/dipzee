@@ -148,6 +148,14 @@ async def on_startup():
     except Exception as e:  # noqa: BLE001
         logger.warning("load_scoring_settings failed: %s", e)
     try:
+        # Seed the knowledge graph if empty (idempotent, cheap). Best-effort:
+        # a failure here must never block startup — the graph rebuilds lazily.
+        from knowledge_graph import load_graph
+        from database import db as _kgdb
+        await load_graph(_kgdb)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("knowledge graph seed failed: %s", e)
+    try:
         start_scheduler()
     except Exception as e:  # noqa: BLE001
         # Logged at ERROR (not warning): if the scheduler doesn't start, no
