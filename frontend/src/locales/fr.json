@@ -89,7 +89,6 @@
     "resetTitle": "Créer un nouveau mot de passe",
     "resetSubtitle": "Choisissez un nouveau mot de passe pour votre compte.",
     "newPassword": "Nouveau mot de passe",
-    "confirmPassword": "Confirmer le mot de passe",
     "resetCta": "Enregistrer le nouveau mot de passe",
     "passwordMismatch": "Les mots de passe ne correspondent pas",
     "resetInvalidToken": "Lien invalide ou expiré. Demandez-en un nouveau.",
@@ -290,6 +289,22 @@
       "hold": "Conserver",
       "watch": "Surveiller",
       "avoid": "Éviter"
+    },
+    "intel": {
+      "tab": "Intelligence",
+      "generating": "Génération de l'intelligence…",
+      "error": "Impossible de générer l'intelligence pour le moment.",
+      "drivers": "Ce qui l'anime",
+      "watch": "À surveiller",
+      "macro": "Contexte macro",
+      "netImpact": "Impact des actualités",
+      "impactPos": "Positif",
+      "impactNeg": "Négatif",
+      "impactNeutral": "Neutre",
+      "memoryTitle": "Situations passées similaires",
+      "memorySummary": "Lors de {{count}} situations passées similaires, les actifs concernés ont évolué en moyenne de {{pct}}% sur {{days}} séances.",
+      "memoryPositive": "{{pct}}% d'entre elles étaient positives.",
+      "memoryNone": "Pas encore assez d'historique pour comparer avec des situations passées."
     }
   },
   "alerts": {

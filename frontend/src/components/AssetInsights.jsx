@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AreaChart, Area, LineChart, Line, Legend, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Loader2, Play, Info, Sparkles, TrendingUp, AlertTriangle, Zap, RefreshCw } from 'lucide-react';
+import { Loader2, Play, Info, Sparkles, TrendingUp, AlertTriangle, Zap, RefreshCw, Brain, Newspaper, History } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -443,6 +444,167 @@ function AnalystTab({ ticker }) {
   );
 }
 
+function ImpactChip({ value }) {
+  const { t } = useTranslation();
+  if (typeof value !== 'number') return null;
+  const pct = Math.round(value * 100);
+  const pos = value > 0.02;
+  const neg = value < -0.02;
+  const color = pos ? 'var(--dz-buy-deep)' : neg ? 'var(--dz-sell)' : 'var(--dz-muted)';
+  const bg = pos ? 'var(--dz-mint-16)' : neg ? 'rgba(217,45,32,0.12)' : 'var(--dz-primary-8)';
+  const label = pos ? t('asset.intel.impactPos') : neg ? t('asset.intel.impactNeg') : t('asset.intel.impactNeutral');
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold"
+      style={{ background: bg, color }}
+      data-testid="intel-net-impact"
+      aria-label={`${t('asset.intel.netImpact')}: ${label} ${pct > 0 ? '+' : ''}${pct}%`}
+    >
+      <Newspaper size={14} /> {label} · <span className="tnum">{pct > 0 ? '+' : ''}{pct}%</span>
+    </span>
+  );
+}
+
+function MemoryBlock({ ticker }) {
+  const { t } = useTranslation();
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true; setData(null);
+    api.get(`/intel/memory/${encodeURIComponent(ticker)}`)
+      .then(({ data }) => alive && setData(data))
+      .catch(() => alive && setData({ available: false }));
+    return () => { alive = false; };
+  }, [ticker]);
+  if (data === null) return <Skeleton className="h-16 w-full" />;
+  const s = data.summary || {};
+  const hasStats = data.available && s.resolved > 0 && typeof s.avg_return === 'number';
+  return (
+    <div data-testid="intel-memory">
+      <p className="flex items-center gap-2 font-heading font-semibold text-sm mb-2" style={{ color: 'var(--dz-primary)' }}>
+        <History size={15} /> {t('asset.intel.memoryTitle')}
+      </p>
+      {hasStats ? (
+        <p className="text-sm text-[var(--dz-fg)] leading-relaxed">
+          {t('asset.intel.memorySummary', {
+            count: s.matches, pct: (s.avg_return > 0 ? '+' : '') + s.avg_return, days: s.horizon_days,
+          })}
+          {typeof s.positive_share === 'number' && (
+            <> {t('asset.intel.memoryPositive', { pct: Math.round(s.positive_share * 100) })}</>
+          )}
+        </p>
+      ) : (
+        <p className="text-sm text-[var(--dz-muted)]">{t('asset.intel.memoryNone')}</p>
+      )}
+    </div>
+  );
+}
+
+function IntelligenceTab({ ticker }) {
+  const { t } = useTranslation();
+  const { can } = useAuth();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback((refresh = false) => {
+    setLoading(true); setError(false);
+    api.get(`/intel/asset/${encodeURIComponent(ticker)}`, { params: refresh ? { refresh: 1 } : {} })
+      .then(({ data }) => setData(data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [ticker]);
+
+  useEffect(() => { load(false); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4" data-testid="intel-loading">
+        <div className="flex items-center gap-2 text-sm text-[var(--dz-muted)]">
+          <Loader2 size={16} className="animate-spin" /> {t('asset.intel.generating')}
+        </div>
+        <Skeleton className="h-6 w-52" />
+        <Skeleton className="h-16 w-full" />
+        <div className="grid sm:grid-cols-2 gap-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-10 text-center" data-testid="intel-error">
+        <p className="text-sm text-[var(--dz-muted)]">{t('asset.intel.error')}</p>
+        <Button onClick={() => load(false)} variant="outline" className="mt-4 border-[var(--dz-border)]">
+          <RefreshCw size={15} className="mr-2" />{t('asset.aiRetry')}
+        </Button>
+      </div>
+    );
+  }
+
+  const meta = STANCE_META[data.stance] || STANCE_META.watch;
+  const StanceIcon = meta.icon;
+  const conf = typeof data.confidence === 'number' ? data.confidence : null;
+
+  return (
+    <div className="space-y-5" data-testid="intel-panel">
+      {/* Header: stance + impact + refresh */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold"
+            style={{ background: meta.bg, color: meta.color }}
+            data-testid="intel-stance"
+          >
+            <StanceIcon size={14} /> {t(`asset.aiStance.${data.stance}`, data.stance)}
+          </span>
+          <ImpactChip value={data.net_impact} />
+        </div>
+        <Button onClick={() => load(true)} variant="outline" size="sm" className="border-[var(--dz-border)]" data-testid="intel-refresh-button">
+          <RefreshCw size={14} className="mr-1.5" />{t('asset.aiRegenerate')}
+        </Button>
+      </div>
+
+      {conf !== null && (
+        <div data-testid="intel-confidence">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-[var(--dz-muted)]">{t('asset.aiConfidence')}</span>
+            <span className="font-medium tnum">{conf}%</span>
+          </div>
+          <Progress value={conf} className="h-2" />
+        </div>
+      )}
+
+      {data.headline && <p className="font-heading font-semibold text-base leading-snug" data-testid="intel-headline">{data.headline}</p>}
+      {data.summary && (
+        <Card className="p-4 border-[var(--dz-border)] bg-[var(--dz-surface)]">
+          <p className="text-sm text-[var(--dz-fg)] leading-relaxed" data-testid="intel-summary">{data.summary}</p>
+        </Card>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-5">
+        <BulletBlock title={t('asset.intel.drivers')} items={data.drivers} Icon={TrendingUp} color="var(--dz-buy-deep)" />
+        <BulletBlock title={t('asset.intel.watch')} items={data.watch} Icon={AlertTriangle} color="var(--dz-primary)" />
+      </div>
+
+      {data.macro_context && (
+        <div>
+          <p className="flex items-center gap-2 font-heading font-semibold text-sm mb-2 text-[var(--dz-muted)]">
+            <Brain size={15} /> {t('asset.intel.macro')}
+          </p>
+          <p className="text-sm text-[var(--dz-fg)] leading-relaxed">{data.macro_context}</p>
+        </div>
+      )}
+
+      {/* Historical memory — only when the plan includes it */}
+      {can('event_memory') && <MemoryBlock ticker={ticker} />}
+
+      <div className="flex gap-2 items-start rounded-lg border border-dashed border-[var(--dz-border)] p-3">
+        <Info size={14} className="shrink-0 text-[var(--dz-muted)] mt-0.5" />
+        <p className="text-[11px] text-[var(--dz-muted)] leading-relaxed">{t('asset.aiDisclaimer')}</p>
+      </div>
+    </div>
+  );
+}
+
 export function AssetInsights({ ticker }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState('chart');
@@ -458,6 +620,9 @@ export function AssetInsights({ ticker }) {
           <TabsTrigger value="aiAnalyst" data-testid="asset-tab-ai-analyst" className="gap-1.5">
             <Sparkles size={14} /> {t('asset.aiAnalyst')}
           </TabsTrigger>
+          <TabsTrigger value="intelligence" data-testid="asset-tab-intelligence" className="gap-1.5">
+            <Brain size={14} /> {t('asset.intel.tab')}
+          </TabsTrigger>
         </TabsList>
         <div className="mt-5">
           <TabsContent value="chart"><FeatureGate feature="charts">{tab === 'chart' && <ChartTab ticker={ticker} />}</FeatureGate></TabsContent>
@@ -465,6 +630,7 @@ export function AssetInsights({ ticker }) {
           <TabsContent value="options"><FeatureGate feature="options">{tab === 'options' && <OptionsTab ticker={ticker} />}</FeatureGate></TabsContent>
           <TabsContent value="backtest"><FeatureGate feature="backtest">{tab === 'backtest' && <BacktestTab ticker={ticker} />}</FeatureGate></TabsContent>
           <TabsContent value="aiAnalyst"><FeatureGate feature="ai_analyst">{tab === 'aiAnalyst' && <AnalystTab ticker={ticker} />}</FeatureGate></TabsContent>
+          <TabsContent value="intelligence"><FeatureGate feature="news_correlation">{tab === 'intelligence' && <IntelligenceTab ticker={ticker} />}</FeatureGate></TabsContent>
         </div>
       </Tabs>
     </Card>

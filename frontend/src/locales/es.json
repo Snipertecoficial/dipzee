@@ -89,7 +89,6 @@
     "resetTitle": "Crear nueva contraseña",
     "resetSubtitle": "Elige una nueva contraseña para tu cuenta.",
     "newPassword": "Nueva contraseña",
-    "confirmPassword": "Confirmar contraseña",
     "resetCta": "Guardar nueva contraseña",
     "passwordMismatch": "Las contraseñas no coinciden",
     "resetInvalidToken": "Enlace inválido o expirado. Solicita uno nuevo.",
@@ -290,6 +289,22 @@
       "hold": "Mantener",
       "watch": "Observar",
       "avoid": "Evitar"
+    },
+    "intel": {
+      "tab": "Inteligencia",
+      "generating": "Generando inteligencia…",
+      "error": "No se pudo generar la inteligencia en este momento.",
+      "drivers": "Qué lo está moviendo",
+      "watch": "A vigilar",
+      "macro": "Contexto macro",
+      "netImpact": "Impacto de noticias",
+      "impactPos": "Positivo",
+      "impactNeg": "Negativo",
+      "impactNeutral": "Neutral",
+      "memoryTitle": "Situaciones pasadas similares",
+      "memorySummary": "En {{count}} situaciones pasadas similares, los activos afectados se movieron en promedio {{pct}}% durante {{days}} sesiones.",
+      "memoryPositive": "El {{pct}}% de ellas fueron positivas.",
+      "memoryNone": "Aún no hay historial suficiente para comparar con situaciones pasadas."
     }
   },
   "alerts": {

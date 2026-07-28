@@ -89,7 +89,6 @@
     "resetTitle": "Criar nova senha",
     "resetSubtitle": "Escolha uma nova senha para sua conta.",
     "newPassword": "Nova senha",
-    "confirmPassword": "Confirmar senha",
     "resetCta": "Salvar nova senha",
     "passwordMismatch": "As senhas não coincidem",
     "resetInvalidToken": "Link inválido ou expirado. Solicite um novo.",
@@ -290,6 +289,22 @@
       "hold": "Manter",
       "watch": "Observar",
       "avoid": "Evitar"
+    },
+    "intel": {
+      "tab": "Inteligência",
+      "generating": "Gerando inteligência…",
+      "error": "Não foi possível gerar a inteligência agora.",
+      "drivers": "O que está movimentando",
+      "watch": "Fique de olho",
+      "macro": "Contexto macro",
+      "netImpact": "Impacto das notícias",
+      "impactPos": "Positivo",
+      "impactNeg": "Negativo",
+      "impactNeutral": "Neutro",
+      "memoryTitle": "Situações passadas semelhantes",
+      "memorySummary": "Em {{count}} situações passadas semelhantes, os ativos afetados variaram em média {{pct}}% ao longo de {{days}} pregões.",
+      "memoryPositive": "{{pct}}% delas foram positivas.",
+      "memoryNone": "Ainda não há histórico suficiente para comparar com situações passadas."
     }
   },
   "alerts": {
