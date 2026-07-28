@@ -233,5 +233,8 @@ async def ai_analyst(
         "cached": False,
     }
     await db.ai_analyses.update_one(cache_key, {"$set": doc}, upsert=True)
+    # Proprietary dataset (L5): log the (context -> analysis) pair, anonymized.
+    from dataset_service import log_inference
+    await log_inference(db, "ai_analyst", ticker, context, analysis, user=user)
     doc.pop("_id", None)
     return doc

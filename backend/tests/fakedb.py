@@ -35,6 +35,10 @@ class FakeCollection:
                     dv = doc.get(k)
                     if dv is None or dv < v["$gte"]:
                         return False
+                elif "$lt" in v:
+                    dv = doc.get(k)
+                    if dv is None or dv >= v["$lt"]:
+                        return False
                 else:
                     if doc.get(k) != v:
                         return False

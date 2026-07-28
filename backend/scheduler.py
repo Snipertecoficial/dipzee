@@ -141,6 +141,18 @@ async def event_correlation_job():
         logger.error("[scheduler] event correlation job failed: %s", e)
 
 
+async def dataset_prune_job():
+    """Daily: prune dataset rows past the retention window (LGPD). Isolated."""
+    try:
+        from dataset_service import prune_old
+        result = await prune_old(db)
+        removed = result.get("removed", {})
+        if any(removed.values()):
+            logger.info("[scheduler] dataset prune: %s", removed)
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] dataset prune job failed: %s", e)
+
+
 async def memory_index_job():
     """Daily: (re)index event_memory from market_events — compute vectors and
     resolve outcomes now that more price history exists. Deterministic, no LLM,
@@ -191,8 +203,10 @@ def start_scheduler():
     _scheduler.add_job(event_correlation_job, IntervalTrigger(minutes=30), id="event_correlation_job", replace_existing=True)
     # Market-memory (re)indexing daily at 18:00 ET (after LSE ingest, so outcomes resolve)
     _scheduler.add_job(memory_index_job, CronTrigger(hour=18, minute=0, timezone=ET), id="memory_index_job", replace_existing=True)
+    # Dataset retention prune daily at 04:00 ET (quiet hours, after backup)
+    _scheduler.add_job(dataset_prune_job, CronTrigger(hour=4, minute=0, timezone=ET), id="dataset_prune_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min + memory index 18:00 ET)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min + memory index 18:00 ET + dataset prune 04:00 ET)")
     return _scheduler
 
 

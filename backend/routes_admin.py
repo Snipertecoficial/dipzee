@@ -154,6 +154,9 @@ async def delete_user(user_id: str, admin: dict = Depends(get_superadmin)):
     await db.password_resets.delete_many({"user_id": user_id})
     await db.refresh_tokens.delete_many({"user_id": user_id})
     await db.users.delete_one({"id": user_id})
+    # LGPD right-to-erasure: also purge the user's pseudonymous dataset records.
+    from dataset_service import purge_user
+    await purge_user(db, user_id)
     return {"ok": True}
 
 
@@ -310,6 +313,20 @@ async def events_recent(symbol: Optional[str] = None, limit: int = Query(30, ge=
     from event_service import recent_events
     events = await recent_events(db, symbol=symbol, limit=limit)
     return {"count": len(events), "events": events}
+
+
+@router.get("/dataset/status")
+async def dataset_status_route(admin: dict = Depends(get_superadmin)):
+    """Proprietary-dataset size (inferences/decisions) + retention window."""
+    from dataset_service import dataset_status
+    return await dataset_status(db)
+
+
+@router.post("/dataset/prune")
+async def dataset_prune_route(admin: dict = Depends(get_superadmin)):
+    """Prune dataset rows past the retention window (the same the scheduler runs)."""
+    from dataset_service import prune_old
+    return await prune_old(db)
 
 
 @router.post("/memory/index")

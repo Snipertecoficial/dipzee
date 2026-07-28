@@ -69,3 +69,11 @@ async def ensure_indexes():
     await db.event_memory.create_index('id', unique=True)
     await db.event_memory.create_index('outcome.status')
     await db.event_memory.create_index('affected_symbols')
+
+    # Proprietary dataset (L5): inference/decision logs (anonymized). Indexed by
+    # recency (retention pruning) and pseudonym (right-to-erasure purge).
+    await db.inference_log.create_index([('ts', -1)])
+    await db.inference_log.create_index('kind')
+    await db.inference_log.create_index('anon')
+    await db.decision_log.create_index([('ts', -1)])
+    await db.decision_log.create_index('anon')

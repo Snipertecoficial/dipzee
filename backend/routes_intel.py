@@ -82,6 +82,12 @@ async def asset_intel(ticker: str, refresh: int = Query(0),
            "opportunity_score": context.get("opportunity_score"),
            **insight, "generated_at": datetime.now(timezone.utc).isoformat(), "cached": False}
     await db.intel_insights.update_one(key, {"$set": doc}, upsert=True)
+    # Proprietary dataset (L5): log the (context -> output) training pair, anonymized.
+    from dataset_service import log_inference, log_decision
+    compact_ctx = {k: context.get(k) for k in
+                   ("ticker", "sector", "opportunity_score", "net_impact", "event_count", "upside_pct")}
+    await log_inference(db, "intel_asset", ticker, compact_ctx, insight, user=user)
+    await log_decision(db, "intel_asset_viewed", ticker, user=user)
     doc.pop("_id", None)
     return doc
 
@@ -126,6 +132,9 @@ async def macro_intel(refresh: int = Query(0), user: dict = Depends(require_feat
     doc = {**key, **brief, "factors": snapshot.get("factors"),
            "generated_at": datetime.now(timezone.utc).isoformat(), "cached": False}
     await db.intel_macro.update_one(key, {"$set": doc}, upsert=True)
+    from dataset_service import log_inference
+    await log_inference(db, "intel_macro", None,
+                        {"factor_count": len(snapshot.get("factors") or [])}, brief, user=user)
     doc.pop("_id", None)
     return doc
 

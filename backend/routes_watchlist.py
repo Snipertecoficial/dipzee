@@ -64,6 +64,9 @@ async def add_watchlist(body: WatchlistIn, user: dict = Depends(get_current_user
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.watchlist_items.insert_one(item)
+    # Anonymized interest signal for the proprietary dataset (L5).
+    from dataset_service import log_decision
+    await log_decision(db, "watchlist_add", ticker, user=user)
     return {"ticker": ticker, "created_at": item["created_at"], "asset": asset}
 
 

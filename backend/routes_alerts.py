@@ -75,6 +75,9 @@ async def create_alert(body: AlertIn, user: dict = Depends(get_current_user)):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.alerts.insert_one(alert)
+    # Anonymized interest signal for the proprietary dataset (L5).
+    from dataset_service import log_decision
+    await log_decision(db, "alert_create", ticker, user=user, meta={"type": body.type})
     alert.pop("_id", None)
     return alert
 
