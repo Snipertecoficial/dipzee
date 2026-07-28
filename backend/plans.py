@@ -19,12 +19,17 @@ PLAN_FEATURES = {
         "search", "watchlist", "alerts", "email_alerts", "in_app_alerts",
         "all_locales", "dividend_tracker", "screener", "charts", "fundamentals",
         "options", "ai_analyst",
+        # Intelligence layer (L3): capability grants on the existing tier — the
+        # definitive plan/pricing redesign happens later (L6).
+        "news_correlation", "macro_context", "event_memory",
     ],
     "investor": [
         "search", "watchlist", "alerts", "email_alerts", "in_app_alerts",
         "all_locales", "dividend_tracker", "screener", "charts", "fundamentals",
         "options", "intraday", "advanced_screener", "portfolio", "backtest",
         "messaging_alerts", "export", "priority", "ai_analyst",
+        # Intelligence layer (L3): investor gets the full set incl. options flow.
+        "news_correlation", "macro_context", "event_memory", "options_flow", "ai_terminal",
     ],
 }
 

@@ -60,3 +60,7 @@ async def ensure_indexes():
     await db.market_events.create_index('id', unique=True)
     await db.market_events.create_index('affected.symbol')
     await db.market_events.create_index([('enriched_at', -1)])
+
+    # Intelligence insight caches (L3), keyed like ai_analyses.
+    await db.intel_insights.create_index([('ticker', 1), ('locale', 1)], unique=True)
+    await db.intel_macro.create_index([('id', 1), ('locale', 1)], unique=True)

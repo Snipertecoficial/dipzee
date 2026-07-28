@@ -79,6 +79,9 @@ _LIMITS = (
     ("/api/admin/lse/ingest", 4),
     # News correlation spends LLM tokens (one call per new headline) — cap it.
     ("/api/admin/events/correlate", 6),
+    # Intelligence briefs make an LLM call on a cache miss / forced refresh.
+    # Cached hits are cheap; this caps abuse of ?refresh=1 across the surface.
+    ("/api/intel/", 60),
 )
 _DEFAULT_LIMIT = 300
 
