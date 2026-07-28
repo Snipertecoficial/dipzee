@@ -141,6 +141,19 @@ async def event_correlation_job():
         logger.error("[scheduler] event correlation job failed: %s", e)
 
 
+async def memory_index_job():
+    """Daily: (re)index event_memory from market_events — compute vectors and
+    resolve outcomes now that more price history exists. Deterministic, no LLM,
+    isolated."""
+    try:
+        from memory_service import index_events
+        result = await index_events(db)
+        if result.get("processed"):
+            logger.info("[scheduler] memory index: %d processed, %d resolved", result["processed"], result["resolved"])
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] memory index job failed: %s", e)
+
+
 async def lse_ingest_job():
     """Daily LSE ingestion for the tracked universe (budget-aware, isolated).
     No-op when LSE isn't configured, so it's safe to schedule unconditionally."""
@@ -176,8 +189,10 @@ def start_scheduler():
     _scheduler.add_job(lse_ingest_job, CronTrigger(day_of_week="mon-fri", hour=17, minute=0, timezone=ET), id="lse_ingest_job", replace_existing=True)
     # News->asset event correlation every 30 min (gated by EVENT_CORRELATION_ENABLED; no-op when off)
     _scheduler.add_job(event_correlation_job, IntervalTrigger(minutes=30), id="event_correlation_job", replace_existing=True)
+    # Market-memory (re)indexing daily at 18:00 ET (after LSE ingest, so outcomes resolve)
+    _scheduler.add_job(memory_index_job, CronTrigger(hour=18, minute=0, timezone=ET), id="memory_index_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min + memory index 18:00 ET)")
     return _scheduler
 
 

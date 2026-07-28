@@ -312,6 +312,20 @@ async def events_recent(symbol: Optional[str] = None, limit: int = Query(30, ge=
     return {"count": len(events), "events": events}
 
 
+@router.post("/memory/index")
+async def memory_index(admin: dict = Depends(get_superadmin)):
+    """Backfill event_memory from market_events (vectors + resolved outcomes)."""
+    from memory_service import index_events
+    return await index_events(db)
+
+
+@router.get("/memory/status")
+async def memory_status_route(admin: dict = Depends(get_superadmin)):
+    """Market-memory size + how many outcomes are resolved."""
+    from memory_service import memory_status
+    return await memory_status(db)
+
+
 @router.post("/billing/sync")
 async def sync_billing(admin: dict = Depends(get_superadmin)):
     """Re-check every unprocessed transaction against Stripe directly.

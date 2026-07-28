@@ -136,3 +136,18 @@ async def options_intel(ticker: str, user: dict = Depends(require_feature("optio
     from intelligence.agents import summarize_options_flow
     ticker = ticker.strip().upper()
     return {"ticker": ticker, "options": await summarize_options_flow(ticker)}
+
+
+@router.get("/memory/{ticker}")
+async def memory_intel(ticker: str, user: dict = Depends(require_feature("event_memory"))):
+    """Similar past situations for this asset's most recent event, with the
+    historical outcome ('last N similar times, affected assets moved ~X% over H
+    days'). Deterministic, no LLM."""
+    from event_service import recent_events
+    from memory_service import similar_situations
+    ticker = ticker.strip().upper()
+    events = await recent_events(db, symbol=ticker, limit=1)
+    if not events:
+        return {"ticker": ticker, "available": False, "reason": "no_recent_event"}
+    result = await similar_situations(db, events[0])
+    return {"ticker": ticker, "available": True, "based_on": events[0].get("headline"), **result}

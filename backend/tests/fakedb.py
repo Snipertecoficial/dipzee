@@ -28,6 +28,9 @@ class FakeCollection:
                 elif "$nin" in v:
                     if doc.get(k) in v["$nin"]:
                         return False
+                elif "$ne" in v:
+                    if doc.get(k) == v["$ne"]:
+                        return False
                 elif "$gte" in v:
                     dv = doc.get(k)
                     if dv is None or dv < v["$gte"]:
