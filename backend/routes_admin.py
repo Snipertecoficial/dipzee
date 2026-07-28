@@ -296,6 +296,22 @@ async def kg_affected(kind: str, key: str, admin: dict = Depends(get_superadmin)
     return {"seed": node_id(kind, key), "count": len(companies), "companies": companies[:50]}
 
 
+@router.post("/events/correlate")
+async def events_correlate(limit: int = Query(15, ge=1, le=40), admin: dict = Depends(get_superadmin)):
+    """On-demand: correlate fresh market news into enriched market_events."""
+    from event_service import correlate_market_news
+    return await correlate_market_news(db, limit=limit)
+
+
+@router.get("/events/recent")
+async def events_recent(symbol: Optional[str] = None, limit: int = Query(30, ge=1, le=100),
+                        admin: dict = Depends(get_superadmin)):
+    """Recent enriched events, optionally filtered to those affecting `symbol`."""
+    from event_service import recent_events
+    events = await recent_events(db, symbol=symbol, limit=limit)
+    return {"count": len(events), "events": events}
+
+
 @router.post("/billing/sync")
 async def sync_billing(admin: dict = Depends(get_superadmin)):
     """Re-check every unprocessed transaction against Stripe directly.

@@ -54,3 +54,9 @@ async def ensure_indexes():
     await db.kg_nodes.create_index('kind')
     await db.kg_edges.create_index('src')
     await db.kg_edges.create_index([('src', 1), ('dst', 1)])
+
+    # Market events (L2): unique content id (dedup), lookup by affected asset,
+    # recency ordering.
+    await db.market_events.create_index('id', unique=True)
+    await db.market_events.create_index('affected.symbol')
+    await db.market_events.create_index([('enriched_at', -1)])

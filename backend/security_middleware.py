@@ -77,6 +77,8 @@ _LIMITS = (
     # On-demand LSE ingestion spends real export budget — cap it hard even for
     # the trusted superadmin so a stuck retry can't drain the allowance.
     ("/api/admin/lse/ingest", 4),
+    # News correlation spends LLM tokens (one call per new headline) — cap it.
+    ("/api/admin/events/correlate", 6),
 )
 _DEFAULT_LIMIT = 300
 

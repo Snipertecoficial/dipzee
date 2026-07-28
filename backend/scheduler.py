@@ -124,6 +124,23 @@ async def backup_job():
         logger.error("[scheduler] backup job failed: %s", e)
 
 
+async def event_correlation_job():
+    """Correlate fresh market news into enriched market_events. Gated by
+    EVENT_CORRELATION_ENABLED (default off) so we never spend LLM tokens
+    silently; dedup means steady-state only NEW headlines are processed."""
+    import os
+    if os.environ.get("EVENT_CORRELATION_ENABLED", "off").strip().lower() not in ("on", "1", "true", "yes"):
+        return
+    try:
+        from event_service import correlate_market_news
+        limit = int(os.environ.get("EVENT_CORRELATION_MAX_PER_RUN", "10"))
+        result = await correlate_market_news(db, limit=limit)
+        if result.get("new"):
+            logger.info("[scheduler] event correlation: %d new, %d skipped", result["new"], result["skipped"])
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] event correlation job failed: %s", e)
+
+
 async def lse_ingest_job():
     """Daily LSE ingestion for the tracked universe (budget-aware, isolated).
     No-op when LSE isn't configured, so it's safe to schedule unconditionally."""
@@ -157,8 +174,10 @@ def start_scheduler():
     _scheduler.add_job(backup_job, CronTrigger(hour=3, minute=30, timezone=ET), id="backup_job", replace_existing=True)
     # Daily LSE ingestion at 17:00 ET (after the 16:15 refresh, before backup). No-op if LSE unconfigured.
     _scheduler.add_job(lse_ingest_job, CronTrigger(day_of_week="mon-fri", hour=17, minute=0, timezone=ET), id="lse_ingest_job", replace_existing=True)
+    # News->asset event correlation every 30 min (gated by EVENT_CORRELATION_ENABLED; no-op when off)
+    _scheduler.add_job(event_correlation_job, IntervalTrigger(minutes=30), id="event_correlation_job", replace_existing=True)
     _scheduler.start()
-    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET)")
+    logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min)")
     return _scheduler
 
 
