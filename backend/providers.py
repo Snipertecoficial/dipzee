@@ -18,41 +18,62 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def normalize_dividend_yield(info: dict) -> float:
-    """Normalize dividendYield to a DECIMAL fraction (e.g. 0.0098 = 0.98%).
+# A real equity dividend yield above this is implausible — anything higher is a
+# scaling error (percent read as decimal) and gets rescaled/rejected.
+_MAX_SANE_YIELD = 0.30
 
-    yfinance versions are inconsistent: some return 0.0098, some 0.98 (percent).
-    Strategy: cross-check against dividendRate/price (true decimal) when available
-    and pick the closest candidate; otherwise fall back to a safe heuristic.
+
+def normalize_dividend_yield(info: dict) -> float:
+    """Return the dividend yield as a DECIMAL fraction (e.g. 0.0252 = 2.52%).
+
+    yfinance is doubly inconsistent: ``dividendYield`` is sometimes a decimal
+    (0.0252) and sometimes a percent (2.52), and it's a lagging figure that can
+    drift from the current price (or be plain wrong at the source). The most
+    consistent, market-standard number is the FORWARD yield — indicated annual
+    dividend (``dividendRate``) over the current price — which is also internally
+    consistent with the price we display. So we:
+
+    1. Prefer the forward yield (rate / price) when it's present and sane.
+    2. Otherwise use the reported ``dividendYield``, correctly de-scaled
+       (decimal-vs-percent disambiguated against the forward yield when we have
+       it, else by magnitude).
+    3. Always clamp to a sane range so a mis-scaled 100x value can never leak —
+       an obviously-too-large value is rescaled by 100 as a last resort.
     """
     dy = info.get("dividendYield")
     price = info.get("currentPrice") or info.get("regularMarketPrice")
     rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
 
+    # 1. Forward yield from the indicated annual rate — preferred definition.
     implied = None
-    if rate and price and price > 0:
-        implied = rate / price
-
-    if dy is None:
-        return implied if implied is not None else 0.0
-
     try:
-        dy = float(dy)
+        if rate and price and float(price) > 0:
+            implied = float(rate) / float(price)
     except (TypeError, ValueError):
-        return implied if implied is not None else 0.0
+        implied = None
 
-    candidate_decimal = dy
-    candidate_pct = dy / 100.0
+    # 2. Correctly-scaled version of the reported yield.
+    reported = None
+    if dy is not None:
+        try:
+            dy = float(dy)
+            if implied is not None and implied > 0:
+                # Pick the scaling (as-is vs /100) closest to the forward yield.
+                reported = dy if abs(dy - implied) <= abs(dy / 100.0 - implied) else dy / 100.0
+            else:
+                # No ground truth: a value > 1.0 (=100%) can't be a decimal yield.
+                reported = dy / 100.0 if dy > 1.0 else dy
+        except (TypeError, ValueError):
+            reported = None
 
-    if implied is not None and implied > 0:
-        if abs(candidate_decimal - implied) <= abs(candidate_pct - implied):
-            return candidate_decimal
-        return candidate_pct
-
-    # No ground truth: a real yield > 1.0 (=100%) is impossible -> it's a percent.
-    if dy > 1.0:
-        return candidate_pct
-    return candidate_decimal
+    # 3. Prefer the forward yield when sane, then the reported yield; clamp both.
+    for candidate in (implied, reported):
+        if candidate is not None and 0 <= candidate <= _MAX_SANE_YIELD:
+            return round(candidate, 6)
+    # Last resort: an out-of-range reported value is almost certainly mis-scaled.
+    if reported is not None and reported > _MAX_SANE_YIELD:
+        return round(min(reported / 100.0, _MAX_SANE_YIELD), 6)
+    return 0.0
 
 
 def _derive_exchange(symbol: str, info: dict) -> str:
