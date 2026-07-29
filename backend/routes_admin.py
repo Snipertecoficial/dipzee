@@ -248,6 +248,31 @@ async def backup_status(admin: dict = Depends(get_superadmin)):
     }
 
 
+@router.get("/backup/download")
+async def download_backup(admin: dict = Depends(get_superadmin)):
+    """Download the most recent backup snapshot as a .json.gz file.
+
+    If no local snapshot exists yet, triggers a fresh one first.  Used by the
+    local ``pull_production_db.py`` script to replicate the production database
+    into a developer's localhost environment without SSH access."""
+    from backup_service import list_local_backups, create_backup, BACKUP_DIR
+    from fastapi.responses import FileResponse
+
+    backups = list_local_backups()
+    if not backups:
+        await create_backup()
+        backups = list_local_backups()
+    if not backups:
+        raise HTTPException(status_code=404, detail="No backup available")
+    latest = backups[0]
+    fpath = os.path.join(BACKUP_DIR, latest["file"])
+    return FileResponse(
+        fpath,
+        media_type="application/gzip",
+        filename=latest["file"],
+    )
+
+
 @router.get("/lse/status")
 async def lse_status(admin: dict = Depends(get_superadmin)):
     """LSE health for the admin panel: configured?, vault export budget usage,
