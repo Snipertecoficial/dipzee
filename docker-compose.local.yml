@@ -1,0 +1,38 @@
+# Local-only override for testing on localhost (NOT used in production).
+#
+# Runs the full stack against a LOCAL Mongo (not the VPS/production DB — that
+# one isn't reachable from a dev box, and pointing at it would be unsafe). To
+# test with real data, restore a production backup into the local Mongo (see the
+# README of this run / the handoff notes).
+#
+# Differences vs the base compose:
+#  - Publishes ports directly (backend :8000, frontend :8080) and does NOT start
+#    Caddy, so the external Traefik network the VPS uses isn't required.
+#  - Builds the frontend to call the API at http://localhost:8000.
+#  - `environment:` overrides win over `env_file: .env`, so LIVE Stripe and the
+#    superadmin seed are neutralized for the local run — your .env is untouched.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build mongo backend frontend
+#   # open http://localhost:8080
+services:
+  backend:
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: development
+      CORS_ORIGINS: "http://localhost:8080"
+      # Never let a dev box touch the real Stripe account (the billing reconcile
+      # job runs on startup schedule). Blank => billing calls no-op locally.
+      STRIPE_API_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      # Don't (re)seed/overwrite a superadmin from the live .env on local boot.
+      SUPERADMIN_EMAIL: ""
+      SUPERADMIN_PASSWORD: ""
+
+  frontend:
+    build:
+      args:
+        REACT_APP_BACKEND_URL: "http://localhost:8000"
+    ports:
+      - "8080:80"

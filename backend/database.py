@@ -77,3 +77,13 @@ async def ensure_indexes():
     await db.inference_log.create_index('anon')
     await db.decision_log.create_index([('ts', -1)])
     await db.decision_log.create_index('anon')
+
+    # Security master (browsable multi-exchange catalog): unique per (symbol,
+    # source); filters on exchange/asset_class/default_visible; name_lower for
+    # case-insensitive prefix/contains search.
+    await db.security_master.create_index([('symbol', 1), ('source', 1)], unique=True)
+    await db.security_master.create_index('exchange')
+    await db.security_master.create_index('asset_class')
+    await db.security_master.create_index('default_visible')
+    await db.security_master.create_index('source')
+    await db.security_master.create_index('name_lower')

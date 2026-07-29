@@ -275,6 +275,30 @@ async def lse_ingest_now(admin: dict = Depends(get_superadmin)):
     return await run_ingestion()
 
 
+@router.get("/catalog/status")
+async def catalog_status_route(admin: dict = Depends(get_superadmin)):
+    """Security-master totals by source + last update, for the admin panel."""
+    import security_master
+    return await security_master.catalog_status()
+
+
+@router.post("/catalog/import-us")
+async def catalog_import_us(admin: dict = Depends(get_superadmin)):
+    """(Re)import the US listed universe from the Nasdaq Trader directory."""
+    import security_master
+    return await security_master.import_us_listings(fetch=True)
+
+
+@router.post("/catalog/import-lse")
+async def catalog_import_lse(admin: dict = Depends(get_superadmin)):
+    """Ingest the licensed LSE instrument catalog. No-op if LSE isn't configured."""
+    import lse_service
+    if not lse_service.is_configured():
+        raise HTTPException(status_code=503, detail="LSE is not configured")
+    import security_master
+    return await security_master.import_lse_catalog()
+
+
 @router.get("/kg/status")
 async def kg_status(admin: dict = Depends(get_superadmin)):
     """Knowledge-graph size + node breakdown by kind."""

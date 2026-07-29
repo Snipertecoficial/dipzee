@@ -86,6 +86,7 @@ async def get_quotes(symbols: str = Query(..., description="Comma-separated tick
             "price": d.get("price"),
             "change_pct": d.get("change_pct"),
             "currency": d.get("currency"),
+            "dividend_yield": d.get("dividend_yield"),
         }
 
     results = await asyncio.gather(*[_one(s) for s in syms])

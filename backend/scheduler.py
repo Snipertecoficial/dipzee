@@ -80,6 +80,12 @@ async def daily_refresh_job():
         pass
     await _refresh_set(tickers, "daily", force_target=True)
     await evaluate_news_alerts()
+    # Propagate freshly-refreshed dividend yields into the browsable catalog.
+    try:
+        import security_master
+        await security_master.enrich_dividends_from_assets()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[scheduler] dividend enrich failed: %s", e)
 
 
 async def intraday_refresh_job():
@@ -182,6 +188,21 @@ async def lse_ingest_job():
         logger.error("[scheduler] lse ingest job failed: %s", e)
 
 
+async def catalog_refresh_job():
+    """Monthly refresh of the security-master directory (US listings change
+    slowly). Isolated + best-effort; also refreshes LSE when configured."""
+    try:
+        import security_master
+        us = await security_master.import_us_listings(fetch=True)
+        logger.info("[scheduler] catalog US refresh: %s", us)
+        import lse_service
+        if lse_service.is_configured():
+            lse = await security_master.import_lse_catalog()
+            logger.info("[scheduler] catalog LSE refresh: %s", lse)
+    except Exception as e:  # noqa: BLE001
+        logger.error("[scheduler] catalog refresh job failed: %s", e)
+
+
 def start_scheduler():
     global _scheduler
     if _scheduler is not None:
@@ -205,6 +226,8 @@ def start_scheduler():
     _scheduler.add_job(memory_index_job, CronTrigger(hour=18, minute=0, timezone=ET), id="memory_index_job", replace_existing=True)
     # Dataset retention prune daily at 04:00 ET (quiet hours, after backup)
     _scheduler.add_job(dataset_prune_job, CronTrigger(hour=4, minute=0, timezone=ET), id="dataset_prune_job", replace_existing=True)
+    # Security-master catalog refresh: monthly (1st, 05:00 ET) — listings change slowly.
+    _scheduler.add_job(catalog_refresh_job, CronTrigger(day=1, hour=5, minute=0, timezone=ET), id="catalog_refresh_job", replace_existing=True)
     _scheduler.start()
     logger.info("[scheduler] started (daily 16:15 ET + intraday 15min + news 20min + billing sync 10min + backup 03:30 ET + lse ingest 17:00 ET + event correlation 30min + memory index 18:00 ET + dataset prune 04:00 ET)")
     return _scheduler

@@ -1,0 +1,3 @@
+# Runtime cache for the Nasdaq Trader symbol directory (nasdaqlisted.txt,
+# otherlisted.txt), fetched by security_master.import_us_listings(). The .txt/.csv
+# files here are gitignored — this .gitkeep just keeps the directory in the repo.

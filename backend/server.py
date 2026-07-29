@@ -22,6 +22,7 @@ import routes_portfolio
 import routes_backtest
 import routes_ai
 import routes_intel
+import routes_catalog
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ api_router.include_router(routes_portfolio.router)
 api_router.include_router(routes_backtest.router)
 api_router.include_router(routes_ai.router)
 api_router.include_router(routes_intel.router)
+api_router.include_router(routes_catalog.router)
 
 app.include_router(api_router)
 
@@ -157,6 +159,24 @@ async def on_startup():
         await load_graph(_kgdb)
     except Exception as e:  # noqa: BLE001
         logger.warning("knowledge graph seed failed: %s", e)
+    try:
+        # Seed the security-master catalog (US listed universe) if empty, so a
+        # fresh deploy can browse Markets → Explore without a manual admin
+        # import. Best-effort: fetches the public Nasdaq Trader directory; a
+        # network failure just leaves it empty until the admin/scheduler import.
+        from database import db as _catdb
+        if await _catdb.security_master.count_documents({}) == 0:
+            import security_master
+            await security_master.import_us_listings(fetch=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("security-master seed failed: %s", e)
+    try:
+        # Mark verified dividend yields on catalog rows from the scored assets
+        # (real data only; grows as more names get refreshed). Best-effort.
+        import security_master
+        await security_master.enrich_dividends_from_assets()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("dividend enrich failed: %s", e)
     try:
         start_scheduler()
     except Exception as e:  # noqa: BLE001

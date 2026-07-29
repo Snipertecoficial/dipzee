@@ -77,6 +77,11 @@ _LIMITS = (
     # On-demand LSE ingestion spends real export budget — cap it hard even for
     # the trusted superadmin so a stuck retry can't drain the allowance.
     ("/api/admin/lse/ingest", 4),
+    # LSE catalog import also spends export budget — same hard cap.
+    ("/api/admin/catalog/import-lse", 4),
+    # US catalog import fetches the Nasdaq Trader directory + bulk-upserts ~6k
+    # rows; trusted but capped so a stuck retry can't hammer Mongo/the source.
+    ("/api/admin/catalog/import-us", 6),
     # News correlation spends LLM tokens (one call per new headline) — cap it.
     ("/api/admin/events/correlate", 6),
     # Intelligence briefs make an LLM call on a cache miss / forced refresh.

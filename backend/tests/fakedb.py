@@ -6,6 +6,7 @@ Mongo, no network, and — critically for the billing tests — no Stripe. Filte
 support plain equality plus the few operators our code passes ($in/$nin/$gte).
 """
 import copy
+import re
 
 
 class _Result:
@@ -21,8 +22,14 @@ class FakeCollection:
     @staticmethod
     def _match(doc, flt):
         for k, v in flt.items():
-            if isinstance(v, dict):
-                if "$in" in v:
+            if k == "$or":
+                if not any(FakeCollection._match(doc, sub) for sub in v):
+                    return False
+            elif isinstance(v, dict):
+                if "$regex" in v:
+                    if not re.search(v["$regex"], str(doc.get(k) or "")):
+                        return False
+                elif "$in" in v:
                     if doc.get(k) not in v["$in"]:
                         return False
                 elif "$nin" in v:
@@ -85,15 +92,64 @@ class FakeCollection:
             return _Result(matched_count=0, modified_count=0, upserted_id=1)
         return _Result(matched_count=0, modified_count=0, upserted_id=None)
 
+    async def distinct(self, field, flt=None):
+        flt = flt or {}
+        seen = []
+        for d in self.docs:
+            if self._match(d, flt):
+                val = d.get(field)
+                if val not in seen:
+                    seen.append(val)
+        return seen
+
+    async def bulk_write(self, ops, ordered=True):
+        """Support UpdateOne(filter, {'$set': ...}, upsert=True) — the shape
+        security_master._upsert uses."""
+        upserted = modified = 0
+        for op in ops:
+            flt = getattr(op, "_filter", None)
+            doc = getattr(op, "_doc", None)
+            upsert = getattr(op, "_upsert", False)
+            if flt is None:  # pymongo UpdateOne stores as _doc/_filter in newer versions
+                continue
+            setv = (doc or {}).get("$set", {})
+            matched = False
+            for d in self.docs:
+                if self._match(d, flt):
+                    d.update(copy.deepcopy(setv))
+                    modified += 1
+                    matched = True
+                    break
+            if not matched and upsert:
+                newdoc = {k: v for k, v in flt.items() if not isinstance(v, dict)}
+                newdoc.update(copy.deepcopy(setv))
+                self.docs.append(newdoc)
+                upserted += 1
+        return _Result(upserted_count=upserted, modified_count=modified)
+
     def find(self, flt, projection=None):
         items = [copy.deepcopy(d) for d in self.docs if self._match(d, flt)]
+        if projection:
+            excluded = [k for k, val in projection.items() if val == 0]
+            if excluded:
+                for d in items:
+                    for k in excluded:
+                        d.pop(k, None)
 
         class _Cursor:
             def __init__(self, rows):
                 self._rows = rows
 
             def sort(self, key, direction=1):
-                self._rows.sort(key=lambda d: d.get(key), reverse=direction < 0)
+                self._rows.sort(key=lambda d: (d.get(key) is None, d.get(key)), reverse=direction < 0)
+                return self
+
+            def skip(self, n):
+                self._rows = self._rows[n:] if n else self._rows
+                return self
+
+            def limit(self, n):
+                self._rows = self._rows[:n] if n else self._rows
                 return self
 
             async def to_list(self, n):
