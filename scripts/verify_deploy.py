@@ -25,6 +25,16 @@ import urllib.request
 
 DEFAULT_URL = "https://dipzee.com"
 
+# The success/failure lines use emoji; on a legacy Windows console (cp1252) a raw
+# print would raise UnicodeEncodeError — which, mid-poll, gets swallowed as "not
+# reachable yet" and the script keeps looping past an already-successful deploy.
+# Force UTF-8 on the streams so the result is always printed (and reported) correctly.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):  # pragma: no cover - older/odd streams
+        pass
+
 
 def local_head() -> str:
     try:
