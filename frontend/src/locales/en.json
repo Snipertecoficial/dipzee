@@ -471,6 +471,8 @@
     "filters": "Filters",
     "sector": "Sector",
     "allSectors": "All sectors",
+    "exchange": "Exchange",
+    "allExchanges": "All exchanges",
     "minDividend": "Min dividend %",
     "maxRange": "Max range position %",
     "minUpside": "Min upside %",
@@ -498,6 +500,7 @@
     "metrics": {
       "users": "Users",
       "assets": "Assets tracked",
+      "catalog": "Catalog (US + London)",
       "alerts": "Alerts",
       "activeAlerts": "Active alerts",
       "events": "Notifications sent",

@@ -109,6 +109,8 @@ async def query_screener(filters: dict) -> list:
     query = {"score": {"$ne": None}}
     if filters.get("sector"):
         query["sector"] = filters["sector"]
+    if filters.get("exchange"):
+        query["exchange"] = filters["exchange"]
     if filters.get("classification"):
         query["classification"] = filters["classification"]
     if filters.get("min_dividend") is not None:
@@ -138,3 +140,9 @@ async def query_screener(filters: dict) -> list:
 async def list_sectors() -> list:
     sectors = await db.assets.distinct("sector", {"sector": {"$ne": None}})
     return sorted([s for s in sectors if s])
+
+
+async def list_exchanges() -> list:
+    """Distinct exchanges present in the scored universe, for the screener filter."""
+    exchanges = await db.assets.distinct("exchange", {"exchange": {"$ne": None}, "score": {"$ne": None}})
+    return sorted([e for e in exchanges if e])

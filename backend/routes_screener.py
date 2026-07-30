@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from explain import build_explanation
-from screener_service import query_screener, refresh_universe, list_sectors, RefreshCooldownError
+from screener_service import query_screener, refresh_universe, list_sectors, list_exchanges, RefreshCooldownError
 from security import require_feature
 
 router = APIRouter(prefix="/screener", tags=["screener"])
@@ -13,6 +13,7 @@ router = APIRouter(prefix="/screener", tags=["screener"])
 @router.get("")
 async def get_screener(
     sector: Optional[str] = None,
+    exchange: Optional[str] = None,
     classification: Optional[str] = None,
     min_dividend: Optional[float] = None,
     max_range_position: Optional[float] = None,
@@ -21,6 +22,7 @@ async def get_screener(
 ):
     filters = {
         "sector": sector,
+        "exchange": exchange,
         "classification": classification,
         "min_dividend": min_dividend,
         "max_range_position": max_range_position,
@@ -39,6 +41,11 @@ async def get_screener(
 @router.get("/sectors")
 async def sectors(user: dict = Depends(require_feature("screener"))):
     return {"sectors": await list_sectors()}
+
+
+@router.get("/exchanges")
+async def exchanges(user: dict = Depends(require_feature("screener"))):
+    return {"exchanges": await list_exchanges()}
 
 
 @router.post("/refresh")

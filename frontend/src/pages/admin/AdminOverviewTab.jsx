@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Users, LineChart, BellRing, CreditCard, Database, Bell, RefreshCw, Loader2, CheckCircle2, XCircle, BarChart3, PieChart as PieIcon,
+  Users, LineChart, BellRing, CreditCard, Database, Bell, RefreshCw, Loader2, CheckCircle2, XCircle, BarChart3, PieChart as PieIcon, Layers,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export function AdminOverviewTab({ stats, config, chartData, busy, onRefreshUniv
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Metric label={t('admin.metrics.users')} value={stats.users_total} icon={Users} />
           <Metric label={t('admin.metrics.assets')} value={stats.assets_total} icon={Database} />
+          <Metric label={t('admin.metrics.catalog')} value={(stats.catalog_total || 0).toLocaleString()} icon={Layers} accent="var(--dz-primary)" />
           <Metric label={t('admin.metrics.activeAlerts')} value={stats.active_alerts} icon={BellRing} accent="var(--dz-hold)" />
           <Metric label={t('admin.metrics.events')} value={stats.events_total} icon={Bell} />
           <Metric label={t('admin.metrics.watchlist')} value={stats.watchlist_total} icon={LineChart} />

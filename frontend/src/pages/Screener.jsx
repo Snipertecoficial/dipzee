@@ -19,16 +19,18 @@ function ScreenerInner() {
   const locale = i18n.language?.slice(0, 2) || 'en';
   const [results, setResults] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [exchanges, setExchanges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [f, setF] = useState({ sector: 'all', classification: 'any', min_dividend: '', max_range_position: '', min_upside: '' });
+  const [f, setF] = useState({ sector: 'all', exchange: 'all', classification: 'any', min_dividend: '', max_range_position: '', min_upside: '' });
 
   const load = useCallback(async () => {
     setLoading(true); setError(false);
     try {
       const params = {};
       if (f.sector !== 'all') params.sector = f.sector;
+      if (f.exchange !== 'all') params.exchange = f.exchange;
       if (f.classification !== 'any') params.classification = f.classification;
       if (f.min_dividend !== '') params.min_dividend = Number(f.min_dividend) / 100;
       if (f.max_range_position !== '') params.max_range_position = Number(f.max_range_position) / 100;
@@ -42,16 +44,20 @@ function ScreenerInner() {
     try { const { data } = await api.get('/screener/sectors'); setSectors(data.sectors || []); } catch (e) { /* noop */ }
   }, []);
 
-  useEffect(() => { load(); loadSectors(); }, [load, loadSectors]);
+  const loadExchanges = useCallback(async () => {
+    try { const { data } = await api.get('/screener/exchanges'); setExchanges(data.exchanges || []); } catch (e) { /* noop */ }
+  }, []);
+
+  useEffect(() => { load(); loadSectors(); loadExchanges(); }, [load, loadSectors, loadExchanges]);
 
   const refreshUniverse = async () => {
     setRefreshing(true);
-    try { await api.post('/screener/refresh'); await load(); await loadSectors(); }
+    try { await api.post('/screener/refresh'); await load(); await loadSectors(); await loadExchanges(); }
     catch (e) { toast.error(t('auth.genericError')); }
     finally { setRefreshing(false); }
   };
 
-  const reset = () => setF({ sector: 'all', classification: 'any', min_dividend: '', max_range_position: '', min_upside: '' });
+  const reset = () => setF({ sector: 'all', exchange: 'all', classification: 'any', min_dividend: '', max_range_position: '', min_upside: '' });
 
   return (
     <div>
@@ -67,7 +73,7 @@ function ScreenerInner() {
 
       <Card className="mt-6 p-4 sm:p-5">
         <div className="flex items-center gap-2 mb-3 text-sm font-medium text-[var(--dz-fg)]"><SlidersHorizontal size={16} />{t('screener.filters')}</div>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">{t('screener.sector')}</Label>
             <Select value={f.sector} onValueChange={(v) => setF({ ...f, sector: v })}>
@@ -75,6 +81,16 @@ function ScreenerInner() {
               <SelectContent>
                 <SelectItem value="all">{t('screener.allSectors')}</SelectItem>
                 {sectors.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{t('screener.exchange')}</Label>
+            <Select value={f.exchange} onValueChange={(v) => setF({ ...f, exchange: v })}>
+              <SelectTrigger data-testid="screener-exchange-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('screener.allExchanges')}</SelectItem>
+                {exchanges.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

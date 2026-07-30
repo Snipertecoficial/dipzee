@@ -43,6 +43,11 @@ async def stats(admin: dict = Depends(get_superadmin)):
     for p in VALID_PLANS:
         plan_counts[p] = await db.users.count_documents({"plan": p})
     assets_total = await db.assets.count_documents({})
+    # Full browsable catalog (security_master) — the whole multi-exchange
+    # universe (US + London), distinct from the ~250 scored/monitored assets.
+    catalog_total = await db.security_master.count_documents({})
+    catalog_us = await db.security_master.count_documents({"source": "us"})
+    catalog_lse = await db.security_master.count_documents({"source": "lse"})
     alerts_total = await db.alerts.count_documents({})
     active_alerts = await db.alerts.count_documents({"active": True})
     events_total = await db.alert_events.count_documents({})
@@ -64,6 +69,8 @@ async def stats(admin: dict = Depends(get_superadmin)):
         "users_total": users_total,
         "plan_counts": plan_counts,
         "assets_total": assets_total,
+        "catalog_total": catalog_total,
+        "catalog_by_source": {"us": catalog_us, "lse": catalog_lse},
         "alerts_total": alerts_total,
         "active_alerts": active_alerts,
         "events_total": events_total,
