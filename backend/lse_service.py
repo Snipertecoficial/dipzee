@@ -123,6 +123,27 @@ def local_calls_last_hour() -> int:
     return len(_local_calls)
 
 
+def record_call() -> None:
+    """Record one synchronous LSE call against the rolling hourly budget.
+
+    Mirrors what the async ``_call`` appends, so the synchronous provider path
+    (``providers.LSEProvider``) shares the very same allowance counter."""
+    _local_calls.append(time.time())
+
+
+def under_local_budget() -> bool:
+    """True when the process still has hourly headroom for a synchronous call.
+
+    The provider cascade needs a *non-raising, non-async* budget check so it can
+    silently fall through to the next source instead of blocking. We keep a small
+    reserve (``LSE_BUDGET_RESERVE``) of the local cap for critical/ad-hoc calls;
+    the vault probe is intentionally skipped here (the local hourly cap is the
+    always-on backstop, and a per-call network probe would defeat the purpose)."""
+    _prune_local(time.time())
+    ceiling = int(LSE_MAX_CALLS_PER_HOUR * (1.0 - LSE_BUDGET_RESERVE))
+    return len(_local_calls) < max(1, ceiling)
+
+
 def parse_remaining_fraction(usage) -> Optional[float]:
     """Best-effort remaining-budget fraction in [0, 1] from a vault-usage payload.
 

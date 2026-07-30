@@ -159,6 +159,124 @@ class YFinanceProvider(DataProvider):
         return results
 
 
+class LSEProvider(DataProvider):
+    """London Strategic Edge as the PRIMARY data source (licensed, real quota).
+
+    Uses two synchronous SDK calls per symbol:
+
+    * ``candles(symbol, "1d", start=~400d)`` — the live daily series → last close
+      (price), previous close, intraday change, and the 52-week low/high. This is
+      the fresh, real-time-ish number that beats the fundamentals snapshot.
+    * ``fundamentals(symbol)`` — a slow-moving snapshot (name, currency, exchange,
+      sector, logo, dividend yield). Cached per symbol (~7 days) so a bulk daily
+      refresh spends its LSE budget on the candles call, not on re-pulling static
+      company facts.
+
+    Budget-guarded and defensive: returns ``None`` (never raises) whenever LSE is
+    unconfigured, over its hourly budget, doesn't cover the symbol (empty candles),
+    or errors — so ``fetch_resilient`` transparently falls through to FMP/yfinance.
+    ``target_mean`` is left ``None`` (LSE gives no analyst consensus) so the asset
+    service backfills it from FMP/yfinance exactly as before.
+    """
+
+    name = "lse"
+
+    # symbol -> (monotonic_ts, fundamentals_dict) — static company facts, cached.
+    _fund_cache: dict = {}
+    _FUND_TTL = 7 * 24 * 3600
+
+    def _fundamentals(self, symbol: str):
+        import time as _t
+        import lse_service
+
+        hit = self._fund_cache.get(symbol)
+        if hit and (_t.time() - hit[0]) < self._FUND_TTL:
+            return hit[1]
+        try:
+            client = lse_service._get_client()
+            lse_service.record_call()
+            rows = client.fundamentals(symbol)
+        except Exception as e:  # noqa: BLE001 - fundamentals are optional enrichment
+            logger.debug("lse fundamentals failed for %s: %s", symbol, e)
+            return hit[1] if hit else None
+        row = rows[0] if isinstance(rows, list) and rows else (rows if isinstance(rows, dict) else None)
+        if isinstance(row, dict):
+            self._fund_cache[symbol] = (_t.time(), row)
+        return row
+
+    def fetch(self, symbol: str) -> Optional[dict]:
+        import lse_service
+
+        symbol = symbol.strip().upper()
+        if not lse_service.is_configured() or not lse_service.under_local_budget():
+            return None
+
+        # Live daily series covering ~13 months (enough for a 52-week window).
+        start = (date.today() - timedelta(days=400)).isoformat()
+        try:
+            client = lse_service._get_client()
+            lse_service.record_call()
+            candles = client.candles(symbol, "1d", start=start)
+        except Exception as e:  # noqa: BLE001 - never crash the cascade
+            logger.debug("lse candles failed for %s: %s", symbol, e)
+            return None
+        if not isinstance(candles, list) or not candles:
+            return None  # LSE doesn't cover this symbol -> automatic fallback
+
+        # Series is oldest-first; keep the last ~year for the 52w range.
+        window = candles[-252:] if len(candles) > 252 else candles
+        closes = [c.get("close") for c in window if isinstance(c, dict) and c.get("close") is not None]
+        if not closes:
+            return None
+        price = closes[-1]
+        prev_close = closes[-2] if len(closes) >= 2 else None
+        highs = [c.get("high") for c in window if isinstance(c, dict) and c.get("high") is not None]
+        lows = [c.get("low") for c in window if isinstance(c, dict) and c.get("low") is not None]
+        high_52w = max(highs) if highs else max(closes)
+        low_52w = min(lows) if lows else min(closes)
+        change_pct = None
+        if prev_close:
+            try:
+                change_pct = round((float(price) - float(prev_close)) / float(prev_close) * 100.0, 4)
+            except (TypeError, ValueError, ZeroDivisionError):
+                change_pct = None
+
+        fund = self._fundamentals(symbol) or {}
+        # LSE reports dividend_yield already as a decimal fraction; run it through
+        # the shared clamp (via yfinance-shaped keys) so a mis-scaled value can't leak.
+        dy = normalize_dividend_yield({"dividendYield": fund.get("dividend_yield"), "currentPrice": price})
+
+        return {
+            "ticker": symbol,
+            "exchange": fund.get("exchange") or _derive_exchange(symbol, {}),
+            "name": fund.get("name") or symbol,
+            "currency": fund.get("currency") or "USD",
+            "price": price,
+            "low_52w": low_52w,
+            "high_52w": high_52w,
+            "target_mean": None,  # LSE has no analyst consensus -> FMP/yfinance backfill
+            "dividend_yield": dy,
+            "sector": fund.get("sector"),
+            "change_pct": change_pct,
+            "prev_close": prev_close,
+            "logo": fund.get("logo_url"),
+            "source": "lse",
+        }
+
+    def search(self, query: str) -> list:
+        # Symbol search already has its own resilient cascade; LSE opts out here.
+        return []
+
+
+def _lse_available() -> bool:
+    """True when the LSE key + SDK are present (safe: never raises/imports hard)."""
+    try:
+        import lse_service
+        return bool(lse_service.is_configured())
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # Singleton accessor so the source can be swapped in one place later.
 _provider: Optional[DataProvider] = None
 
@@ -1089,6 +1207,18 @@ def _quote_chain() -> list:
 
     # Honour an explicit primary if its key is present.
     primary = os.environ.get("PRIMARY_PROVIDER", "").strip().lower()
+
+    # London Strategic Edge is the licensed primary source when configured. It
+    # sits at the very top of the cascade (unless an explicit PRIMARY_PROVIDER
+    # names a different source), and its own budget guard makes it fall through
+    # to the keyed/free providers automatically when it can't serve a symbol.
+    try:
+        import lse_service
+        if lse_service.is_configured() and primary in ("", "lse"):
+            add(LSEProvider())
+    except Exception:  # noqa: BLE001 - LSE optional; never break the cascade
+        pass
+
     keyed = {
         "finnhub": ("FINNHUB_API_KEY", FinnhubProvider),
         "fmp": ("FMP_API_KEY", FMPProvider),
@@ -1199,8 +1329,12 @@ def get_provider() -> DataProvider:
             _provider = MarketstackProvider()
         elif primary == "investing":
             _provider = InvestingProvider()
-            
-        # 2. Fallback cascade prioritizing licensed data providers
+
+        # 2. London Strategic Edge is the licensed primary when configured.
+        elif primary in ("", "lse") and _lse_available():
+            _provider = LSEProvider()
+
+        # 3. Fallback cascade prioritizing the other licensed providers.
         elif os.environ.get("FMP_API_KEY"):
             _provider = FMPProvider()
         elif os.environ.get("POLYGON_API_KEY"):
