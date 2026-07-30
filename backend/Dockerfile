@@ -18,6 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Stamp the image with the git commit so /api/health reports exactly which
+# revision is live. CI passes --build-arg GIT_SHA=${{ github.sha }}; defaults
+# to "dev" for local builds. Placed after COPY so it never busts the pip layer.
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
+
 EXPOSE 8000
 
 # Single worker: the rate limiter and login-lockout guard keep state in

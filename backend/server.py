@@ -75,7 +75,11 @@ async def health():
         logger.error("[health] DB ping failed: %s", e)
 
     ok = checks["db"] and checks["scheduler"]
-    body = {"status": "ok" if ok else "degraded", "checks": checks}
+    # `commit` is the git SHA baked into the image at build time (GIT_SHA
+    # build-arg, set by CI to github.sha). It answers "exactly which revision
+    # is live right now?" — so a deploy can be verified in one call instead of
+    # guessing. "dev" locally / when unstamped.
+    body = {"status": "ok" if ok else "degraded", "checks": checks, "commit": os.environ.get("GIT_SHA", "dev")}
     return JSONResponse(body, status_code=200 if ok else 503)
 
 

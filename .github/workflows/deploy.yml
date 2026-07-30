@@ -32,7 +32,7 @@ jobs:
       # (dummy env vars — the tests mock Mongo/Stripe and never connect out), so
       # a red test blocks the deploy. Only push after tests pass. ---
       - name: Build backend image
-        run: docker build -t "$BACKEND_IMAGE:${{ github.sha }}" -t "$BACKEND_IMAGE:latest" ./backend
+        run: docker build --build-arg GIT_SHA="${{ github.sha }}" -t "$BACKEND_IMAGE:${{ github.sha }}" -t "$BACKEND_IMAGE:latest" ./backend
 
       - name: Run backend tests
         run: |
