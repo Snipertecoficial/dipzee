@@ -76,7 +76,7 @@ async def deliver(user: dict, *, ticker: str, event_type: str, message: str,
     prefs = user.get("default_alert_prefs", {}) or {}
     plan = user.get("plan")
 
-    if prefs.get("email", True) and user.get("email"):
+    if has_feature(plan, "email_alerts") and prefs.get("email", True) and user.get("email"):
         try:
             await asyncio.to_thread(send_email, user["email"], subject, html)
         except Exception as e:  # noqa: BLE001

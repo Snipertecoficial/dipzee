@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/sonner';
 import '@/App.css';
 import { AuthProvider } from './context/AuthContext';
@@ -8,24 +7,24 @@ import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/TopBar';
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import Dashboard from './pages/Dashboard';
-import AssetDetail from './pages/AssetDetail';
-import Alerts from './pages/Alerts';
-import Notifications from './pages/Notifications';
-import Settings from './pages/Settings';
-import Upgrade from './pages/Upgrade';
-import Screener from './pages/Screener';
-import Admin from './pages/Admin';
-import News from './pages/News';
-import Markets from './pages/Markets';
-import Portfolio from './pages/Portfolio';
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AssetDetail = lazy(() => import('./pages/AssetDetail'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Upgrade = lazy(() => import('./pages/Upgrade'));
+const Screener = lazy(() => import('./pages/Screener'));
+const Admin = lazy(() => import('./pages/Admin'));
+const News = lazy(() => import('./pages/News'));
+const Markets = lazy(() => import('./pages/Markets'));
+const Portfolio = lazy(() => import('./pages/Portfolio'));
 
 const Protected = ({ children }) => (
   <ProtectedRoute><AppShell>{children}</AppShell></ProtectedRoute>
@@ -35,10 +34,10 @@ function App() {
   return (
     <div className="App">
       <ErrorBoundary>
-      <HelmetProvider>
       <ThemeProvider>
         <BrowserRouter>
           <AuthProvider>
+            <Suspense fallback={<div role="status" aria-live="polite" className="min-h-screen grid place-items-center">Loading…</div>}>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
@@ -61,11 +60,11 @@ function App() {
               <Route path="/app/upgrade" element={<Protected><Upgrade /></Protected>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </Suspense>
             <Toaster position="top-right" richColors />
           </AuthProvider>
         </BrowserRouter>
       </ThemeProvider>
-      </HelmetProvider>
       </ErrorBoundary>
     </div>
   );

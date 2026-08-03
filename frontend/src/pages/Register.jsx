@@ -51,22 +51,22 @@ export default function Register() {
           <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.registerSubtitle')}</p>
           <form onSubmit={submit} data-testid="register-form" className="mt-6 space-y-4">
             <div className="space-y-1.5">
-              <Label>{t('auth.email')}</Label>
-              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="register-email-input" />
+              <Label htmlFor="register-email">{t('auth.email')}</Label>
+              <Input id="register-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="register-email-input" />
             </div>
             <div className="space-y-1.5">
-              <Label>{t('auth.password')}</Label>
-              <Input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password-input" />
+              <Label htmlFor="register-password">{t('auth.password')}</Label>
+              <Input id="register-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password-input" />
               <p className="text-xs text-[var(--dz-muted)]">{t('auth.passwordHint')}</p>
             </div>
             <div className="space-y-1.5">
-              <Label>{t('auth.confirmPassword')}</Label>
-              <Input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} data-testid="register-confirm-input" />
+              <Label htmlFor="register-confirm">{t('auth.confirmPassword')}</Label>
+              <Input id="register-confirm" type="password" autoComplete="new-password" required minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} data-testid="register-confirm-input" />
             </div>
             <div className="space-y-1.5">
-              <Label>{t('nav.currency')}</Label>
+              <Label htmlFor="register-currency">{t('nav.currency')}</Label>
               <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger data-testid="register-currency-select"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="register-currency" data-testid="register-currency-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {['CAD', 'USD', 'BRL'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>

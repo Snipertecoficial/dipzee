@@ -4,10 +4,10 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#1A1F4D" />
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: ws: wss:; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';" />
-        <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/favicon.svg" />
-        <link rel="apple-touch-icon" href="%PUBLIC_URL%/favicon.svg" />
-        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+        <meta id="csp-policy" http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' http://localhost:8000; object-src 'none'; base-uri 'self'; form-action 'self';" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/favicon.svg" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="description" content="Dipzee turns four numbers into one clear Opportunity Score, so you know what to buy, hold or sell in seconds. Buy low, earn dividends, sell high — know exactly when." />
         <meta name="robots" content="index, follow" />
         <link rel="canonical" href="https://dipzee.com/" />
@@ -159,6 +159,7 @@
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <div id="root"></div>
+        <script type="module" src="/src/index.jsx"></script>
         <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.

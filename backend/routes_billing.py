@@ -19,11 +19,15 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
+from app_config import public_app_url
 from database import db
 from plans import PLAN_RANK
 from security import get_current_user
@@ -45,7 +49,15 @@ PACKAGES = {
     "investor_annual": {"amount": 239.90, "plan": "investor", "interval": "year", "trial_days": 7},
 }
 
-_ACTIVE_SUB_STATES = {"trialing", "active", "past_due"}
+_ENTITLED_SUB_STATES = {"trialing", "active"}
+_NON_ENTITLED_SUB_STATES = {
+    "past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "paused",
+}
+MAX_WEBHOOK_BYTES = 512 * 1024
+
+
+def _amount_cents(pkg: dict) -> int:
+    return int((Decimal(str(pkg["amount"])) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _ensure_configured() -> str:
@@ -56,22 +68,22 @@ def _ensure_configured() -> str:
     return api_key
 
 
-async def cancel_subscription_silently(sub_id: str | None) -> None:
-    """Best-effort Stripe cancellation for account deletion (self-service or
-    admin-initiated). Never raises — deleting the account must succeed even if
-    Stripe is unreachable or already in sync; a stray active subscription is
-    logged so it can be cleaned up by hand rather than silently forgotten.
+async def cancel_subscription_for_deletion(sub_id: str | None) -> None:
+    """Confirm Stripe cancellation before destructive account deletion.
+
+    Failing closed avoids deleting the local owner record while a remote paid
+    subscription can still renew with no account left to manage it.
     """
     if not sub_id:
         return
-    api_key = os.environ.get("STRIPE_API_KEY")
-    if not api_key or api_key in ("", "sk_test_emergent"):
-        return
-    stripe.api_key = api_key
+    _ensure_configured()
     try:
         await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[stripe] failed to cancel subscription %s during account deletion: %s", sub_id, e)
+    except stripe.error.StripeError as e:  # noqa: BLE001
+        if getattr(e, "code", None) == "resource_missing":
+            return
+        logger.error("[stripe] account deletion cancellation failed for %s: %s", sub_id, getattr(e, "user_message", e))
+        raise HTTPException(status_code=502, detail="Could not confirm subscription cancellation; account was not deleted")
 
 
 def _ts_to_iso(ts) -> str | None:
@@ -85,11 +97,12 @@ def _ts_to_iso(ts) -> str | None:
 
 class CheckoutIn(BaseModel):
     package_id: str
-    origin_url: str
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class PortalIn(BaseModel):
-    origin_url: str
+    model_config = ConfigDict(extra="ignore")
 
 
 class ChangePlanIn(BaseModel):
@@ -119,6 +132,7 @@ async def _get_or_create_customer(user: dict) -> str:
         email=user.get("email"),
         name=user.get("display_name") or None,
         metadata={"user_id": user["id"]},
+        idempotency_key=f"dipzee-customer-{user['id']}",
     )
     await db.users.update_one({"id": user["id"]}, {"$set": {"stripe_customer_id": customer.id}})
     return customer.id
@@ -139,25 +153,57 @@ async def create_checkout(body: CheckoutIn, user: dict = Depends(get_current_use
     # live record (the Depends() user may be stale) and gate on the real Stripe
     # status, so a canceled/lapsed user CAN check out again.
     fresh = await db.users.find_one({"id": user["id"]})
-    if (fresh or {}).get("stripe_subscription_id") and (fresh or {}).get("subscription_status") in _ACTIVE_SUB_STATES:
+    if (fresh or {}).get("stripe_subscription_id") and (fresh or {}).get("subscription_status") in _ENTITLED_SUB_STATES:
         raise HTTPException(
             status_code=409,
             detail="You already have an active subscription. Use change-plan to switch tiers.",
         )
 
-    customer_id = await _get_or_create_customer(user)
-    origin = body.origin_url.rstrip("/")
-    success_url = f"{origin}/app/upgrade?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{origin}/app/upgrade"
-    unit_amount = int(round(float(pkg["amount"]) * 100))
-    metadata = {
-        "user_id": user["id"],
-        "plan": pkg["plan"],
-        "interval": pkg["interval"],
-        "package_id": body.package_id,
-    }
-
+    lock_id = f"checkout:{user['id']}"
+    lock_token = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    await db.billing_operation_locks.delete_one({"_id": lock_id, "expires_at": {"$lt": now}})
     try:
+        await db.billing_operation_locks.insert_one({
+            "_id": lock_id,
+            "token": lock_token,
+            "expires_at": now + timedelta(minutes=3),
+        })
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="A billing operation is already in progress")
+
+    intent = None
+    try:
+        intent = await db.payment_transactions.find_one({
+            "user_id": user["id"], "package_id": body.package_id, "status": "creating",
+        })
+        if not intent:
+            intent = {
+                "id": str(uuid.uuid4()),
+                "user_id": user["id"],
+                "email": user.get("email"),
+                "amount_cents": _amount_cents(pkg),
+                "currency": CURRENCY,
+                "plan": pkg["plan"],
+                "interval": pkg["interval"],
+                "package_id": body.package_id,
+                "payment_status": "initiated",
+                "status": "creating",
+                "processed": False,
+                "created_at": now.isoformat(),
+            }
+            await db.payment_transactions.insert_one(intent)
+
+        customer_id = await _get_or_create_customer(fresh or user)
+        origin = public_app_url()
+        success_url = f"{origin}/app/upgrade?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{origin}/app/upgrade"
+        metadata = {
+            "user_id": user["id"],
+            "plan": pkg["plan"],
+            "interval": pkg["interval"],
+            "package_id": body.package_id,
+        }
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="subscription",
@@ -166,7 +212,7 @@ async def create_checkout(body: CheckoutIn, user: dict = Depends(get_current_use
             line_items=[{
                 "price_data": {
                     "currency": CURRENCY,
-                    "unit_amount": unit_amount,
+                    "unit_amount": _amount_cents(pkg),
                     "recurring": {"interval": pkg["interval"]},
                     "product_data": {
                         "name": f"Dipzee {pkg['plan'].capitalize()}",
@@ -184,41 +230,63 @@ async def create_checkout(body: CheckoutIn, user: dict = Depends(get_current_use
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
+            idempotency_key=f"dipzee-checkout-{intent['id']}",
         )
     except stripe.error.StripeError as e:  # noqa
         logger.warning("[stripe checkout] error: %s", getattr(e, "user_message", e))
+        if intent:
+            await db.payment_transactions.update_one(
+                {"id": intent["id"], "user_id": user["id"]},
+                {"$set": {"status": "failed", "processed": True, "failure_code": "stripe_checkout"}},
+            )
         raise HTTPException(status_code=502, detail="Stripe error creating checkout")
+    finally:
+        await db.billing_operation_locks.delete_one({"_id": lock_id, "token": lock_token})
 
-    await db.payment_transactions.insert_one({
-        "id": str(uuid.uuid4()),
-        "session_id": session.id,
-        "user_id": user["id"],
-        "email": user.get("email"),
-        "amount": float(pkg["amount"]),
-        "currency": CURRENCY,
-        "plan": pkg["plan"],
-        "interval": pkg["interval"],
-        "package_id": body.package_id,
-        "payment_status": "initiated",
-        "status": "pending",
-        "processed": False,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    await db.payment_transactions.update_one(
+        {"id": intent["id"], "user_id": user["id"]},
+        {"$set": {"session_id": session.id, "checkout_url": session.url, "status": "pending"}},
+    )
     return {"url": session.url, "session_id": session.id}
 
 
-async def _apply_subscription_state(user_id: str, plan: str, sub: dict, session_id: str | None = None):
+def _charge_fields(sub: dict) -> dict:
+    invoice = (sub or {}).get("latest_invoice")
+    if not isinstance(invoice, dict):
+        return {}
+    payment_intent = invoice.get("payment_intent")
+    pi_id = payment_intent.get("id") if isinstance(payment_intent, dict) else payment_intent
+    result = {"invoice_id": invoice.get("id")}
+    if pi_id:
+        result["payment_intent_id"] = pi_id
+    return {k: v for k, v in result.items() if v}
+
+
+async def _apply_subscription_state(
+    user_id: str,
+    plan: str,
+    sub: dict,
+    session_id: str | None = None,
+    *,
+    session_payment_status: str | None = None,
+    event_created: int | None = None,
+    event_id: str | None = None,
+):
     """Idempotently sync the user's plan from a subscription object.
 
-    ``trialing``/``active``/``past_due`` -> grant the plan.
-    Terminal states (``canceled``/``unpaid``/``incomplete_expired``) -> none
-    (never downgrade a superadmin).
+    Only ``trialing`` and ``active`` grant capabilities. Every other Stripe
+    state fails closed to the free plan (never downgrading a superadmin).
     """
     if not user_id:
         return
     status = (sub or {}).get("status")
+    sub_id = (sub or {}).get("id")
+    if event_created and sub_id:
+        previous = await db.billing_subscriptions.find_one({"stripe_subscription_id": sub_id})
+        if previous and int(previous.get("last_event_created") or 0) > int(event_created):
+            return False
     updates = {
-        "stripe_subscription_id": (sub or {}).get("id"),
+        "stripe_subscription_id": sub_id,
         "subscription_status": status,
         "trial_ends_at": _ts_to_iso((sub or {}).get("trial_end")),
         "current_period_end": _ts_to_iso((sub or {}).get("current_period_end")),
@@ -226,36 +294,64 @@ async def _apply_subscription_state(user_id: str, plan: str, sub: dict, session_
     user = await db.users.find_one({"id": user_id})
     if not user:
         return
-    if status in _ACTIVE_SUB_STATES and plan in PLAN_RANK and plan != "none":
+    if status in _ENTITLED_SUB_STATES and plan in PLAN_RANK and plan != "none":
         updates["plan"] = plan
-    elif status in ("canceled", "unpaid", "incomplete_expired"):
+    else:
         if user.get("role") != "superadmin":
             updates["plan"] = "none"
     await db.users.update_one({"id": user_id}, {"$set": updates})
+    if updates.get("plan") == "none":
+        await db.alerts.update_many(
+            {"user_id": user_id, "active": True},
+            {"$set": {"active": False, "disabled_reason": "subscription_inactive"}},
+        )
 
     # Audit record.
-    await db.billing_subscriptions.update_one(
-        {"stripe_subscription_id": updates["stripe_subscription_id"]},
-        {"$set": {
-            "user_id": user_id,
-            "plan": plan,
-            "status": status,
-            "trial_ends_at": updates["trial_ends_at"],
-            "current_period_end": updates["current_period_end"],
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
-    )
+    if sub_id:
+        await db.billing_subscriptions.update_one(
+            {"stripe_subscription_id": sub_id},
+            {"$set": {
+                "user_id": user_id,
+                "plan": plan,
+                "status": status,
+                "trial_ends_at": updates["trial_ends_at"],
+                "current_period_end": updates["current_period_end"],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                **({"last_event_created": int(event_created)} if event_created else {}),
+                **({"last_event_id": event_id} if event_id else {}),
+            }},
+            upsert=True,
+        )
+    if event_id:
+        await db.billing_subscription_events.update_one(
+            {"event_id": event_id},
+            {"$setOnInsert": {
+                "event_id": event_id, "stripe_subscription_id": sub_id,
+                "user_id": user_id, "plan": plan, "status": status,
+                "event_created": event_created,
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
     if session_id:
+        charge = _charge_fields(sub)
+        payment_status = session_payment_status or (
+            "paid" if status == "active" and charge.get("payment_intent_id") else
+            "no_payment_required" if status == "trialing" else
+            (status or "unknown")
+        )
         await db.payment_transactions.update_one(
             {"session_id": session_id},
             {"$set": {
-                "payment_status": "paid" if status in _ACTIVE_SUB_STATES else (status or "unknown"),
-                "status": "complete" if status in _ACTIVE_SUB_STATES else "open",
+                "payment_status": payment_status,
+                "status": "complete" if status in _ENTITLED_SUB_STATES else "closed",
                 "subscription_status": status,
-                "processed": status in _ACTIVE_SUB_STATES,
+                "processed": status in _ENTITLED_SUB_STATES or status in _NON_ENTITLED_SUB_STATES,
+                "stripe_subscription_id": sub_id,
+                **charge,
             }},
         )
+    return True
 
 
 async def sync_transaction_status(tx: dict) -> dict:
@@ -272,7 +368,11 @@ async def sync_transaction_status(tx: dict) -> dict:
     if not session_id:
         return tx
     try:
-        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id, expand=["subscription"])
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.retrieve,
+            session_id,
+            expand=["subscription.latest_invoice.payment_intent"],
+        )
     except stripe.error.StripeError as e:  # noqa
         logger.warning("[stripe sync] could not retrieve session %s: %s", session_id, e)
         return tx
@@ -281,7 +381,7 @@ async def sync_transaction_status(tx: dict) -> dict:
     if session_status == "expired":
         await db.payment_transactions.update_one(
             {"id": tx["id"]},
-            {"$set": {"payment_status": "expired", "status": "expired", "processed": False}},
+            {"$set": {"payment_status": "expired", "status": "expired", "processed": True}},
         )
         return await db.payment_transactions.find_one({"id": tx["id"]}, {"_id": 0})
 
@@ -289,11 +389,17 @@ async def sync_transaction_status(tx: dict) -> dict:
     sub_dict = dict(sub) if sub else {}
     plan = (session.get("metadata") or {}).get("plan") or (sub_dict.get("metadata") or {}).get("plan")
     sub_status = sub_dict.get("status")
-    active = (session_status == "complete") and (sub_status in _ACTIVE_SUB_STATES)
+    complete = session_status == "complete"
     user_id = session.get("client_reference_id") or (session.get("metadata") or {}).get("user_id")
 
-    if active and plan and user_id:
-        await _apply_subscription_state(user_id, plan, sub_dict, session_id=session_id)
+    if complete and plan and user_id:
+        await _apply_subscription_state(
+            user_id,
+            plan,
+            sub_dict,
+            session_id=session_id,
+            session_payment_status=session.get("payment_status"),
+        )
     return await db.payment_transactions.find_one({"id": tx["id"]}, {"_id": 0})
 
 
@@ -341,8 +447,7 @@ async def reconcile_active_subscriptions() -> dict:
     stripe.api_key = api_key
 
     users = await db.users.find(
-        {"stripe_subscription_id": {"$nin": [None, ""]},
-         "subscription_status": {"$in": list(_ACTIVE_SUB_STATES)}}
+        {"stripe_subscription_id": {"$nin": [None, ""]}}
     ).to_list(1000)
 
     updated = 0
@@ -362,42 +467,104 @@ async def reconcile_active_subscriptions() -> dict:
     return {"checked": len(users), "updated": updated}
 
 
-async def refund_transaction_charge(tx: dict) -> dict:
-    """Refund the underlying charge for a transaction's subscription.
+async def process_billing_outbox(limit: int = 50) -> dict:
+    """Retry durable Stripe operations that failed after local state changed."""
+    api_key = os.environ.get("STRIPE_API_KEY")
+    if not api_key or api_key in ("", "sk_test_emergent"):
+        return {"checked": 0, "completed": 0}
+    stripe.api_key = api_key
+    now = datetime.now(timezone.utc)
+    # Recover work abandoned by a process crash before claiming new jobs.
+    await db.billing_outbox.update_many(
+        {"status": "processing", "lease_expires_at": {"$lte": now}},
+        {"$set": {"status": "pending", "next_attempt_at": now},
+         "$unset": {"lease_token": "", "lease_expires_at": ""}},
+    )
+    jobs = await db.billing_outbox.find({
+        "status": "pending",
+        "next_attempt_at": {"$lte": now},
+    }).sort("next_attempt_at", 1).limit(max(1, min(limit, 100))).to_list(length=None)
+    completed = 0
+    for job in jobs:
+        lease_token = str(uuid.uuid4())
+        job = await db.billing_outbox.find_one_and_update(
+            {
+                "operation_id": job["operation_id"],
+                "status": "pending",
+                "next_attempt_at": {"$lte": now},
+            },
+            {"$set": {
+                "status": "processing",
+                "lease_token": lease_token,
+                "lease_expires_at": now + timedelta(minutes=5),
+            }},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not job:
+            continue
+        if job.get("operation") != "cancel_subscription":
+            await db.billing_outbox.update_one(
+                {"operation_id": job["operation_id"], "lease_token": lease_token},
+                {"$set": {"status": "failed", "failure_reason": "unsupported_operation"},
+                 "$unset": {"lease_token": "", "lease_expires_at": ""}},
+            )
+            continue
+        sub_id = job.get("stripe_subscription_id")
+        try:
+            canceled = await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
+            await _apply_subscription_state(job.get("user_id"), "none", dict(canceled))
+            await db.billing_outbox.update_one(
+                {"operation_id": job["operation_id"], "lease_token": lease_token},
+                {"$set": {
+                    "status": "completed",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }, "$unset": {"lease_token": "", "lease_expires_at": ""}},
+            )
+            completed += 1
+        except stripe.error.StripeError as e:  # noqa: BLE001
+            if getattr(e, "code", None) == "resource_missing":
+                await db.billing_outbox.update_one(
+                    {"operation_id": job["operation_id"], "lease_token": lease_token},
+                    {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()},
+                     "$unset": {"lease_token": "", "lease_expires_at": ""}},
+                )
+                completed += 1
+                continue
+            attempts = int(job.get("attempts") or 0) + 1
+            delay_minutes = min(24 * 60, 2 ** min(attempts, 10))
+            logger.warning("[billing outbox] cancellation retry failed for %s: %s", sub_id, getattr(e, "user_message", e))
+            await db.billing_outbox.update_one(
+                {"operation_id": job["operation_id"], "lease_token": lease_token},
+                {"$set": {
+                    "status": "pending",
+                    "attempts": attempts,
+                    "next_attempt_at": now + timedelta(minutes=delay_minutes),
+                }, "$unset": {"lease_token": "", "lease_expires_at": ""}},
+            )
+    return {"checked": len(jobs), "completed": completed}
 
-    Recurring subscriptions don't have a single "the" charge tied to the
-    checkout session itself — the actual money movement is the
-    subscription's latest invoice, so that's what gets refunded.
-    """
+
+async def refund_transaction_charge(tx: dict) -> dict:
+    """Refund exactly the payment intent recorded for this transaction."""
     _ensure_configured()
-    session_id = tx.get("session_id")
-    if not session_id:
-        raise HTTPException(status_code=400, detail="Transaction has no Stripe session")
+    if tx.get("refunded"):
+        return {"ok": True, "refund_id": tx.get("refund_id"), "status": tx.get("refund_status"), "duplicate": True}
+    pi_id = tx.get("payment_intent_id")
+    if not pi_id:
+        raise HTTPException(
+            status_code=409,
+            detail="This legacy transaction has no recorded charge reference and requires manual verification",
+        )
+
     try:
-        session = await asyncio.to_thread(
-            stripe.checkout.Session.retrieve, session_id,
-            expand=["subscription.latest_invoice.payment_intent"],
+        refund = await asyncio.to_thread(
+            stripe.Refund.create,
+            payment_intent=pi_id,
+            idempotency_key=f"dipzee-refund-{tx['id']}",
         )
     except stripe.error.StripeError as e:  # noqa
-        logger.warning("[stripe refund] session retrieve error: %s", getattr(e, "user_message", e))
-        raise HTTPException(status_code=502, detail="Stripe error")
-
-    sub = session.get("subscription")
-    if not sub:
-        raise HTTPException(status_code=400, detail="No subscription associated with this transaction")
-    invoice = sub.get("latest_invoice")
-    if not invoice:
-        raise HTTPException(status_code=400, detail="No invoice found to refund")
-    payment_intent = invoice.get("payment_intent")
-    pi_id = payment_intent.get("id") if isinstance(payment_intent, dict) else payment_intent
-    if not pi_id:
-        raise HTTPException(status_code=400, detail="Nothing was charged yet (trial period) — nothing to refund")
-
-    try:
-        refund = await asyncio.to_thread(stripe.Refund.create, payment_intent=pi_id)
-    except stripe.error.StripeError as e:  # noqa
         logger.warning("[stripe refund] error: %s", getattr(e, "user_message", e))
-        raise HTTPException(status_code=502, detail=f"Stripe refund error: {getattr(e, 'user_message', str(e))}")
+        raise HTTPException(status_code=502, detail="Stripe refund could not be completed")
 
     await db.payment_transactions.update_one(
         {"id": tx["id"]},
@@ -409,20 +576,52 @@ async def refund_transaction_charge(tx: dict) -> dict:
         }},
     )
 
-    # A refund without cancellation would leave the customer on their paid plan
-    # and re-bill them next cycle — so cancel the subscription immediately and
-    # downgrade the user. Best-effort: the money is already back, so a cancel
-    # failure is logged but must not fail the whole refund operation (an admin
-    # can then cancel by hand from the Stripe dashboard).
-    sub_id = sub.get("id") if isinstance(sub, dict) else sub
+    # Revoke local capabilities immediately. Remote cancellation is attempted
+    # synchronously and persisted as an outbox job if Stripe is unavailable.
+    sub_id = tx.get("stripe_subscription_id")
+    user_id = tx.get("user_id")
+    if user_id:
+        target = await db.users.find_one({"id": user_id})
+        if target and target.get("role") != "superadmin":
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"plan": "none", "subscription_status": "refunded"}},
+            )
+            await db.alerts.update_many(
+                {"user_id": user_id, "active": True},
+                {"$set": {"active": False, "disabled_reason": "subscription_refunded"}},
+            )
+
+    cancellation_pending = False
     if sub_id:
         try:
             canceled = await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
-            await _apply_subscription_state(tx.get("user_id"), "none", dict(canceled))
+            await _apply_subscription_state(user_id, "none", dict(canceled))
         except stripe.error.StripeError as e:  # noqa
             logger.warning("[stripe refund] refunded but failed to cancel subscription %s: %s", sub_id, getattr(e, "user_message", e))
+            if getattr(e, "code", None) != "resource_missing":
+                cancellation_pending = True
+                await db.billing_outbox.update_one(
+                    {"operation_id": f"cancel:{sub_id}"},
+                    {"$set": {
+                        "operation_id": f"cancel:{sub_id}",
+                        "operation": "cancel_subscription",
+                        "stripe_subscription_id": sub_id,
+                        "user_id": user_id,
+                        "status": "pending",
+                        "attempts": 0,
+                        "next_attempt_at": datetime.now(timezone.utc),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }},
+                    upsert=True,
+                )
 
-    return {"ok": True, "refund_id": refund.id, "status": refund.status}
+    return {
+        "ok": True,
+        "refund_id": refund.id,
+        "status": refund.status,
+        "cancellation_pending": cancellation_pending,
+    }
 
 
 @router.get("/billing/status/{session_id}")
@@ -430,7 +629,9 @@ async def checkout_status(session_id: str, user: dict = Depends(get_current_user
     _ensure_configured()
     try:
         session = await asyncio.to_thread(
-            stripe.checkout.Session.retrieve, session_id, expand=["subscription"]
+            stripe.checkout.Session.retrieve,
+            session_id,
+            expand=["subscription.latest_invoice.payment_intent"],
         )
     except stripe.error.StripeError as e:  # noqa
         logger.warning("[stripe status] error: %s", getattr(e, "user_message", e))
@@ -449,12 +650,22 @@ async def checkout_status(session_id: str, user: dict = Depends(get_current_user
     sub_dict = dict(sub) if sub else {}
     plan = (session.get("metadata") or {}).get("plan") or (sub_dict.get("metadata") or {}).get("plan")
     sub_status = sub_dict.get("status")
-    active = (session.get("status") == "complete") and (sub_status in _ACTIVE_SUB_STATES)
+    complete = session.get("status") == "complete"
+    active = complete and sub_status in _ENTITLED_SUB_STATES
 
-    if active and plan:
-        await _apply_subscription_state(user["id"], plan, sub_dict, session_id=session_id)
+    if complete and plan:
+        await _apply_subscription_state(
+            user["id"],
+            plan,
+            sub_dict,
+            session_id=session_id,
+            session_payment_status=session.get("payment_status"),
+        )
 
-    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "hashed_password": 0})
+    fresh = await db.users.find_one(
+        {"id": user["id"]},
+        {"_id": 0, "hashed_password": 0, "auth_version": 0},
+    )
     return {
         "session_status": session.get("status"),
         "payment_status": session.get("payment_status"),
@@ -517,7 +728,7 @@ async def change_plan(body: ChangePlanIn, user: dict = Depends(get_current_user)
         logger.warning("[stripe change-plan] retrieve error: %s", getattr(e, "user_message", e))
         raise HTTPException(status_code=502, detail="Stripe error")
 
-    if current.get("status") not in _ACTIVE_SUB_STATES:
+    if current.get("status") not in _ENTITLED_SUB_STATES:
         raise HTTPException(status_code=400, detail="Subscription is not active")
 
     item = current["items"]["data"][0]
@@ -525,7 +736,7 @@ async def change_plan(body: ChangePlanIn, user: dict = Depends(get_current_user)
     if (current.get("metadata") or {}).get("plan") == pkg["plan"] and current_interval == pkg["interval"]:
         raise HTTPException(status_code=400, detail="Already on this plan")
 
-    unit_amount = int(round(float(pkg["amount"]) * 100))
+    unit_amount = _amount_cents(pkg)
     metadata = {"user_id": user["id"], "plan": pkg["plan"], "interval": pkg["interval"], "package_id": body.package_id}
 
     try:
@@ -599,7 +810,7 @@ async def billing_portal(body: PortalIn, user: dict = Depends(get_current_user))
     customer_id = (fresh or {}).get("stripe_customer_id")
     if not customer_id:
         raise HTTPException(status_code=400, detail="No billing account for this user")
-    return_url = f"{body.origin_url.rstrip('/')}/app/settings"
+    return_url = f"{public_app_url()}/app/settings"
 
     async def _create(config_id: str | None = None):
         kwargs = {"customer": customer_id, "return_url": return_url}
@@ -634,7 +845,16 @@ async def billing_portal(body: PortalIn, user: dict = Depends(get_current_user))
 @router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     _ensure_configured()
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_WEBHOOK_BYTES:
+                raise HTTPException(status_code=413, detail="Webhook payload too large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length")
     payload = await request.body()
+    if len(payload) > MAX_WEBHOOK_BYTES:
+        raise HTTPException(status_code=413, detail="Webhook payload too large")
     sig = request.headers.get("Stripe-Signature")
     secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
 
@@ -650,16 +870,40 @@ async def stripe_webhook(request: Request):
 
     event_id = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
     event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
+    event_created = event.get("created") if isinstance(event, dict) else getattr(event, "created", None)
+    lease_token = str(uuid.uuid4())
 
-    # Idempotency: skip already-processed events. The event is recorded as
-    # processed ONLY after its handler succeeds (below) — not here — so that a
-    # handler failure returns 500 and Stripe retries, instead of being marked
-    # "seen" and silently lost. Every handler is idempotent (they converge on
-    # _apply_subscription_state), so re-processing on retry is safe.
+    # Claim the event before executing side effects. A unique event_id index
+    # turns concurrent deliveries into one winner; failed handlers release the
+    # claim so Stripe can safely retry.
     if event_id:
-        already = await db.stripe_events.find_one({"event_id": event_id})
-        if already:
-            return {"received": True, "duplicate": True}
+        try:
+            await db.stripe_events.insert_one({
+                "event_id": event_id,
+                "type": event_type,
+                "status": "processing",
+                "lease_token": lease_token,
+                "lease_expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "purge_at": datetime.now(timezone.utc) + timedelta(days=90),
+            })
+        except DuplicateKeyError:
+            already = await db.stripe_events.find_one({"event_id": event_id})
+            if already and already.get("status") == "processed":
+                return {"received": True, "duplicate": True}
+            reclaimed = await db.stripe_events.update_one(
+                {
+                    "event_id": event_id,
+                    "status": "processing",
+                    "lease_expires_at": {"$lte": datetime.now(timezone.utc)},
+                },
+                {"$set": {
+                    "lease_token": lease_token,
+                    "lease_expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+                }},
+            )
+            if not reclaimed.modified_count:
+                raise HTTPException(status_code=409, detail="Webhook event is already processing")
 
     data_obj = (event.get("data") or {}).get("object") if isinstance(event, dict) else event.data.object
     data_obj = dict(data_obj) if data_obj else {}
@@ -670,9 +914,21 @@ async def stripe_webhook(request: Request):
             user_id = data_obj.get("client_reference_id") or (data_obj.get("metadata") or {}).get("user_id")
             plan = (data_obj.get("metadata") or {}).get("plan")
             if sub_id:
-                sub = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+                sub = await asyncio.to_thread(
+                    stripe.Subscription.retrieve,
+                    sub_id,
+                    expand=["latest_invoice.payment_intent"],
+                )
                 plan = plan or (sub.get("metadata") or {}).get("plan")
-                await _apply_subscription_state(user_id, plan, dict(sub), session_id=data_obj.get("id"))
+                await _apply_subscription_state(
+                    user_id,
+                    plan,
+                    dict(sub),
+                    session_id=data_obj.get("id"),
+                    session_payment_status=data_obj.get("payment_status"),
+                    event_created=event_created,
+                    event_id=event_id,
+                )
         elif event_type in ("customer.subscription.updated", "customer.subscription.created",
                             "customer.subscription.deleted"):
             plan = (data_obj.get("metadata") or {}).get("plan")
@@ -680,35 +936,78 @@ async def stripe_webhook(request: Request):
             if not user_id:
                 u = await db.users.find_one({"stripe_customer_id": data_obj.get("customer")})
                 user_id = u.get("id") if u else None
-            await _apply_subscription_state(user_id, plan, data_obj)
-        elif event_type == "invoice.payment_failed":
+            await _apply_subscription_state(
+                user_id,
+                plan,
+                data_obj,
+                event_created=event_created,
+                event_id=event_id,
+            )
+        elif event_type in ("invoice.paid", "invoice.payment_failed"):
             u = await db.users.find_one({"stripe_customer_id": data_obj.get("customer")})
-            if u and u.get("role") != "superadmin":
-                await db.users.update_one({"id": u["id"]}, {"$set": {"subscription_status": "past_due"}})
+            sub_id = data_obj.get("subscription")
+            payment_intent = data_obj.get("payment_intent")
+            pi_id = payment_intent.get("id") if isinstance(payment_intent, dict) else payment_intent
+            invoice_id = data_obj.get("id")
+            if event_type == "invoice.paid" and u and invoice_id:
+                await db.payment_transactions.update_one(
+                    {"id": f"invoice:{invoice_id}"},
+                    {
+                        "$setOnInsert": {
+                            "id": f"invoice:{invoice_id}",
+                            "user_id": u["id"],
+                            "email": u.get("email"),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                        "$set": {
+                            "invoice_id": invoice_id,
+                            "payment_intent_id": pi_id,
+                            "stripe_subscription_id": sub_id,
+                            "amount_cents": int(data_obj.get("amount_paid") or 0),
+                            "currency": data_obj.get("currency") or CURRENCY,
+                            "plan": u.get("plan"),
+                            "payment_status": "paid",
+                            "status": "complete",
+                            "processed": True,
+                        },
+                    },
+                    upsert=True,
+                )
+            if u and sub_id:
+                sub = await asyncio.to_thread(
+                    stripe.Subscription.retrieve,
+                    sub_id,
+                    expand=["latest_invoice.payment_intent"],
+                )
+                plan = (sub.get("metadata") or {}).get("plan") or u.get("plan")
+                await _apply_subscription_state(
+                    u["id"],
+                    plan,
+                    dict(sub),
+                    event_created=event_created,
+                    event_id=event_id,
+                )
         elif event_type == "checkout.session.expired":
             # Customer opened checkout but abandoned it — resolve the
             # transaction to a terminal state instead of leaving it stuck at
             # "initiated" forever in the billing panel.
             await db.payment_transactions.update_one(
                 {"session_id": data_obj.get("id")},
-                {"$set": {"payment_status": "expired", "status": "expired", "processed": False}},
+                {"$set": {"payment_status": "expired", "status": "expired", "processed": True}},
             )
     except Exception as e:  # noqa: BLE001
-        # Do NOT record the event as processed — return 500 so Stripe retries.
+        if event_id:
+            await db.stripe_events.delete_one({"event_id": event_id, "lease_token": lease_token})
         logger.error("[stripe webhook] handler error (%s), returning 500 for retry: %s", event_type, e)
         raise HTTPException(status_code=500, detail="Webhook handler error")
 
-    # Handler succeeded — record the event so a redelivery is a no-op. The
-    # unique index on event_id (see database.ensure_indexes) makes a concurrent
-    # double-delivery race safe: the loser's insert fails and is ignored.
     if event_id:
-        try:
-            await db.stripe_events.insert_one({
-                "event_id": event_id,
-                "type": event_type,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-        except Exception as e:  # noqa: BLE001
-            logger.info("[stripe webhook] event %s already recorded (race): %s", event_id, e)
+        await db.stripe_events.update_one(
+            {"event_id": event_id, "lease_token": lease_token},
+            {"$set": {
+                "status": "processed",
+                "processed_at": datetime.now(timezone.utc).isoformat(),
+            }, "$unset": {"lease_token": "", "lease_expires_at": ""}},
+        )
 
     return {"received": True}

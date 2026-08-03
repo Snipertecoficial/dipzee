@@ -35,12 +35,15 @@ def test_active_subscription_grants_plan(fake_db):
     assert user["stripe_subscription_id"] == "sub_1"
 
 
-def test_past_due_still_grants_plan(fake_db):
+def test_past_due_fails_closed_and_disables_alerts(fake_db):
     _run(fake_db.users.insert_one({"id": "u1", "role": "user", "plan": "pro"}))
+    _run(fake_db.alerts.insert_one({"id": "a1", "user_id": "u1", "active": True}))
     _run(routes_billing._apply_subscription_state("u1", "pro", {"id": "sub_1", "status": "past_due"}))
     user = _run(fake_db.users.find_one({"id": "u1"}))
-    assert user["plan"] == "pro"
+    alert = _run(fake_db.alerts.find_one({"id": "a1"}))
+    assert user["plan"] == "none"
     assert user["subscription_status"] == "past_due"
+    assert alert["active"] is False
 
 
 def test_canceled_downgrades_to_none(fake_db):
@@ -60,10 +63,31 @@ def test_canceled_never_downgrades_superadmin(fake_db):
 def test_session_txn_marked_paid_on_active(fake_db):
     _run(fake_db.users.insert_one({"id": "u1", "role": "user", "plan": "none"}))
     _run(fake_db.payment_transactions.insert_one({"id": "t1", "session_id": "cs_1", "processed": False}))
-    _run(routes_billing._apply_subscription_state("u1", "pro", {"id": "sub_1", "status": "active"}, session_id="cs_1"))
+    sub = {
+        "id": "sub_1",
+        "status": "active",
+        "latest_invoice": {"id": "in_1", "payment_intent": {"id": "pi_1"}},
+    }
+    _run(routes_billing._apply_subscription_state("u1", "pro", sub, session_id="cs_1"))
     tx = _run(fake_db.payment_transactions.find_one({"session_id": "cs_1"}))
     assert tx["payment_status"] == "paid"
+    assert tx["payment_intent_id"] == "pi_1"
     assert tx["processed"] is True
+
+
+def test_older_subscription_event_cannot_overwrite_newer_state(fake_db):
+    _run(fake_db.users.insert_one({"id": "u1", "role": "user", "plan": "none"}))
+    _run(routes_billing._apply_subscription_state(
+        "u1", "pro", {"id": "sub_1", "status": "canceled"},
+        event_created=200, event_id="evt_new",
+    ))
+    applied = _run(routes_billing._apply_subscription_state(
+        "u1", "pro", {"id": "sub_1", "status": "active"},
+        event_created=100, event_id="evt_old",
+    ))
+    user = _run(fake_db.users.find_one({"id": "u1"}))
+    assert applied is False
+    assert user["plan"] == "none"
 
 
 # --- create_checkout: server-side double-charge guard ----------------------- #
@@ -71,7 +95,7 @@ def test_session_txn_marked_paid_on_active(fake_db):
 def test_checkout_blocks_existing_active_subscriber(fake_db, monkeypatch):
     monkeypatch.setattr(routes_billing, "_ensure_configured", lambda: "sk_test")
     _run(fake_db.users.insert_one({"id": "u1", "stripe_subscription_id": "sub_1", "subscription_status": "active"}))
-    body = routes_billing.CheckoutIn(package_id="pro_monthly", origin_url="http://localhost")
+    body = routes_billing.CheckoutIn(package_id="pro_monthly")
     with pytest.raises(HTTPException) as exc:
         _run(routes_billing.create_checkout(body, {"id": "u1"}))
     assert exc.value.status_code == 409
@@ -91,6 +115,6 @@ def test_checkout_allowed_after_cancellation(fake_db, monkeypatch):
 
     monkeypatch.setattr(routes_billing, "_get_or_create_customer", _boom)
     _run(fake_db.users.insert_one({"id": "u1", "stripe_subscription_id": "sub_old", "subscription_status": "canceled"}))
-    body = routes_billing.CheckoutIn(package_id="pro_monthly", origin_url="http://localhost")
+    body = routes_billing.CheckoutIn(package_id="pro_monthly")
     with pytest.raises(_Sentinel):
         _run(routes_billing.create_checkout(body, {"id": "u1"}))

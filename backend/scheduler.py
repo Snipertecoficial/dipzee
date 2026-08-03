@@ -7,7 +7,9 @@
 A "monitored" ticker is any ticker present in a watchlist item or an active alert.
 Alert rules are evaluated on every refresh (edge-triggered inside alert_service).
 """
+import asyncio
 import logging
+import os
 from datetime import datetime
 
 import pytz
@@ -61,13 +63,22 @@ async def _refresh_set(tickers: set, label: str, force_target: bool = False):
     if not tickers:
         return
     logger.info("[scheduler] %s refreshing %d tickers", label, len(tickers))
-    for tk in tickers:
-        try:
-            asset = await refresh_asset(tk, force_target=force_target)
-            if asset:
-                await evaluate_alerts_for_asset(asset)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("[scheduler] refresh failed for %s: %s", tk, e)
+    try:
+        concurrency = max(1, min(int(os.environ.get("MARKET_REFRESH_CONCURRENCY", "5")), 20))
+    except ValueError:
+        concurrency = 5
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def _one(tk):
+        async with semaphore:
+            try:
+                asset = await refresh_asset(tk, force_target=force_target)
+                if asset:
+                    await evaluate_alerts_for_asset(asset)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[scheduler] refresh failed for %s: %s", tk, e)
+
+    await asyncio.gather(*(_one(ticker) for ticker in tickers))
 
 
 async def daily_refresh_job():
@@ -108,13 +119,20 @@ async def billing_sync_job():
     transaction never sits stuck showing "initiated" after the customer
     actually paid — see routes_billing.reconcile_pending_transactions."""
     try:
-        from routes_billing import reconcile_pending_transactions, reconcile_active_subscriptions
+        from routes_billing import (
+            process_billing_outbox,
+            reconcile_active_subscriptions,
+            reconcile_pending_transactions,
+        )
         result = await reconcile_pending_transactions()
         if result.get("updated"):
             logger.info("[scheduler] billing sync: %d/%d transactions updated", result["updated"], result["checked"])
         subs = await reconcile_active_subscriptions()
         if subs.get("updated"):
             logger.info("[scheduler] billing sync: %d/%d subscriptions re-synced", subs["updated"], subs["checked"])
+        outbox = await process_billing_outbox()
+        if outbox.get("completed"):
+            logger.info("[scheduler] billing outbox: %d/%d jobs completed", outbox["completed"], outbox["checked"])
     except Exception as e:  # noqa: BLE001
         logger.warning("[scheduler] billing sync job failed: %s", e)
 

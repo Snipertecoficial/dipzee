@@ -1,18 +1,23 @@
 """Superadmin management panel routes. All endpoints require role=superadmin."""
 import logging
+import copy
+import math
 import os
 import re
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 from database import db
+from password_policy import validate_password_strength
 from security import get_current_user, hash_password
 from scoring import SETTINGS
 from asset_service import refresh_asset
-from routes_billing import cancel_subscription_silently, reconcile_pending_transactions, refund_transaction_charge
+from routes_billing import cancel_subscription_for_deletion, reconcile_pending_transactions, refund_transaction_charge
+from account_service import erase_account_data
 import refresh_tokens
 
 logger = logging.getLogger(__name__)
@@ -20,11 +25,39 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 VALID_PLANS = {"none", "starter", "pro", "investor"}
 VALID_ROLES = {"user", "superadmin"}
+SAFE_USER_PROJECTION = {
+    "_id": 0,
+    "hashed_password": 0,
+    "auth_version": 0,
+    "mfa_secret": 0,
+    "mfa_pending_secret": 0,
+}
 
 
-async def get_superadmin(user: dict = Depends(get_current_user)) -> dict:
+async def get_superadmin(request: Request, user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
+    mfa_required = os.environ.get(
+        "ADMIN_MFA_REQUIRED",
+        "true" if os.environ.get("ENV") == "production" else "false",
+    ).lower() in {"1", "true", "yes"}
+    if mfa_required and (not user.get("mfa_enabled") or not user.get("_session_mfa_verified")):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_mfa_required", "message": "Administrator MFA enrollment and verification are required"},
+        )
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        from security_middleware import client_ip
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": user["id"],
+            "method": request.method,
+            "path": request.url.path,
+            "client_ip": client_ip(request),
+            "outcome": "attempted",
+            "created_at": datetime.now(timezone.utc),
+            "purge_at": datetime.now(timezone.utc) + timedelta(days=int(os.environ.get("ADMIN_AUDIT_RETENTION_DAYS", "365"))),
+        })
     return user
 
 
@@ -53,13 +86,13 @@ async def stats(admin: dict = Depends(get_superadmin)):
     events_total = await db.alert_events.count_documents({})
     watchlist_total = await db.watchlist_items.count_documents({})
 
-    recent_users = await db.users.find({}, {"_id": 0, "hashed_password": 0}).sort("created_at", -1).to_list(6)
+    recent_users = await db.users.find({}, SAFE_USER_PROJECTION).sort("created_at", -1).to_list(6)
 
     # revenue from processed transactions
     revenue = 0.0
     tx_count = 0
     async for tx in db.payment_transactions.find({"processed": True}):
-        revenue += float(tx.get("amount") or 0)
+        revenue += int(tx.get("amount_cents") or 0) / 100
         tx_count += 1
 
     # top assets by score
@@ -89,7 +122,7 @@ async def list_users(q: Optional[str] = None, admin: dict = Depends(get_superadm
         # Escaped and length-capped so a search term can't be used as a
         # catastrophic-backtracking regex (ReDoS) against every user's email.
         query = {"email": {"$regex": re.escape(q.strip()[:100]), "$options": "i"}}
-    users = await db.users.find(query, {"_id": 0, "hashed_password": 0}).sort("created_at", -1).to_list(500)
+    users = await db.users.find(query, SAFE_USER_PROJECTION).sort("created_at", -1).to_list(500)
     # enrich with counts
     for u in users:
         u["watchlist_count"] = await db.watchlist_items.count_documents({"user_id": u["id"]})
@@ -104,6 +137,8 @@ class UserUpdate(BaseModel):
     currency: Optional[str] = None
     password: Optional[str] = None
 
+    _password = field_validator("password")(validate_password_strength)
+
 
 @router.put("/users/{user_id}")
 async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_superadmin)):
@@ -114,6 +149,11 @@ async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_
     if body.plan and body.plan in VALID_PLANS:
         updates["plan"] = body.plan
     if body.role and body.role in VALID_ROLES:
+        if target.get("role") == "superadmin" and body.role != "superadmin":
+            if target["id"] == admin["id"]:
+                raise HTTPException(status_code=400, detail="You cannot demote your own superadmin account")
+            if await db.users.count_documents({"role": "superadmin"}) <= 1:
+                raise HTTPException(status_code=400, detail="At least one superadmin account is required")
         updates["role"] = body.role
     if body.locale:
         updates["locale"] = body.locale
@@ -121,6 +161,7 @@ async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_
         updates["currency"] = body.currency
     if body.password:
         updates["hashed_password"] = hash_password(body.password)
+        updates["auth_version"] = int(target.get("auth_version", 0)) + 1
     if updates:
         await db.users.update_one({"id": user_id}, {"$set": updates})
     if body.password:
@@ -128,7 +169,7 @@ async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_
         # user locked out) — kill existing sessions so a stale token can't
         # keep using the account under the old credentials.
         await refresh_tokens.revoke_all(user_id)
-    fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0})
+    fresh = await db.users.find_one({"id": user_id}, SAFE_USER_PROJECTION)
     return fresh
 
 
@@ -140,6 +181,7 @@ async def revoke_user_sessions(user_id: str, admin: dict = Depends(get_superadmi
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
     await refresh_tokens.revoke_all(user_id)
+    await db.users.update_one({"id": user_id}, {"$inc": {"auth_version": 1}})
     return {"ok": True}
 
 
@@ -153,17 +195,8 @@ async def delete_user(user_id: str, admin: dict = Depends(get_superadmin)):
     # Billing/payment records are kept for accounting/tax retention even after
     # the account is erased — only the subscription itself is stopped so the
     # customer is never charged again post-deletion.
-    await cancel_subscription_silently(target.get("stripe_subscription_id"))
-    await db.watchlist_items.delete_many({"user_id": user_id})
-    await db.alerts.delete_many({"user_id": user_id})
-    await db.alert_events.delete_many({"user_id": user_id})
-    await db.positions.delete_many({"user_id": user_id})
-    await db.password_resets.delete_many({"user_id": user_id})
-    await db.refresh_tokens.delete_many({"user_id": user_id})
-    await db.users.delete_one({"id": user_id})
-    # LGPD right-to-erasure: also purge the user's pseudonymous dataset records.
-    from dataset_service import purge_user
-    await purge_user(db, user_id)
+    await cancel_subscription_for_deletion(target.get("stripe_subscription_id"))
+    await erase_account_data(db, target)
     return {"ok": True}
 
 
@@ -257,7 +290,7 @@ async def backup_status(admin: dict = Depends(get_superadmin)):
 
 @router.get("/backup/download")
 async def download_backup(admin: dict = Depends(get_superadmin)):
-    """Download the most recent backup snapshot as a .json.gz file.
+    """Download the most recent authenticated encrypted backup snapshot.
 
     If no local snapshot exists yet, triggers a fresh one first.  Used by the
     local ``pull_production_db.py`` script to replicate the production database
@@ -275,7 +308,7 @@ async def download_backup(admin: dict = Depends(get_superadmin)):
     fpath = os.path.join(BACKUP_DIR, latest["file"])
     return FileResponse(
         fpath,
-        media_type="application/gzip",
+        media_type="application/octet-stream",
         filename=latest["file"],
     )
 
@@ -448,19 +481,54 @@ class ScoringSettingsIn(BaseModel):
     income: Optional[dict] = None
     flags: Optional[dict] = None
 
+    model_config = {"extra": "forbid"}
+
+
+def _validated_scoring_settings(patch: dict) -> dict:
+    candidate = copy.deepcopy(SETTINGS)
+    limits = {
+        "weights": (0.0, 1.0),
+        "upside": (0.0, 10.0),
+        "income": (0.0, 1.0),
+        "flags": (0.0, 1.0),
+    }
+    for section, values in patch.items():
+        if section not in limits or not isinstance(values, dict):
+            raise ValueError(f"Invalid scoring section: {section}")
+        unknown = set(values) - set(candidate[section])
+        if unknown:
+            raise ValueError(f"Unknown {section} setting")
+        lo, hi = limits[section]
+        for key, raw in values.items():
+            try:
+                value = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{section}.{key} must be numeric") from exc
+            if not math.isfinite(value) or value < lo or value > hi:
+                raise ValueError(f"{section}.{key} is outside the allowed range")
+            candidate[section][key] = value
+    if abs(sum(candidate["weights"].values()) - 1.0) > 1e-6:
+        raise ValueError("Scoring weights must sum to 1")
+    if abs(candidate["upside"]["target_weight"] + candidate["upside"]["high_weight"] - 1.0) > 1e-6:
+        raise ValueError("Upside weights must sum to 1")
+    if candidate["upside"]["cap"] <= 0 or candidate["income"]["cap"] <= 0:
+        raise ValueError("Scoring caps must be greater than zero")
+    if candidate["flags"]["buy_zone_r"] >= candidate["flags"]["sell_zone_r"]:
+        raise ValueError("Buy zone must be below sell zone")
+    return candidate
+
 
 @router.put("/settings")
 async def update_settings(body: ScoringSettingsIn, admin: dict = Depends(get_superadmin)):
     # Mutate the shared SETTINGS dict IN PLACE so scoring picks up changes,
     # and persist to db.app_settings so it survives restarts.
-    if body.weights:
-        SETTINGS["weights"].update({k: float(v) for k, v in body.weights.items() if k in SETTINGS["weights"]})
-    if body.upside:
-        SETTINGS["upside"].update({k: float(v) for k, v in body.upside.items() if k in SETTINGS["upside"]})
-    if body.income:
-        SETTINGS["income"].update({k: float(v) for k, v in body.income.items() if k in SETTINGS["income"]})
-    if body.flags:
-        SETTINGS["flags"].update({k: float(v) for k, v in body.flags.items() if k in SETTINGS["flags"]})
+    try:
+        validated = _validated_scoring_settings(body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    for section in ("weights", "upside", "income", "flags"):
+        SETTINGS[section].clear()
+        SETTINGS[section].update(validated[section])
     await db.app_settings.update_one(
         {"id": "scoring"},
         {"$set": {"id": "scoring", "value": {k: SETTINGS[k] for k in ("weights", "upside", "income", "flags")}, "updated_at": datetime.now(timezone.utc).isoformat()}},
@@ -473,9 +541,10 @@ async def load_scoring_settings():
     """Load persisted scoring settings at startup (mutate SETTINGS in place)."""
     doc = await db.app_settings.find_one({"id": "scoring"})
     if doc and doc.get("value"):
+        validated = _validated_scoring_settings(doc["value"])
         for section in ("weights", "upside", "income", "flags"):
-            if section in doc["value"] and isinstance(doc["value"][section], dict):
-                SETTINGS[section].update(doc["value"][section])
+            SETTINGS[section].clear()
+            SETTINGS[section].update(validated[section])
         logger.info("Loaded persisted scoring settings.")
 
 
@@ -485,6 +554,7 @@ async def load_scoring_settings():
 # back to the client, only a masked preview, mirroring how Stripe et al. do it.
 # --------------------------------------------------------------------------- #
 from ai_providers import get_ai_settings
+from secret_store import encrypt_secret
 
 AI_FIELDS = {
     "openai": ("openai_api_key", "OPENAI_API_KEY", "openai_model", "OPENAI_MODEL", "gpt-4o"),
@@ -547,6 +617,9 @@ async def update_ai_config(body: AiConfigIn, admin: dict = Depends(get_superadmi
             value.pop(field, None)  # explicit empty string clears a previously-set key/model
         elif new_val is not None:
             value[field] = new_val
+    for secret_field in ("openai_api_key", "anthropic_api_key", "google_api_key"):
+        if value.get(secret_field):
+            value[secret_field] = encrypt_secret(value[secret_field])
     await db.app_settings.update_one(
         {"id": "ai_providers"},
         {"$set": {"id": "ai_providers", "value": value, "updated_at": datetime.now(timezone.utc).isoformat()}},
@@ -556,23 +629,46 @@ async def update_ai_config(body: AiConfigIn, admin: dict = Depends(get_superadmi
 
 
 # NEW SCHEMAS
-import uuid
 import time
-from datetime import timedelta
 
 class AnnouncementIn(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=1000)
     type: str = "info"  # info, warning, success
     active: bool = True
     expires_at: Optional[str] = None
 
+    @field_validator("type")
+    @classmethod
+    def valid_type(cls, value: str) -> str:
+        if value not in {"info", "warning", "success"}:
+            raise ValueError("Invalid announcement type")
+        return value
+
 class PartnerAdIn(BaseModel):
-    partner_name: str
-    description: str
-    target_url: str
-    image_url: Optional[str] = None
+    partner_name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
+    target_url: str = Field(max_length=500)
+    image_url: Optional[str] = Field(default=None, max_length=500)
     placement: str = "sidebar"  # sidebar, dashboard, asset_detail
     active: bool = True
+
+    @field_validator("target_url", "image_url")
+    @classmethod
+    def https_urls_only(cls, value: Optional[str]) -> Optional[str]:
+        if value in (None, ""):
+            return value
+        from urllib.parse import urlparse
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("Only absolute HTTPS URLs without credentials are allowed")
+        return value
+
+    @field_validator("placement")
+    @classmethod
+    def valid_placement(cls, value: str) -> str:
+        if value not in {"sidebar", "dashboard", "asset_detail"}:
+            raise ValueError("Invalid ad placement")
+        return value
 
 
 # NEW ENDPOINTS FOR ADMIN OPERATIONS

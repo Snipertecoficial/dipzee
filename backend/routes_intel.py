@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from database import db
+from plans import has_feature
 from security import require_feature
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,11 @@ async def asset_intel(ticker: str, refresh: int = Query(0),
     else:
         _check_cooldown(user["id"], "asset")
 
-    context = await build_asset_context(db, ticker)
+    context = await build_asset_context(
+        db,
+        ticker,
+        include_options=has_feature(user.get("plan"), "options_flow"),
+    )
     if not context.get("name") and context.get("event_count", 0) == 0:
         raise HTTPException(status_code=404, detail=f"No data available for {ticker}")
     try:

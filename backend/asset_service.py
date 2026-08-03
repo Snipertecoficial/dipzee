@@ -4,6 +4,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from database import db
 from providers import fetch_resilient, get_yf_target, fmp_target
@@ -18,6 +19,38 @@ logger = logging.getLogger(__name__)
 # rejecting anything outside this shape here also protects providers.py's
 # f-string-interpolated request URLs from query/path injection.
 _TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,15}$")
+_SENSITIVE_QUERY_KEYS = {"apikey", "api_key", "key", "token", "access_token"}
+
+
+def normalize_ticker(ticker: str) -> str:
+    value = (ticker or "").strip().upper()
+    if not _TICKER_RE.fullmatch(value):
+        raise ValueError("Invalid ticker")
+    return value
+
+
+def sanitize_external_url(url: Optional[str]) -> Optional[str]:
+    """Remove credentials accidentally embedded in provider-owned URLs."""
+    if not url:
+        return None
+    try:
+        parts = urlsplit(str(url))
+        if parts.scheme not in {"http", "https"} or not parts.hostname:
+            return None
+        query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                 if k.lower() not in _SENSITIVE_QUERY_KEYS]
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
+    except Exception:
+        return None
+
+
+def sanitize_asset_for_client(asset: Optional[dict]) -> Optional[dict]:
+    if not asset:
+        return asset
+    clean = dict(asset)
+    clean.pop("_id", None)
+    clean["logo"] = sanitize_external_url(clean.get("logo"))
+    return clean
 
 
 def _now_iso() -> str:
@@ -34,8 +67,9 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
 
     Returns the stored asset dict, or None if there is no data at all.
     """
-    ticker = ticker.strip().upper()
-    if not _TICKER_RE.match(ticker):
+    try:
+        ticker = normalize_ticker(ticker)
+    except ValueError:
         logger.warning("refresh_asset: rejected malformed ticker %r", ticker)
         return None
     existing = await db.assets.find_one({"ticker": ticker}, {"_id": 0})
@@ -79,7 +113,7 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
         "sector": data.get("sector"),
         "change_pct": data.get("change_pct"),
         "prev_close": data.get("prev_close"),
-        "logo": data.get("logo"),
+        "logo": sanitize_external_url(data.get("logo")),
         "source": data.get("source"),
         "updated_at": _now_iso(),
     }
@@ -106,4 +140,4 @@ async def refresh_asset(ticker: str, force_target: bool = False) -> Optional[dic
 
     await db.assets.update_one({"ticker": ticker}, {"$set": doc}, upsert=True)
     stored = await db.assets.find_one({"ticker": ticker}, {"_id": 0})
-    return stored
+    return sanitize_asset_for_client(stored)

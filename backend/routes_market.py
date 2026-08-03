@@ -8,6 +8,7 @@ Design goals:
 """
 import asyncio
 import logging
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 
 import market_service as ms
 from market_cache import cached
-from security import get_current_user, require_feature
+from security import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,23 @@ TTL_SEARCH = 300
 TTL_FUNDAMENTALS = 86400
 TTL_OPTIONS = 3600
 TTL_SCREENER = 300
+MAX_BATCH_SYMBOLS = 30
+_SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,15}$")
+
+
+def _symbols(value: str, *, limit: int = MAX_BATCH_SYMBOLS) -> list[str]:
+    result = []
+    for raw in (value or "").split(","):
+        symbol = raw.strip().upper()
+        if not symbol:
+            continue
+        if not _SYMBOL_RE.fullmatch(symbol):
+            raise HTTPException(status_code=400, detail={"error": "bad_request", "message": "invalid symbol"})
+        if symbol not in result:
+            result.append(symbol)
+    if len(result) > limit:
+        raise HTTPException(status_code=400, detail={"error": "bad_request", "message": f"at most {limit} symbols are allowed"})
+    return result
 
 
 class MarketEnvelope(BaseModel):
@@ -55,18 +73,18 @@ async def health():
 
 
 @router.get("/quote/{symbol}", response_model=MarketEnvelope)
-async def get_quote(symbol: str, user: dict = Depends(get_current_user)):
+async def get_quote(symbol: str, user: dict = Depends(require_feature("search"))):
     env = await cached(f"quote:{symbol.upper()}", TTL_QUOTE, lambda: ms.quote(symbol))
     return _respond(env, f"quote unavailable for {symbol}")
 
 
 @router.get("/quotes")
 async def get_quotes(symbols: str = Query(..., description="Comma-separated tickers"),
-                     user: dict = Depends(get_current_user)):
+                     user: dict = Depends(require_feature("search"))):
     """Lightweight batch quotes in ONE round-trip (ticker/name/price/change/
     currency), parallelized server-side and reusing the per-symbol 15s cache.
     Replaces the client-side N+1 fan-out of /quote/{symbol}."""
-    syms = [s.strip().upper() for s in (symbols or "").split(",") if s.strip()][:30]
+    syms = _symbols(symbols)
     if not syms:
         raise HTTPException(status_code=400, detail={"error": "bad_request", "message": "symbols is required"})
 
@@ -112,7 +130,7 @@ async def get_batch(
     interval: str = Query("1d"),
     user: dict = Depends(require_feature("charts")),
 ):
-    syms = [s for s in (symbols or "").split(",") if s.strip()]
+    syms = _symbols(symbols)
     if not syms:
         raise HTTPException(status_code=400, detail={"error": "bad_request", "message": "symbols is required"})
     key = f"batch:{','.join(sorted(s.upper() for s in syms))}:{period}:{interval}"
@@ -121,13 +139,13 @@ async def get_batch(
 
 
 @router.get("/summary/{market}", response_model=MarketEnvelope)
-async def get_summary(market: str, user: dict = Depends(get_current_user)):
+async def get_summary(market: str, user: dict = Depends(require_feature("search"))):
     env = await cached(f"summary:{market.upper()}", TTL_SUMMARY, lambda: ms.market_summary(market))
     return _respond(env, f"summary unavailable for {market}")
 
 
 @router.get("/search", response_model=MarketEnvelope)
-async def get_search(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
+async def get_search(q: str = Query(..., min_length=1, max_length=80), user: dict = Depends(require_feature("search"))):
     env = await cached(f"search:{q.lower().strip()}", TTL_SEARCH, lambda: ms.search(q))
     return _respond(env, "search unavailable")
 
@@ -149,7 +167,7 @@ async def get_options(symbol: str, expiration: Optional[str] = Query(None), user
 async def get_screener(
     type: str = Query("day_gainers", description="Predefined screen key, e.g. day_gainers"),
     count: int = Query(25, ge=1, le=100),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_feature("screener")),
 ):
     key = f"screener:{type}:{count}"
     env = await cached(key, TTL_SCREENER, lambda: ms.screener(type, count))

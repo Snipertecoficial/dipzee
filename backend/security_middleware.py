@@ -8,6 +8,7 @@ gateway / WAF as well.
 """
 import time
 import logging
+import ipaddress
 from collections import defaultdict, deque
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -28,11 +29,20 @@ def client_ip(request) -> str:
     let any client bypass per-IP limits simply by sending its own
     X-Forwarded-For header.
     """
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        parts = [p.strip() for p in xff.split(",") if p.strip()]
-        if parts:
-            return parts[-1]
+    # Caddy derives this header from its trusted-proxy-aware {client_ip}
+    # placeholder. The backend is not published directly in production, and
+    # we accept the private peer only (the Caddy container), never arbitrary
+    # X-Forwarded-For supplied by a browser.
+    forwarded = request.headers.get("x-dipzee-client-ip")
+    peer = request.client.host if request.client else None
+    if forwarded and peer:
+        try:
+            peer_ip = ipaddress.ip_address(peer)
+            client = ipaddress.ip_address(forwarded.strip())
+            if peer_ip.is_private or peer_ip.is_loopback:
+                return str(client)
+        except ValueError:
+            pass
     return request.client.host if request.client else "unknown"
 
 
@@ -68,6 +78,7 @@ _LIMITS = (
     ("/api/auth/register", 6),
     ("/api/auth/forgot", 6),
     ("/api/auth/reset", 6),
+    ("/api/webhook/stripe", 600),
     # Sends an outbound Telegram message — keep well below the default so it
     # can't be used to spam (even though it only targets the caller's own chat).
     ("/api/notifications/telegram/test", 6),
@@ -111,12 +122,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         global _request_counter
         path = request.url.path
         if not path.startswith("/api"):
-            return await call_next(request)
-
-        # Never rate-limit the Stripe webhook: Stripe may burst many events and
-        # a 429 would make it retry / mark the endpoint unhealthy. Signature
-        # verification (in the route) is the real gate here.
-        if path.startswith("/api/webhook/"):
             return await call_next(request)
 
         ip = client_ip(request)

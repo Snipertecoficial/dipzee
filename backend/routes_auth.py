@@ -9,21 +9,29 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from io import BytesIO
 from typing import Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from PIL import Image
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pymongo import ReturnDocument
 
 from database import db
+from app_config import public_app_url
 from email_service import send_email
 from email_templates import welcome_email, reset_email
 import login_guard
 import refresh_tokens
-from routes_billing import cancel_subscription_silently
+from password_policy import validate_password_strength
+from routes_billing import cancel_subscription_for_deletion
+from account_service import erase_account_data, export_account_data
+from mfa import generate_secret, provisioning_uri, verify_totp
+from secret_store import decrypt_secret, encrypt_secret
 from security import (
     create_access_token,
     get_current_user,
     hash_password,
+    password_needs_rehash,
     serialize_user,
     verify_password,
 )
@@ -33,15 +41,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 RESET_TOKEN_TTL_MINUTES = 60
+REFRESH_COOKIE_NAME = "dz_refresh"
+REFRESH_COOKIE_PATH = "/api/auth"
 # Server-side password policy (authoritative — the client mirrors it for UX but
 # a client can always be bypassed). At least 8 chars, with a letter and a digit.
-_PASSWORD_RE = re.compile(r"^(?=.*[A-Za-z])(?=.*\d).{8,}$")
-
-
-def _check_password_strength(v: str) -> str:
-    if not _PASSWORD_RE.match(v or ""):
-        raise ValueError("Password must be at least 8 characters and include a letter and a number.")
-    return v
 # Bump when the Terms/Privacy Policy content materially changes; stored on
 # each user so we always know which version they agreed to.
 TERMS_VERSION = "2026-07-17"
@@ -73,45 +76,54 @@ class RegisterIn(BaseModel):
     currency: str = "USD"
     consent_accepted: bool = False
 
-    _pw = field_validator("password")(_check_password_strength)
+    _pw = field_validator("password")(validate_password_strength)
 
 
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+    otp: Optional[str] = Field(default=None, pattern=r"^\d{6}$")
 
 
 class ForgotIn(BaseModel):
     email: EmailStr
-    origin_url: str
+
+    # Older clients sent origin_url. Ignore unknown fields during the rolling
+    # deployment, but never use a client-controlled origin for reset links.
+    model_config = ConfigDict(extra="ignore")
 
 
 class ResetIn(BaseModel):
     token: str
     password: str
 
-    _pw = field_validator("password")(_check_password_strength)
-
-
-class RefreshIn(BaseModel):
-    refresh_token: str
-
-
-class LogoutIn(BaseModel):
-    refresh_token: str
+    _pw = field_validator("password")(validate_password_strength)
 
 
 class ChangePasswordIn(BaseModel):
     current_password: str
     new_password: str
 
-    _pw = field_validator("new_password")(_check_password_strength)
+    _pw = field_validator("new_password")(validate_password_strength)
+
+
+class MfaEnableIn(BaseModel):
+    otp: str = Field(pattern=r"^\d{6}$")
+
+
+class AlertPreferencesIn(BaseModel):
+    email: Optional[bool] = None
+    in_app: Optional[bool] = None
+    telegram: Optional[bool] = None
+    webhook: Optional[bool] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProfileIn(BaseModel):
     locale: Optional[str] = None
     currency: Optional[str] = None
-    default_alert_prefs: Optional[dict] = None
+    default_alert_prefs: Optional[AlertPreferencesIn] = None
     display_name: Optional[str] = Field(default=None, max_length=80)
     bio: Optional[str] = Field(default=None, max_length=280)
     phone: Optional[str] = Field(default=None, max_length=30)
@@ -153,12 +165,36 @@ def _validate_avatar(data_url: str) -> None:
         raise HTTPException(status_code=400, detail=f"Unsupported image format: {img_format}")
 
 
-async def _auth_response(user: dict) -> dict:
-    token = create_access_token(user["id"])
-    refresh_token = await refresh_tokens.issue(user["id"])
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        max_age=refresh_tokens.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path=REFRESH_COOKIE_PATH,
+        secure=public_app_url().startswith("https://"),
+        httponly=True,
+        samesite="strict",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path=REFRESH_COOKIE_PATH,
+        secure=public_app_url().startswith("https://"),
+        httponly=True,
+        samesite="strict",
+    )
+
+
+async def _auth_response(user: dict, response: Response, *, mfa_verified: bool = True) -> dict:
+    token = create_access_token(
+        user["id"], user.get("auth_version", 0), mfa_verified=mfa_verified,
+    )
+    refresh_token = await refresh_tokens.issue(user["id"], mfa_verified=mfa_verified)
+    _set_refresh_cookie(response, refresh_token)
     return {
         "access_token": token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": serialize_user(user),
     }
@@ -171,7 +207,7 @@ def _hash_token(token: str) -> str:
 
 
 @router.post("/register")
-async def register(body: RegisterIn):
+async def register(body: RegisterIn, response: Response):
     if not body.consent_accepted:
         raise HTTPException(status_code=400, detail="You must accept the Terms of Service and Privacy Policy")
     email = body.email.lower()
@@ -195,6 +231,7 @@ async def register(body: RegisterIn):
         "currency": currency,
         "plan": "none",
         "role": "user",
+        "auth_version": 0,
         "stripe_customer_id": None,
         "default_alert_prefs": {"email": True, "in_app": True, "telegram": False, "webhook": False},
         "consent_accepted_at": now_iso,
@@ -207,7 +244,7 @@ async def register(body: RegisterIn):
         await asyncio.to_thread(send_email, email, subject, html)
     except Exception as e:  # noqa: BLE001
         logger.warning("welcome email failed for %s: %s", email, e)
-    return await _auth_response(user)
+    return await _auth_response(user, response)
 
 
 @router.post("/forgot")
@@ -223,11 +260,12 @@ async def forgot_password(body: ForgotIn):
             {"$set": {
                 "token_hash": _hash_token(raw_token),
                 "expires_at": expires_at.isoformat(),
+                "purge_at": expires_at + timedelta(days=1),
                 "used": False,
             }},
             upsert=True,
         )
-        link = f"{body.origin_url.rstrip('/')}/reset-password?token={raw_token}"
+        link = f"{public_app_url()}/reset-password?token={quote(raw_token, safe='')}"
         subject, html = reset_email(link, RESET_TOKEN_TTL_MINUTES, user.get("locale"))
         sent = await asyncio.to_thread(send_email, email, subject, html)
         if not sent:
@@ -240,7 +278,13 @@ async def forgot_password(body: ForgotIn):
 
 @router.post("/reset")
 async def reset_password(body: ResetIn):
-    doc = await db.password_resets.find_one({"token_hash": _hash_token(body.token), "used": False})
+    # Claim the token before changing credentials. A second concurrent request
+    # cannot observe/use the same reset token.
+    doc = await db.password_resets.find_one_and_update(
+        {"token_hash": _hash_token(body.token), "used": False},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+        return_document=ReturnDocument.BEFORE,
+    )
     if not doc:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     expires_at = datetime.fromisoformat(doc["expires_at"])
@@ -248,8 +292,12 @@ async def reset_password(body: ResetIn):
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) > expires_at:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
-    await db.users.update_one({"id": doc["user_id"]}, {"$set": {"hashed_password": hash_password(body.password)}})
-    await db.password_resets.update_one({"_id": doc["_id"]}, {"$set": {"used": True}})
+    result = await db.users.update_one(
+        {"id": doc["user_id"]},
+        {"$set": {"hashed_password": hash_password(body.password)}, "$inc": {"auth_version": 1}},
+    )
+    if not result.matched_count:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
     # Anyone who could reset the password could also have been the reason it
     # needed resetting — kill every existing session rather than leaving old
     # ones (possibly the attacker's) valid.
@@ -258,7 +306,7 @@ async def reset_password(body: ResetIn):
 
 
 @router.post("/login")
-async def login(body: LoginIn):
+async def login(body: LoginIn, response: Response):
     email = body.email.lower()
     locked, remaining = await login_guard.check_locked(email)
     if locked:
@@ -277,57 +325,142 @@ async def login(body: LoginIn):
         await login_guard.record_failure(email)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await login_guard.record_success(email)
-    return await _auth_response(user)
+    if password_needs_rehash(user["hashed_password"]):
+        replacement = hash_password(body.password)
+        await db.users.update_one(
+            {"id": user["id"], "hashed_password": user["hashed_password"]},
+            {"$set": {"hashed_password": replacement}},
+        )
+        user["hashed_password"] = replacement
+    mfa_verified = user.get("role") != "superadmin"
+    if user.get("role") == "superadmin" and user.get("mfa_enabled"):
+        if not body.otp:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "mfa_required", "message": "Authenticator code required"},
+            )
+        secret = decrypt_secret(user.get("mfa_secret", ""))
+        if not verify_totp(secret, body.otp):
+            await login_guard.record_failure(email)
+            raise HTTPException(status_code=401, detail="Invalid authenticator code")
+        mfa_verified = True
+    return await _auth_response(user, response, mfa_verified=mfa_verified)
 
 
 @router.post("/refresh")
-async def refresh(body: RefreshIn):
+async def refresh(request: Request, response: Response):
     """Exchange a refresh token for a new short-lived access token.
 
     The refresh token itself is rotated (old one revoked, new one issued) so
     a leaked-and-later-replayed token is detectable — see refresh_tokens.py.
     """
-    result = await refresh_tokens.rotate(body.refresh_token)
+    raw_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if not raw_refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh session missing")
+    result = await refresh_tokens.rotate(raw_refresh_token)
     if not result:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
-    user_id, new_refresh_token = result
+    user_id, new_refresh_token, mfa_verified = result
     user = await db.users.find_one({"id": user_id})
     if not user:
+        _clear_refresh_cookie(response)
         raise HTTPException(status_code=401, detail="User not found")
+    _set_refresh_cookie(response, new_refresh_token)
     return {
-        "access_token": create_access_token(user_id),
-        "refresh_token": new_refresh_token,
+        "access_token": create_access_token(
+            user_id, user.get("auth_version", 0), mfa_verified=mfa_verified,
+        ),
         "token_type": "bearer",
     }
 
 
 @router.post("/logout")
-async def logout(body: LogoutIn):
+async def logout(request: Request, response: Response):
     """Revoke a single refresh token (this device/session). Always 200."""
-    await refresh_tokens.revoke(body.refresh_token)
+    raw_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if raw_refresh_token:
+        await refresh_tokens.revoke(raw_refresh_token)
+    _clear_refresh_cookie(response)
     return {"ok": True}
 
 
 @router.post("/logout-all")
-async def logout_all(user: dict = Depends(get_current_user)):
+async def logout_all(response: Response, user: dict = Depends(get_current_user)):
     """Revoke every refresh token for the current user ('sign out everywhere')."""
     await refresh_tokens.revoke_all(user["id"])
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"auth_version": 1}})
+    _clear_refresh_cookie(response)
     return {"ok": True}
 
 
 @router.post("/change-password")
-async def change_password(body: ChangePasswordIn, user: dict = Depends(get_current_user)):
+async def change_password(body: ChangePasswordIn, response: Response, user: dict = Depends(get_current_user)):
     if not verify_password(body.current_password, user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"hashed_password": hash_password(body.new_password)}})
+    next_version = int(user.get("auth_version", 0)) + 1
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"hashed_password": hash_password(body.new_password), "auth_version": next_version}},
+    )
     # Rotate out every other session (possibly an attacker's) while keeping
     # this one alive — the caller just proved they know the new password.
     await refresh_tokens.revoke_all(user["id"])
-    new_refresh_token = await refresh_tokens.issue(user["id"])
+    mfa_verified = bool(user.get("_session_mfa_verified", False))
+    new_refresh_token = await refresh_tokens.issue(user["id"], mfa_verified=mfa_verified)
+    _set_refresh_cookie(response, new_refresh_token)
     return {
-        "access_token": create_access_token(user["id"]),
-        "refresh_token": new_refresh_token,
+        "access_token": create_access_token(
+            user["id"], next_version, mfa_verified=mfa_verified,
+        ),
         "token_type": "bearer",
+    }
+
+
+@router.post("/mfa/setup")
+async def setup_mfa(user: dict = Depends(get_current_user)):
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="MFA enrollment is restricted to administrators")
+    if user.get("mfa_enabled"):
+        raise HTTPException(status_code=409, detail="MFA is already enabled")
+    secret = generate_secret()
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"mfa_pending_secret": encrypt_secret(secret)}},
+    )
+    return {"secret": secret, "provisioning_uri": provisioning_uri(secret, user["email"])}
+
+
+@router.post("/mfa/enable")
+async def enable_mfa(
+    body: MfaEnableIn,
+    response: Response,
+    user: dict = Depends(get_current_user),
+):
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="MFA enrollment is restricted to administrators")
+    pending = user.get("mfa_pending_secret")
+    if not pending or not verify_totp(decrypt_secret(pending), body.otp):
+        raise HTTPException(status_code=400, detail="Invalid authenticator code")
+    next_version = int(user.get("auth_version", 0)) + 1
+    await db.users.update_one(
+        {"id": user["id"]},
+        {
+            "$set": {
+                "mfa_secret": pending,
+                "mfa_enabled": True,
+                "mfa_enabled_at": datetime.now(timezone.utc).isoformat(),
+                "auth_version": next_version,
+            },
+            "$unset": {"mfa_pending_secret": ""},
+        },
+    )
+    await refresh_tokens.revoke_all(user["id"])
+    new_refresh_token = await refresh_tokens.issue(user["id"], mfa_verified=True)
+    _set_refresh_cookie(response, new_refresh_token)
+    return {
+        "access_token": create_access_token(user["id"], next_version, mfa_verified=True),
+        "token_type": "bearer",
+        "mfa_enabled": True,
     }
 
 
@@ -344,7 +477,9 @@ async def update_profile(body: ProfileIn, user: dict = Depends(get_current_user)
     if body.currency and body.currency in VALID_CURRENCIES:
         updates["currency"] = body.currency
     if body.default_alert_prefs is not None:
-        updates["default_alert_prefs"] = body.default_alert_prefs
+        prefs = dict(user.get("default_alert_prefs") or {})
+        prefs.update(body.default_alert_prefs.model_dump(exclude_none=True))
+        updates["default_alert_prefs"] = prefs
     for field in ("display_name", "bio", "phone", "country", "telegram_chat_id"):
         val = getattr(body, field)
         if val is not None:
@@ -377,26 +512,12 @@ async def export_my_data(user: dict = Depends(get_current_user)):
     Covers the data-portability/right-of-access obligations shared by LGPD
     (Art. 18), GDPR (Art. 15/20), PIPEDA and CCPA/CPRA.
     """
-    uid = user["id"]
-    profile = await db.users.find_one({"id": uid}, {"_id": 0, "hashed_password": 0})
-    watchlist = await db.watchlist_items.find({"user_id": uid}, {"_id": 0}).to_list(2000)
-    alerts = await db.alerts.find({"user_id": uid}, {"_id": 0}).to_list(2000)
-    alert_events = await db.alert_events.find({"user_id": uid}, {"_id": 0}).to_list(2000)
-    positions = await db.positions.find({"user_id": uid}, {"_id": 0}).to_list(2000)
-    transactions = await db.payment_transactions.find({"user_id": uid}, {"_id": 0}).to_list(2000)
-    return {
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "profile": profile,
-        "watchlist": watchlist,
-        "alerts": alerts,
-        "alert_events": alert_events,
-        "portfolio_positions": positions,
-        "payment_transactions": transactions,
-    }
+    data = await export_account_data(db, user)
+    return {"exported_at": datetime.now(timezone.utc).isoformat(), **data}
 
 
 @router.delete("/me")
-async def delete_my_account(user: dict = Depends(get_current_user)):
+async def delete_my_account(response: Response, user: dict = Depends(get_current_user)):
     """Self-service account deletion (right to erasure / eliminação).
 
     Superadmin accounts are excluded — deleting your own admin access would
@@ -407,13 +528,7 @@ async def delete_my_account(user: dict = Depends(get_current_user)):
     """
     if user.get("role") == "superadmin":
         raise HTTPException(status_code=400, detail="Superadmin accounts can't be self-deleted. Ask another admin to remove your access.")
-    uid = user["id"]
-    await cancel_subscription_silently(user.get("stripe_subscription_id"))
-    await db.watchlist_items.delete_many({"user_id": uid})
-    await db.alerts.delete_many({"user_id": uid})
-    await db.alert_events.delete_many({"user_id": uid})
-    await db.positions.delete_many({"user_id": uid})
-    await db.password_resets.delete_many({"user_id": uid})
-    await db.refresh_tokens.delete_many({"user_id": uid})
-    await db.users.delete_one({"id": uid})
+    await cancel_subscription_for_deletion(user.get("stripe_subscription_id"))
+    await erase_account_data(db, user)
+    _clear_refresh_cookie(response)
     return {"ok": True}

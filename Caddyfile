@@ -3,9 +3,21 @@
 # edge. Caddy no longer needs its own Auto-HTTPS/ACME for a domain — that
 # would mean two ACME clients fighting over the same certificate/rate
 # limit — it just keeps doing the /api/* vs frontend path split.
+{
+	servers {
+		# Traefik is the only upstream proxy in production. This lets {client_ip}
+		# derive the real edge client without trusting browser-supplied XFF.
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
 :80 {
 	handle /api/* {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			header_up X-Dipzee-Client-IP {client_ip}
+		}
 	}
 	handle {
 		reverse_proxy frontend:80

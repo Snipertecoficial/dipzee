@@ -22,6 +22,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from database import db
+from secret_store import decrypt_secret
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,11 @@ class OpenAIProvider(AIProvider):
 async def get_ai_settings() -> dict:
     """The admin-configured AI settings doc (empty dict if never saved)."""
     doc = await db.app_settings.find_one({"id": "ai_providers"})
-    return (doc or {}).get("value") or {}
+    settings = dict((doc or {}).get("value") or {})
+    for field in ("anthropic_api_key", "google_api_key", "openai_api_key"):
+        if settings.get(field):
+            settings[field] = decrypt_secret(settings[field])
+    return settings
 
 
 def _resolve(settings: dict, db_field: str, env_var: str) -> Optional[str]:

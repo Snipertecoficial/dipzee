@@ -18,6 +18,7 @@ import datetime as _dt
 import logging
 import math
 import time
+import weakref
 from datetime import datetime, timezone
 
 from database import db
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # key -> {"exp": float, "payload": Any, "fetched_at": iso}
 _MEM: dict = {}
+_LOCKS = weakref.WeakValueDictionary()
 
 
 def json_safe(obj):
@@ -99,6 +101,16 @@ async def _load_persisted(key: str):
 
 
 async def cached(key: str, ttl: int, loader, tries: int = 3):
+    """Coalesce concurrent misses for the same key into one upstream call."""
+    lock = _LOCKS.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _LOCKS[key] = lock
+    async with lock:
+        return await _cached_unlocked(key, ttl, loader, tries)
+
+
+async def _cached_unlocked(key: str, ttl: int, loader, tries: int = 3):
     """Return an envelope dict or None (only when no data exists anywhere).
 
     Envelope: {"data": <payload>, "cached": bool, "stale": bool, "fetched_at": iso}

@@ -141,7 +141,6 @@ export default function Upgrade() {
     try {
       const { data } = await api.post('/billing/checkout', {
         package_id: `${plan}_${billing}`,
-        origin_url: window.location.origin,
       });
       if (data.url) { window.location.href = data.url; }
     } catch (e) {

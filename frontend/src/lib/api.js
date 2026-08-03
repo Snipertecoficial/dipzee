@@ -1,12 +1,15 @@
 import axios from 'axios';
+import { getAccessToken, setAccessToken } from './session';
+
+export { setAccessToken } from './session';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
-const api = axios.create({ baseURL: API });
+const api = axios.create({ baseURL: API, withCredentials: true });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('dz_token');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,17 +23,13 @@ api.interceptors.request.use((config) => {
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('dz_refresh_token');
-  if (!refreshToken) throw new Error('No refresh token');
-  const { data } = await axios.post(`${API}/auth/refresh`, { refresh_token: refreshToken });
-  localStorage.setItem('dz_token', data.access_token);
-  localStorage.setItem('dz_refresh_token', data.refresh_token);
+  const { data } = await axios.post(`${API}/auth/refresh`, null, { withCredentials: true });
+  setAccessToken(data.access_token);
   return data.access_token;
 }
 
 function clearSessionAndRedirect() {
-  localStorage.removeItem('dz_token');
-  localStorage.removeItem('dz_refresh_token');
+  setAccessToken(null);
   if (window.location.pathname.startsWith('/app')) {
     window.location.href = '/login';
   }
@@ -45,7 +44,7 @@ api.interceptors.response.use(
       || original?.url?.includes('/auth/register')
       || original?.url?.includes('/auth/refresh');
 
-    if (status === 401 && original && !original._retried && !isAuthRoute && localStorage.getItem('dz_refresh_token')) {
+    if (status === 401 && original && !original._retried && !isAuthRoute) {
       original._retried = true;
       try {
         if (!refreshPromise) {

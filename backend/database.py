@@ -13,26 +13,64 @@ db = client[os.environ['DB_NAME']]
 
 
 async def ensure_indexes():
-    """Create indexes on user_id and ticker as required."""
+    """Create correctness, tenancy, expiry and query indexes.
+
+    Index creation is part of readiness: callers intentionally let failures
+    abort startup instead of serving without uniqueness/security invariants.
+    """
     await db.users.create_index('email', unique=True)
+    await db.users.create_index('id', unique=True)
+    await db.users.create_index('stripe_customer_id', unique=True, sparse=True)
     await db.assets.create_index('ticker', unique=True)
+    await db.assets.create_index([('score', -1), ('ticker', 1)])
     await db.watchlist_items.create_index('user_id')
+    await db.watchlist_items.create_index('id', unique=True)
     await db.watchlist_items.create_index([('user_id', 1), ('ticker', 1)], unique=True)
     await db.alerts.create_index('user_id')
+    await db.alerts.create_index('id', unique=True)
     await db.alerts.create_index('ticker')
+    await db.alerts.create_index([('ticker', 1), ('active', 1)])
     await db.alert_events.create_index('user_id')
-    await db.alert_events.create_index([('user_id', 1), ('read', 1)])
+    await db.alert_events.create_index('id', unique=True)
+    await db.alert_events.create_index('dedupe_key', unique=True, sparse=True)
+    await db.alert_events.create_index([('user_id', 1), ('hidden', 1), ('read', 1), ('created_at', -1)])
+    await db.positions.create_index('id', unique=True)
     await db.positions.create_index([('user_id', 1), ('ticker', 1)], unique=True)
     await db.password_resets.create_index('user_id', unique=True)
-    await db.password_resets.create_index('token_hash')
-    await db.refresh_tokens.create_index('token_hash')
+    await db.password_resets.create_index('token_hash', unique=True)
+    await db.password_resets.create_index('purge_at', expireAfterSeconds=0)
+    await db.refresh_tokens.create_index('id', unique=True)
+    await db.refresh_tokens.create_index('token_hash', unique=True)
     await db.refresh_tokens.create_index('user_id')
+    await db.refresh_tokens.create_index([('user_id', 1), ('family_id', 1), ('revoked', 1)])
+    await db.refresh_tokens.create_index('purge_at', expireAfterSeconds=0)
+    await db.login_attempts.create_index('purge_at', expireAfterSeconds=0)
+    await db.user_operation_locks.create_index('expires_at', expireAfterSeconds=0)
     # Billing: unique event_id enforces webhook idempotency even under a
     # concurrent double-delivery race; unique session_id keys every reconcile/
     # poll/webhook lookup and prevents duplicate transaction rows.
     await db.stripe_events.create_index('event_id', unique=True)
-    await db.payment_transactions.create_index('session_id', unique=True)
+    await db.stripe_events.create_index('purge_at', expireAfterSeconds=0)
+    await db.payment_transactions.create_index('id', unique=True)
+    await db.payment_transactions.create_index('session_id', unique=True, sparse=True, name='session_id_sparse_unique')
+    await db.payment_transactions.create_index([('user_id', 1), ('created_at', -1)])
+    await db.payment_transactions.create_index([('processed', 1), ('created_at', 1)])
     await db.billing_subscriptions.create_index('stripe_subscription_id', unique=True)
+    await db.billing_subscriptions.create_index('user_id')
+    await db.billing_subscription_events.create_index('event_id', unique=True)
+    await db.billing_operation_locks.create_index('expires_at', expireAfterSeconds=0)
+    await db.billing_outbox.create_index('operation_id', unique=True)
+    await db.billing_outbox.create_index([('status', 1), ('next_attempt_at', 1)])
+
+    await db.app_settings.create_index('id', unique=True)
+    await db.announcements.create_index('id', unique=True)
+    await db.announcements.create_index([('active', 1), ('created_at', -1)])
+    await db.partner_ads.create_index('id', unique=True)
+    await db.partner_ads.create_index([('active', 1), ('placement', 1)])
+    await db.ai_analyses.create_index([('ticker', 1), ('locale', 1)], unique=True)
+    await db.admin_audit_log.create_index('id', unique=True)
+    await db.admin_audit_log.create_index([('admin_id', 1), ('created_at', -1)])
+    await db.admin_audit_log.create_index('purge_at', expireAfterSeconds=0)
 
     # LSE intelligence layer. Normalized, point-in-time correct: the unique
     # composite keys let re-ingestion of the same period upsert in place rather

@@ -26,7 +26,10 @@ RETENTION_DAYS = int(os.environ.get("DATASET_RETENTION_DAYS", "540"))  # ~18 mon
 def _salt() -> str:
     # Dedicated salt if provided, else reuse the JWT secret so the pseudonym is
     # stable and non-reversible without server secrets.
-    return os.environ.get("DATASET_SALT") or os.environ.get("JWT_SECRET") or "dipzee-dataset"
+    value = os.environ.get("DATASET_SALT") or os.environ.get("JWT_SECRET")
+    if not value and os.environ.get("ENV") == "production":
+        raise RuntimeError("DATASET_SALT is required in production")
+    return value or "dipzee-dataset-dev-only"
 
 
 def anon_subject(user_id: str) -> str:

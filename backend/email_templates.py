@@ -5,6 +5,7 @@ falling back to English. Emails use a single branded, inline-styled HTML shell
 (email clients strip <style>/external CSS, so everything is inline). Keep this
 in sync with the app's brand colors in frontend/src/index.css.
 """
+from html import escape
 
 _BRAND_NAVY = "#1A1F4D"
 _BRAND_MINT = "#16E0A3"
@@ -81,19 +82,22 @@ def _norm_locale(locale: str | None) -> str:
 
 def _shell(heading: str, paragraphs: list[str], cta_label: str | None = None,
            cta_url: str | None = None, small_notes: list[str] | None = None) -> str:
+    safe_heading = escape(str(heading))
     rows = "".join(
-        f'<tr><td style="color:{_MUTED};font-size:15px;line-height:1.6;padding:6px 0;">{p}</td></tr>'
+        f'<tr><td style="color:{_MUTED};font-size:15px;line-height:1.6;padding:6px 0;">{escape(str(p))}</td></tr>'
         for p in paragraphs
     )
     if cta_label and cta_url:
+        safe_label = escape(str(cta_label))
+        safe_url = escape(str(cta_url), quote=True)
         rows += (
             f'<tr><td style="padding:12px 0 6px;">'
-            f'<a href="{cta_url}" style="display:inline-block;background:{_BRAND_NAVY};color:#ffffff;'
+            f'<a href="{safe_url}" style="display:inline-block;background:{_BRAND_NAVY};color:#ffffff;'
             f'text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;font-size:15px;">'
-            f'{cta_label}</a></td></tr>'
+            f'{safe_label}</a></td></tr>'
         )
     for note in (small_notes or []):
-        rows += f'<tr><td style="color:#98A2C0;font-size:12px;line-height:1.5;padding:8px 0 0;">{note}</td></tr>'
+        rows += f'<tr><td style="color:#98A2C0;font-size:12px;line-height:1.5;padding:8px 0 0;">{escape(str(note))}</td></tr>'
     return (
         f'<div style="background:{_CANVAS};padding:28px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
         f'<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E6E9F0;">'
@@ -102,7 +106,7 @@ def _shell(heading: str, paragraphs: list[str], cta_label: str | None = None,
         f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{_BRAND_MINT};margin-left:6px;vertical-align:middle;"></span>'
         f'</td></tr>'
         f'<tr><td style="padding:28px 28px 6px;">'
-        f'<h1 style="margin:0 0 4px;color:{_TEXT};font-size:22px;letter-spacing:-0.02em;">{heading}</h1>'
+        f'<h1 style="margin:0 0 4px;color:{_TEXT};font-size:22px;letter-spacing:-0.02em;">{safe_heading}</h1>'
         f'</td></tr>'
         f'<tr><td style="padding:0 28px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%">{rows}</table></td></tr>'
         f'<tr><td style="padding:14px 28px;border-top:1px solid #E6E9F0;color:#98A2C0;font-size:12px;line-height:1.5;">'
@@ -124,6 +128,6 @@ def reset_email(link: str, ttl_minutes: int, locale: str | None = None) -> tuple
         [s["body"].format(ttl=ttl_minutes)],
         cta_label=s["cta"],
         cta_url=link,
-        small_notes=[f'{s["fallback"]}<br><a href="{link}" style="color:{_BRAND_NAVY};word-break:break-all;">{link}</a>', s["ignore"]],
+        small_notes=[s["fallback"], link, s["ignore"]],
     )
     return s["subject"], html

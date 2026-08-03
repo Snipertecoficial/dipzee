@@ -13,17 +13,55 @@ missing documents and refreshes existing ones, without dropping anything the
 snapshot doesn't contain. To do a clean restore, drop the collections first.
 """
 import asyncio
+import base64
 import gzip
 import os
 import sys
+import tempfile
 
 from bson import json_util
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from motor.motor_asyncio import AsyncIOMotorClient
+
+_MAGIC = b"DIPZEEBK1"
+
+
+def _backup_key() -> bytes:
+    try:
+        key = base64.b64decode(os.environ.get("BACKUP_ENCRYPTION_KEY", ""), validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY must be valid base64") from exc
+    if len(key) != 32:
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes")
+    return key
+
+
+def _read_payload(path: str):
+    with open(path, "rb") as source:
+        if source.read(len(_MAGIC)) != _MAGIC:
+            raise RuntimeError("Refusing unencrypted or unsupported backup format")
+        nonce = source.read(12)
+        source.seek(-16, os.SEEK_END)
+        tag = source.read(16)
+        ciphertext_end = source.tell() - 16
+        source.seek(len(_MAGIC) + 12)
+        decryptor = Cipher(algorithms.AES(_backup_key()), modes.GCM(nonce, tag)).decryptor()
+        with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as decrypted:
+            remaining = ciphertext_end - source.tell()
+            while remaining:
+                chunk = source.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise RuntimeError("Truncated encrypted backup")
+                decrypted.write(decryptor.update(chunk))
+                remaining -= len(chunk)
+            decrypted.write(decryptor.finalize())
+            decrypted.seek(0)
+            with gzip.GzipFile(fileobj=decrypted, mode="rb") as zipped:
+                return json_util.loads(zipped.read().decode("utf-8"))
 
 
 async def main(path: str) -> None:
-    with gzip.open(path, "rb") as fh:
-        payload = json_util.loads(fh.read().decode("utf-8"))
+    payload = _read_payload(path)
     data = payload.get("data", payload)  # tolerate a raw {collection: docs} too
 
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
@@ -47,6 +85,6 @@ async def main(path: str) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python scripts/restore_backup.py <path-to-backup.json.gz>")
+        print("Usage: python scripts/restore_backup.py <path-to-backup.json.gz.enc>")
         raise SystemExit(2)
     asyncio.run(main(sys.argv[1]))

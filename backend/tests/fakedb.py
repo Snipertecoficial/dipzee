@@ -7,6 +7,7 @@ support plain equality plus the few operators our code passes ($in/$nin/$gte).
 """
 import copy
 import re
+from pymongo.errors import DuplicateKeyError
 
 
 class _Result:
@@ -42,9 +43,20 @@ class FakeCollection:
                     dv = doc.get(k)
                     if dv is None or dv < v["$gte"]:
                         return False
+                elif "$gt" in v:
+                    dv = doc.get(k)
+                    if dv is None or dv <= v["$gt"]:
+                        return False
+                elif "$lte" in v:
+                    dv = doc.get(k)
+                    if dv is None or dv > v["$lte"]:
+                        return False
                 elif "$lt" in v:
                     dv = doc.get(k)
                     if dv is None or dv >= v["$lt"]:
+                        return False
+                elif "$exists" in v:
+                    if (k in doc) != bool(v["$exists"]):
                         return False
                 else:
                     if doc.get(k) != v:
@@ -60,8 +72,30 @@ class FakeCollection:
         return None
 
     async def insert_one(self, doc):
+        if "_id" in doc and any(existing.get("_id") == doc["_id"] for existing in self.docs):
+            raise DuplicateKeyError("duplicate _id")
         self.docs.append(copy.deepcopy(doc))
         return _Result(inserted_id=doc.get("id"))
+
+    @staticmethod
+    def _set_path(doc, path, value):
+        parts = path.split(".")
+        target = doc
+        for part in parts[:-1]:
+            target = target.setdefault(part, {})
+        target[parts[-1]] = copy.deepcopy(value)
+
+    @classmethod
+    def _apply_update(cls, doc, update, *, inserting=False):
+        if inserting:
+            for k, v in update.get("$setOnInsert", {}).items():
+                cls._set_path(doc, k, v)
+        for k, v in update.get("$set", {}).items():
+            cls._set_path(doc, k, v)
+        for k, v in update.get("$inc", {}).items():
+            cls._set_path(doc, k, (doc.get(k, 0) or 0) + v)
+        for k in update.get("$unset", {}):
+            doc.pop(k, None)
 
     async def insert_many(self, docs):
         ids = []
@@ -76,21 +110,48 @@ class FakeCollection:
         self.docs = keep
         return _Result(deleted_count=removed)
 
+    async def delete_one(self, flt):
+        for i, doc in enumerate(self.docs):
+            if self._match(doc, flt):
+                self.docs.pop(i)
+                return _Result(deleted_count=1)
+        return _Result(deleted_count=0)
+
     async def count_documents(self, flt):
         return sum(1 for d in self.docs if self._match(d, flt))
 
     async def update_one(self, flt, update, upsert=False):
-        setv = update.get("$set", {})
         for d in self.docs:
             if self._match(d, flt):
-                d.update(copy.deepcopy(setv))
+                self._apply_update(d, update)
                 return _Result(matched_count=1, modified_count=1, upserted_id=None)
         if upsert:
             newdoc = {k: v for k, v in flt.items() if not isinstance(v, dict)}
-            newdoc.update(copy.deepcopy(setv))
+            self._apply_update(newdoc, update, inserting=True)
             self.docs.append(newdoc)
             return _Result(matched_count=0, modified_count=0, upserted_id=1)
         return _Result(matched_count=0, modified_count=0, upserted_id=None)
+
+    async def update_many(self, flt, update):
+        matched = 0
+        for d in self.docs:
+            if self._match(d, flt):
+                self._apply_update(d, update)
+                matched += 1
+        return _Result(matched_count=matched, modified_count=matched)
+
+    async def find_one_and_update(self, flt, update, upsert=False, return_document=False, **kwargs):
+        for d in self.docs:
+            if self._match(d, flt):
+                before = copy.deepcopy(d)
+                self._apply_update(d, update)
+                return copy.deepcopy(d) if return_document else before
+        if upsert:
+            newdoc = {k: v for k, v in flt.items() if not isinstance(v, dict)}
+            self._apply_update(newdoc, update, inserting=True)
+            self.docs.append(newdoc)
+            return copy.deepcopy(newdoc) if return_document else None
+        return None
 
     async def distinct(self, field, flt=None):
         flt = flt or {}

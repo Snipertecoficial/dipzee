@@ -12,12 +12,12 @@ router = APIRouter(prefix="/screener", tags=["screener"])
 
 @router.get("")
 async def get_screener(
-    sector: Optional[str] = None,
-    exchange: Optional[str] = None,
-    classification: Optional[str] = None,
-    min_dividend: Optional[float] = None,
-    max_range_position: Optional[float] = None,
-    min_upside: Optional[float] = None,
+    sector: Optional[str] = Query(None, max_length=80),
+    exchange: Optional[str] = Query(None, max_length=20),
+    classification: Optional[str] = Query(None, pattern=r"^(strong_buy|buy|hold|reduce|sell)$"),
+    min_dividend: Optional[float] = Query(None, ge=0, le=1),
+    max_range_position: Optional[float] = Query(None, ge=0, le=1),
+    min_upside: Optional[float] = Query(None, ge=-10, le=10),
     user: dict = Depends(require_feature("screener")),
 ):
     filters = {
@@ -49,7 +49,7 @@ async def exchanges(user: dict = Depends(require_feature("screener"))):
 
 
 @router.post("/refresh")
-async def refresh(limit: Optional[int] = Query(None), user: dict = Depends(require_feature("screener"))):
+async def refresh(limit: Optional[int] = Query(None, ge=1, le=500), user: dict = Depends(require_feature("screener"))):
     try:
         count = await refresh_universe(limit=limit)
     except RefreshCooldownError as e:

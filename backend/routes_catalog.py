@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 import security_master
-from security import get_current_user
+from security import require_feature
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -24,7 +24,7 @@ async def browse_catalog(
     advanced: bool = False,
     min_dividend: Optional[float] = Query(None, description="only assets with a verified yield >= this (fraction, e.g. 0 for any payer)"),
     page: int = Query(1, ge=1),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_feature("search")),
 ):
     return await security_master.search_catalog(
         q=q, exchange=exchange, asset_class=asset_class,
@@ -36,7 +36,7 @@ async def browse_catalog(
 async def catalog_facets(
     source: Optional[str] = None,
     advanced: bool = False,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_feature("search")),
 ):
     """Exchange + asset-class chips (with counts) for the Explore filters."""
     return await security_master.facets(source=source, advanced=advanced)

@@ -15,14 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { isStrongPassword } from '../lib/validation';
-import api from '../lib/api';
+import api, { setAccessToken } from '../lib/api';
 
 const LANGS = [{ code: 'en', label: 'English' }, { code: 'fr', label: 'Fran\u00e7ais' }, { code: 'pt', label: 'Portugu\u00eas' }, { code: 'es', label: 'Espa\u00f1ol' }];
 const MAX_FILE = 1_100_000; // ~1MB source -> ~1.4MB base64
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { user, updateProfile, can, logout, logoutAllDevices, changePassword } = useAuth();
+  const { user, updateProfile, can, logout, logoutAllDevices, changePassword, setUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const fileRef = useRef(null);
@@ -48,6 +48,9 @@ export default function Settings() {
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
   const [logoutAllBusy, setLogoutAllBusy] = useState(false);
+  const [mfaSetup, setMfaSetup] = useState(null);
+  const [mfaOtp, setMfaOtp] = useState('');
+  const [mfaBusy, setMfaBusy] = useState(false);
 
   const isPaid = ['starter', 'pro', 'investor'].includes(user?.plan);
 
@@ -77,7 +80,7 @@ export default function Settings() {
   const openPortal = async () => {
     setPortalBusy(true);
     try {
-      const { data } = await api.post('/billing/portal', { origin_url: window.location.origin });
+      const { data } = await api.post('/billing/portal');
       if (data.url) { window.location.href = data.url; }
     } catch (e) {
       toast.error(e?.response?.status === 400 ? t('settings.noBillingAccount') : t('auth.genericError'));
@@ -158,6 +161,28 @@ export default function Settings() {
       toast.error(t('auth.genericError'));
       setLogoutAllBusy(false);
     }
+  };
+
+  const beginMfaSetup = async () => {
+    setMfaBusy(true);
+    try {
+      const { data } = await api.post('/auth/mfa/setup');
+      setMfaSetup(data);
+    } catch (e) { toast.error(t('auth.genericError')); }
+    finally { setMfaBusy(false); }
+  };
+
+  const enableMfa = async () => {
+    setMfaBusy(true);
+    try {
+      const { data } = await api.post('/auth/mfa/enable', { otp: mfaOtp });
+      setAccessToken(data.access_token);
+      setUser({ ...user, mfa_enabled: true });
+      setMfaSetup(null);
+      setMfaOtp('');
+      toast.success(t('settings.mfaEnabled'));
+    } catch (e) { toast.error(e?.response?.data?.detail || t('auth.genericError')); }
+    finally { setMfaBusy(false); }
   };
 
   const fmtDate = (iso) => {
@@ -296,6 +321,30 @@ export default function Settings() {
                 </Button>
               </div>
             </form>
+            {user?.role === 'superadmin' && (
+              <div className="mt-5 border-t border-[var(--dz-border)] pt-4">
+                <p className="font-medium text-sm">{t('settings.adminMfa')}</p>
+                <p className="mt-1 text-sm text-[var(--dz-muted)]">
+                  {user?.mfa_enabled ? t('settings.mfaActive') : t('settings.mfaDescription')}
+                </p>
+                {!user?.mfa_enabled && !mfaSetup && (
+                  <Button type="button" variant="outline" size="sm" onClick={beginMfaSetup} disabled={mfaBusy} className="mt-3">
+                    {t('settings.configureMfa')}
+                  </Button>
+                )}
+                {mfaSetup && (
+                  <div className="mt-3 max-w-2xl space-y-3">
+                    <p className="text-xs text-[var(--dz-muted)]">{t('settings.mfaSetupHelp')}</p>
+                    <code className="block break-all rounded-lg bg-[var(--dz-canvas)] p-3 text-xs select-all">{mfaSetup.secret}</code>
+                    <Label htmlFor="mfa-otp">{t('auth.mfaCode')}</Label>
+                    <div className="flex gap-2">
+                      <Input id="mfa-otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaOtp} onChange={(e) => setMfaOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} className="max-w-40" />
+                      <Button type="button" onClick={enableMfa} disabled={mfaBusy || mfaOtp.length !== 6}>{t('settings.enableMfa')}</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="mt-5 border-t border-[var(--dz-border)] pt-4">
               <p className="text-sm text-[var(--dz-muted)]">{t('settings.logoutAllDesc')}</p>
               <Button variant="outline" size="sm" onClick={doLogoutAll} disabled={logoutAllBusy} data-testid="settings-logout-all-button" className="mt-2 border-[var(--dz-border)]">

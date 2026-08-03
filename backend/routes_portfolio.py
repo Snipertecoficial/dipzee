@@ -1,4 +1,5 @@
 """Portfolio / positions with computed P&L (Investor feature)."""
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -8,20 +9,22 @@ from pydantic import BaseModel, Field
 
 from asset_service import refresh_asset
 from database import db
+from operation_lock import user_operation_lock
+from plans import has_feature
 from security import require_feature
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
 class PositionIn(BaseModel):
-    ticker: str
-    quantity: float = Field(gt=0)
-    avg_cost: float = Field(ge=0)
+    ticker: str = Field(min_length=1, max_length=15)
+    quantity: float = Field(gt=0, le=1_000_000_000, allow_inf_nan=False)
+    avg_cost: float = Field(ge=0, le=1_000_000_000, allow_inf_nan=False)
 
 
 class PositionUpdate(BaseModel):
-    quantity: Optional[float] = Field(default=None, gt=0)
-    avg_cost: Optional[float] = Field(default=None, ge=0)
+    quantity: Optional[float] = Field(default=None, gt=0, le=1_000_000_000, allow_inf_nan=False)
+    avg_cost: Optional[float] = Field(default=None, ge=0, le=1_000_000_000, allow_inf_nan=False)
 
 
 async def _compute(user_id: str) -> dict:
@@ -32,8 +35,15 @@ async def _compute(user_id: str) -> dict:
     # would silently produce a meaningless blended figure, so totals are kept
     # per-currency instead.
     totals_by_currency: dict = {}
-    for p in positions:
-        asset = await refresh_asset(p["ticker"]) or {}
+    semaphore = asyncio.Semaphore(5)
+
+    async def enrich(p):
+        async with semaphore:
+            asset = await refresh_asset(p["ticker"]) or {}
+        return p, asset
+
+    enriched = await asyncio.gather(*(enrich(position) for position in positions))
+    for p, asset in enriched:
         price = asset.get("price")
         currency = asset.get("currency") or "USD"
         dy = asset.get("dividend_yield") or 0.0
@@ -84,26 +94,37 @@ async def get_portfolio(user: dict = Depends(require_feature("portfolio"))):
 
 @router.post("")
 async def add_position(body: PositionIn, user: dict = Depends(require_feature("portfolio"))):
-    ticker = body.ticker.strip().upper()
-    await refresh_asset(ticker)
-    existing = await db.positions.find_one({"user_id": user["id"], "ticker": ticker})
-    if existing:
-        # Merge: weighted average cost.
-        total_qty = existing["quantity"] + body.quantity
-        avg = ((existing["quantity"] * existing["avg_cost"]) + (body.quantity * body.avg_cost)) / total_qty
-        await db.positions.update_one(
-            {"id": existing["id"]},
-            {"$set": {"quantity": total_qty, "avg_cost": round(avg, 4)}},
-        )
-    else:
-        await db.positions.insert_one({
-            "id": str(uuid.uuid4()),
-            "user_id": user["id"],
-            "ticker": ticker,
-            "quantity": body.quantity,
-            "avg_cost": body.avg_cost,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+    from asset_service import normalize_ticker
+    try:
+        ticker = normalize_ticker(body.ticker)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid ticker")
+    if not await refresh_asset(ticker):
+        raise HTTPException(status_code=404, detail=f"No data available for {ticker}")
+    async with user_operation_lock(db, "position-add", user["id"]):
+        fresh_user = await db.users.find_one({"id": user["id"]})
+        if not fresh_user or not has_feature(fresh_user.get("plan"), "portfolio"):
+            raise HTTPException(status_code=403, detail="Portfolio access is no longer active")
+        existing = await db.positions.find_one({"user_id": user["id"], "ticker": ticker})
+        if existing:
+            # Merge: weighted average cost.
+            total_qty = existing["quantity"] + body.quantity
+            avg = ((existing["quantity"] * existing["avg_cost"]) + (body.quantity * body.avg_cost)) / total_qty
+            await db.positions.update_one(
+                {"id": existing["id"], "user_id": user["id"]},
+                {"$set": {"quantity": total_qty, "avg_cost": round(avg, 4)}},
+            )
+        else:
+            if await db.positions.count_documents({"user_id": user["id"]}) >= 500:
+                raise HTTPException(status_code=422, detail="Portfolio position limit reached")
+            await db.positions.insert_one({
+                "id": str(uuid.uuid4()),
+                "user_id": user["id"],
+                "ticker": ticker,
+                "quantity": body.quantity,
+                "avg_cost": body.avg_cost,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
     return await _compute(user["id"])
 
 
@@ -118,7 +139,7 @@ async def update_position(position_id: str, body: PositionUpdate, user: dict = D
     if body.avg_cost is not None:
         updates["avg_cost"] = body.avg_cost
     if updates:
-        await db.positions.update_one({"id": position_id}, {"$set": updates})
+        await db.positions.update_one({"id": position_id, "user_id": user["id"]}, {"$set": updates})
     return await _compute(user["id"])
 
 

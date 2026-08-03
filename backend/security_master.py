@@ -18,6 +18,7 @@ London (LSE) instruments are ingested separately via ``import_lse_catalog`` over
 the licensed ``lse_service.catalog()`` — see [[lse-intelligence-layer]].
 """
 import csv
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -232,7 +233,7 @@ async def import_us_listings(fetch: bool = True) -> dict:
     fetched = None
     if fetch:
         try:
-            fetched = fetch_listings()
+            fetched = await asyncio.to_thread(fetch_listings)
         except Exception as e:  # noqa: BLE001 - network/HTTP; fall back to cache
             logger.warning("[catalog] fetch_listings failed, using cached files: %s", e)
 

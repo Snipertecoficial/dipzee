@@ -12,7 +12,6 @@ Nothing here redistributes raw LSE feeds; the output is Dipzee-derived analysis.
 import json
 import logging
 import re
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +78,7 @@ def net_impact_from_events(events: list, symbol: str) -> dict:
     return {"net_impact": net, "event_count": len(contributors), "contributors": contributors[:8]}
 
 
-async def build_asset_context(db, ticker: str) -> dict:
+async def build_asset_context(db, ticker: str, *, include_options: bool = False) -> dict:
     """Assemble deterministic context for one asset: score snapshot + recent
     enriched events affecting it + net impact + optional options summary."""
     from asset_service import refresh_asset
@@ -112,7 +111,7 @@ async def build_asset_context(db, ticker: str) -> dict:
         "net_impact": impact["net_impact"],
         "event_count": impact["event_count"],
         "recent_events": impact["contributors"],
-        "options": await summarize_options_flow(ticker),
+        "options": await summarize_options_flow(ticker) if include_options else {"available": False, "reason": "feature_locked"},
     }
 
 

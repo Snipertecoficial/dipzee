@@ -1,5 +1,4 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
 
 const SITE = 'https://dipzee.com';
 const DEFAULT_IMAGE = `${SITE}/og-image.png`;
@@ -12,7 +11,7 @@ export function Seo({ title, description, path = '/', noindex = false }) {
   const fullTitle = title ? `${title} | Dipzee` : 'Dipzee — Buy Low, Earn Dividends, Sell High | Opportunity Score';
   const url = `${SITE}${path}`;
   return (
-    <Helmet>
+    <>
       <title>{fullTitle}</title>
       {description && <meta name="description" content={description} />}
       <meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow'} />
@@ -24,6 +23,6 @@ export function Seo({ title, description, path = '/', noindex = false }) {
       <meta name="twitter:title" content={fullTitle} />
       {description && <meta name="twitter:description" content={description} />}
       <meta name="twitter:image" content={DEFAULT_IMAGE} />
-    </Helmet>
+    </>
   );
 }

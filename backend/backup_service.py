@@ -17,12 +17,18 @@ Behavior:
 Regenerable caches are skipped to keep snapshots small; only irreplaceable data
 is backed up.
 """
+import base64
 import gzip
+import hashlib
+import io
+import json
 import logging
 import os
+import secrets
 from datetime import datetime, timezone
 
 from bson import json_util
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from database import db
 
@@ -33,6 +39,35 @@ BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "7"))
 
 # Regenerable from providers / recomputed on demand — no need to back these up.
 SKIP_COLLECTIONS = {"market_cache", "ai_analyses"}
+_MAGIC = b"DIPZEEBK1"
+
+
+def _backup_key() -> bytes:
+    encoded = os.environ.get("BACKUP_ENCRYPTION_KEY", "")
+    try:
+        key = base64.b64decode(encoded, validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY must be valid base64") from exc
+    if len(key) != 32:
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes")
+    return key
+
+
+class _EncryptWriter(io.RawIOBase):
+    def __init__(self, raw, encryptor):
+        self.raw = raw
+        self.encryptor = encryptor
+
+    def writable(self):
+        return True
+
+    def write(self, data):
+        encrypted = self.encryptor.update(data)
+        self.raw.write(encrypted)
+        return len(data)
+
+    def flush(self):
+        self.raw.flush()
 
 
 def _s3_client():
@@ -59,7 +94,7 @@ def _rotate_local():
     """Keep only the newest BACKUP_KEEP snapshots on disk."""
     try:
         files = sorted(
-            (f for f in os.listdir(BACKUP_DIR) if f.startswith("dipzee-backup-") and f.endswith(".json.gz")),
+            (f for f in os.listdir(BACKUP_DIR) if f.startswith("dipzee-backup-") and f.endswith(".json.gz.enc")),
             reverse=True,
         )
         for stale in files[BACKUP_KEEP:]:
@@ -69,30 +104,63 @@ def _rotate_local():
 
 
 async def create_backup() -> dict:
-    """Dump all non-cache collections to a gzipped Extended-JSON snapshot
-    (local always; offsite if configured). Returns a summary dict."""
+    """Stream an authenticated, encrypted Extended-JSON snapshot to disk."""
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    fname = f"dipzee-backup-{ts}.json.gz"
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    fname = f"dipzee-backup-{ts}.json.gz.enc"
     fpath = os.path.join(BACKUP_DIR, fname)
-
-    data = {}
+    temp_path = f"{fpath}.tmp-{secrets.token_hex(8)}"
+    key = _backup_key()
+    nonce = secrets.token_bytes(12)
+    names = [name for name in await db.list_collection_names() if name not in SKIP_COLLECTIONS]
     total_docs = 0
-    for name in await db.list_collection_names():
-        if name in SKIP_COLLECTIONS:
-            continue
-        docs = await db[name].find({}).to_list(length=None)
-        data[name] = docs
-        total_docs += len(docs)
-
-    payload = json_util.dumps({"_meta": {"created_at": ts, "collections": list(data)}, "data": data})
-    blob = gzip.compress(payload.encode("utf-8"))
-    with open(fpath, "wb") as fh:
-        fh.write(blob)
+    try:
+        with open(temp_path, "xb") as raw:
+            raw.write(_MAGIC)
+            raw.write(nonce)
+            encryptor = Cipher(algorithms.AES(key), modes.GCM(nonce)).encryptor()
+            encrypted_writer = _EncryptWriter(raw, encryptor)
+            with gzip.GzipFile(fileobj=encrypted_writer, mode="wb") as zipped:
+                meta = json.dumps({"created_at": ts, "collections": names}, separators=(",", ":"))
+                zipped.write(f'{{"_meta":{meta},"data":{{'.encode("utf-8"))
+                for collection_index, name in enumerate(names):
+                    if collection_index:
+                        zipped.write(b",")
+                    zipped.write(json.dumps(name).encode("utf-8") + b":[")
+                    first = True
+                    async for doc in db[name].find({}):
+                        if not first:
+                            zipped.write(b",")
+                        zipped.write(json_util.dumps(doc, separators=(",", ":")).encode("utf-8"))
+                        first = False
+                        total_docs += 1
+                    zipped.write(b"]")
+                zipped.write(b"}}")
+            encrypted_writer.close()
+            raw.write(encryptor.finalize())
+            raw.write(encryptor.tag)
+            raw.flush()
+            os.fsync(raw.fileno())
+        try:
+            os.chmod(temp_path, 0o600)
+        except OSError:
+            pass
+        os.replace(temp_path, fpath)
+    except Exception:
+        try:
+            os.remove(temp_path)
+        except FileNotFoundError:
+            pass
+        raise
     _rotate_local()
 
-    result = {"file": fname, "collections": len(data), "documents": total_docs,
-              "bytes": len(blob), "offsite": False}
+    size = os.path.getsize(fpath)
+    digest = hashlib.sha256()
+    with open(fpath, "rb") as backup_file:
+        for chunk in iter(lambda: backup_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    result = {"file": fname, "collections": len(names), "documents": total_docs,
+              "bytes": size, "sha256": digest.hexdigest(), "offsite": False}
 
     client = _s3_client()
     if client:
@@ -100,7 +168,13 @@ async def create_backup() -> dict:
         prefix = os.environ.get("BACKUP_S3_PREFIX", "dipzee-backups").strip("/")
         key = f"{prefix}/{fname}" if prefix else fname
         try:
-            client.put_object(Bucket=bucket, Key=key, Body=blob)
+            extra_args = {
+                "ContentType": "application/octet-stream",
+                "Metadata": {"sha256": result["sha256"]},
+            }
+            if os.environ.get("BACKUP_S3_SSE", "AES256"):
+                extra_args["ServerSideEncryption"] = os.environ.get("BACKUP_S3_SSE", "AES256")
+            client.upload_file(fpath, bucket, key, ExtraArgs=extra_args)
             result["offsite"] = True
             result["offsite_key"] = key
         except Exception as e:  # noqa: BLE001
@@ -116,7 +190,7 @@ def list_local_backups() -> list:
     try:
         files = []
         for f in os.listdir(BACKUP_DIR):
-            if f.startswith("dipzee-backup-") and f.endswith(".json.gz"):
+            if f.startswith("dipzee-backup-") and f.endswith(".json.gz.enc"):
                 p = os.path.join(BACKUP_DIR, f)
                 files.append({"file": f, "bytes": os.path.getsize(p), "modified": os.path.getmtime(p)})
         return sorted(files, key=lambda x: x["modified"], reverse=True)

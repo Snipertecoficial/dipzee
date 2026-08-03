@@ -12,6 +12,7 @@ good UX) and again immediately before the server actually makes the request
 at save time but an internal one at delivery time).
 """
 import ipaddress
+import os
 import socket
 from urllib.parse import urlparse
 
@@ -20,12 +21,40 @@ class UnsafeUrlError(ValueError):
     """Raised when a URL is missing, malformed, or targets a non-public host."""
 
 
+def _allowed_hosts() -> set[str]:
+    return {h.strip().lower().rstrip(".") for h in os.environ.get("WEBHOOK_ALLOWED_HOSTS", "").split(",") if h.strip()}
+
+
+def _host_allowed(hostname: str, allowed: set[str]) -> bool:
+    host = hostname.lower().rstrip(".")
+    for rule in allowed:
+        if rule.startswith("*.") and host.endswith(rule[1:]) and host != rule[2:]:
+            return True
+        if host == rule:
+            return True
+    return False
+
+
 def assert_safe_outbound_url(url: str) -> None:
     parsed = urlparse((url or "").strip())
     if parsed.scheme not in ("http", "https"):
         raise UnsafeUrlError("URL must start with http:// or https://")
     if not parsed.hostname:
         raise UnsafeUrlError("URL must include a host")
+    if parsed.username or parsed.password:
+        raise UnsafeUrlError("URL credentials are not allowed")
+
+    allowed = _allowed_hosts()
+    if os.environ.get("ENV", "development") == "production":
+        if parsed.scheme != "https":
+            raise UnsafeUrlError("Webhook URL must use HTTPS")
+        if parsed.port not in (None, 443):
+            raise UnsafeUrlError("Webhook URL must use the standard HTTPS port")
+        # Arbitrary attacker-controlled DNS cannot be made rebinding-safe by a
+        # resolve-then-request check. Production therefore permits only exact
+        # operator-approved hosts (or explicit wildcard suffixes).
+        if not allowed or not _host_allowed(parsed.hostname, allowed):
+            raise UnsafeUrlError("Webhook host is not allowed")
 
     try:
         infos = socket.getaddrinfo(parsed.hostname, None)

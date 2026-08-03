@@ -133,19 +133,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
-    try:
-        await ensure_indexes()
-        logger.info("Indexes ensured.")
-    except Exception as e:  # noqa: BLE001
-        logger.warning("ensure_indexes failed: %s", e)
-
-    # Unlike the other startup steps here, a migration failure is NOT
-    # swallowed — it aborts startup. A missing index or unseeded admin
-    # degrades gracefully; a half-applied data migration doesn't, and this
-    # app moves real money.
+    from app_config import validate_production_config
+    validate_production_config()
+    # Normalize data before creating constraints. Both operations fail
+    # startup: auth/payment traffic must never run without their invariants.
     from database import db as _db
     from migrations.runner import run_pending_migrations
     await run_pending_migrations(_db)
+    await ensure_indexes()
+    logger.info("Indexes ensured.")
 
     try:
         await seed_superadmin()
@@ -215,7 +211,10 @@ async def seed_superadmin():
         if existing:
             await db.users.update_one(
                 {"email": email},
-                {"$set": {"role": "superadmin", "plan": "investor", "hashed_password": hash_password(password)}},
+                # Preserve password rotations performed through the product;
+                # a long-lived environment secret must not reset credentials
+                # on every container restart.
+                {"$set": {"role": "superadmin", "plan": "investor"}},
             )
             logger.info("Superadmin ensured: %s", email)
             continue
@@ -234,6 +233,7 @@ async def seed_superadmin():
             "currency": "USD",
             "plan": "investor",
             "role": "superadmin",
+            "auth_version": 0,
             "stripe_customer_id": None,
             "default_alert_prefs": {"email": True, "in_app": True, "telegram": False, "webhook": False},
             "created_at": datetime.now(timezone.utc).isoformat(),

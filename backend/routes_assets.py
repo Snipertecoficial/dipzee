@@ -4,12 +4,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from asset_service import refresh_asset
+from asset_service import normalize_ticker, refresh_asset, sanitize_asset_for_client
 from database import db
 from explain import build_explanation
 from market_cache import cached
 from providers import get_company_news, get_market_news, get_fmp_news, get_yf_news, search_resilient
-from security import get_current_user
+from security import require_feature
 from alert_service import evaluate_alerts_for_asset
 
 router = APIRouter(tags=["assets"])
@@ -18,6 +18,7 @@ TTL_NEWS = 180  # 3min — short enough to feel live, long enough to not hammer 
 
 
 def _with_explanation(asset: dict, locale: str) -> dict:
+    asset = sanitize_asset_for_client(asset)
     if asset and asset.get("score") is not None:
         asset = dict(asset)
         asset["explanation"] = build_explanation(asset, locale)
@@ -25,14 +26,17 @@ def _with_explanation(asset: dict, locale: str) -> dict:
 
 
 @router.get("/assets/search")
-async def search_assets(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
+async def search_assets(q: str = Query(..., min_length=1, max_length=80), user: dict = Depends(require_feature("search"))):
     return {"results": await asyncio.to_thread(search_resilient, q)}
 
 
 @router.get("/assets/{ticker}/news")
-async def asset_news(ticker: str, user: dict = Depends(get_current_user)):
-    ticker = ticker.strip().upper()
-    news = get_company_news(ticker, days=7, limit=15)  # Finnhub, needs FINNHUB_API_KEY
+async def asset_news(ticker: str, user: dict = Depends(require_feature("search"))):
+    try:
+        ticker = normalize_ticker(ticker)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ticker")
+    news = await asyncio.to_thread(get_company_news, ticker, days=7, limit=15)
     if not news:
         # Free fallback: no key needed, so this always has a chance of working.
         env = await cached(f"yfnews:{ticker}", TTL_NEWS, lambda: get_yf_news(ticker, limit=15))
@@ -41,9 +45,12 @@ async def asset_news(ticker: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/news/market")
-async def market_news(user: dict = Depends(get_current_user)):
-    news = get_market_news(limit=20)       # Finnhub, needs FINNHUB_API_KEY
-    news += get_fmp_news(limit=15)         # FMP, needs a plan that isn't restricted to /stable basics
+async def market_news(user: dict = Depends(require_feature("search"))):
+    first, second = await asyncio.gather(
+        asyncio.to_thread(get_market_news, limit=20),
+        asyncio.to_thread(get_fmp_news, limit=15),
+    )
+    news = (first or []) + (second or [])
     if not news:
         env = await cached("yfnews:market", TTL_NEWS, lambda: get_yf_news(limit=20))
         news = (env or {}).get("data") or []
@@ -51,16 +58,19 @@ async def market_news(user: dict = Depends(get_current_user)):
 
 
 @router.get("/public/top-opportunities")
-async def public_top_opportunities(limit: int = 8):
+async def public_top_opportunities(limit: int = Query(8, ge=1, le=20)):
     """Public preview for the marketing/landing page (no auth)."""
     assets = await db.assets.find(
-        {"score": {"$ne": None}}, {"_id": 0}
+        {"score": {"$ne": None}},
+        {"_id": 0, "ticker": 1, "name": 1, "currency": 1, "price": 1,
+         "score": 1, "classification": 1, "dividend_yield": 1,
+         "change_pct": 1, "flags": 1, "updated_at": 1},
     ).sort("score", -1).to_list(limit)
     return {"results": assets}
 
 
 @router.get("/score/{ticker}")
-async def get_score(ticker: str, locale: Optional[str] = None, user: dict = Depends(get_current_user)):
+async def get_score(ticker: str, locale: Optional[str] = None, user: dict = Depends(require_feature("search"))):
     asset = await refresh_asset(ticker)
     if not asset:
         raise HTTPException(status_code=404, detail=f"No data available for {ticker}")
@@ -78,7 +88,7 @@ async def get_score(ticker: str, locale: Optional[str] = None, user: dict = Depe
 
 
 @router.post("/assets/refresh/{ticker}")
-async def refresh(ticker: str, locale: Optional[str] = None, user: dict = Depends(get_current_user)):
+async def refresh(ticker: str, locale: Optional[str] = None, user: dict = Depends(require_feature("search"))):
     asset = await refresh_asset(ticker)
     if not asset:
         raise HTTPException(status_code=404, detail=f"No data available for {ticker}")
@@ -89,8 +99,11 @@ async def refresh(ticker: str, locale: Optional[str] = None, user: dict = Depend
 
 
 @router.get("/assets/{ticker}")
-async def get_asset(ticker: str, locale: Optional[str] = None, user: dict = Depends(get_current_user)):
-    ticker = ticker.strip().upper()
+async def get_asset(ticker: str, locale: Optional[str] = None, user: dict = Depends(require_feature("search"))):
+    try:
+        ticker = normalize_ticker(ticker)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ticker")
     asset = await db.assets.find_one({"ticker": ticker}, {"_id": 0})
     if not asset:
         asset = await refresh_asset(ticker)
@@ -104,7 +117,7 @@ async def get_asset(ticker: str, locale: Optional[str] = None, user: dict = Depe
 from datetime import datetime, timezone
 
 @router.get("/announcements/active")
-async def get_active_announcements(user: dict = Depends(get_current_user)):
+async def get_active_announcements(user: dict = Depends(require_feature("search"))):
     now_str = datetime.now(timezone.utc).isoformat()
     query = {
         "active": True,
@@ -119,14 +132,14 @@ async def get_active_announcements(user: dict = Depends(get_current_user)):
     return {"announcements": announcements}
 
 @router.get("/partner-ads/active")
-async def get_active_partner_ads(user: dict = Depends(get_current_user)):
+async def get_active_partner_ads(user: dict = Depends(require_feature("search"))):
     ads = await db.partner_ads.find({"active": True}).to_list(100)
     for a in ads:
         a.pop("_id", None)
     return {"ads": ads}
 
 @router.post("/partner-ads/click/{ad_id}")
-async def register_ad_click(ad_id: str, user: dict = Depends(get_current_user)):
+async def register_ad_click(ad_id: str, user: dict = Depends(require_feature("search"))):
     ad = await db.partner_ads.find_one({"id": ad_id})
     if not ad:
         raise HTTPException(status_code=404, detail="Ad not found")

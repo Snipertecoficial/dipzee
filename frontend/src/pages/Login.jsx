@@ -17,18 +17,26 @@ export default function Login() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, mfaRequired ? otp : undefined);
       const dest = location.state?.from?.pathname || '/app/dashboard';
       navigate(dest, { replace: true });
     } catch (err) {
       const status = err?.response?.status;
-      toast.error(status === 401 ? t('auth.invalidCreds') : t('auth.genericError'));
+      const code = err?.response?.data?.detail?.code;
+      if (code === 'mfa_required') {
+        setMfaRequired(true);
+        toast.error(t('auth.mfaRequired'));
+      } else {
+        toast.error(status === 401 ? t('auth.invalidCreds') : t('auth.genericError'));
+      }
     } finally {
       setLoading(false);
     }
@@ -42,16 +50,33 @@ export default function Login() {
         <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.loginSubtitle')}</p>
         <form onSubmit={submit} data-testid="login-form" className="mt-6 space-y-4">
           <div className="space-y-1.5">
-            <Label>{t('auth.email')}</Label>
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email-input" />
+            <Label htmlFor="login-email">{t('auth.email')}</Label>
+            <Input id="login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email-input" />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label>{t('auth.password')}</Label>
+              <Label htmlFor="login-password">{t('auth.password')}</Label>
               <Link to="/forgot-password" className="text-xs text-[var(--dz-primary)] font-medium" data-testid="login-forgot-password-link">{t('auth.forgotLink')}</Link>
             </div>
-            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password-input" />
+            <Input id="login-password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password-input" />
           </div>
+          {mfaRequired && (
+            <div className="space-y-1.5">
+              <Label htmlFor="login-otp">{t('auth.mfaCode')}</Label>
+              <Input
+                id="login-otp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                autoFocus
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+            </div>
+          )}
           <Button type="submit" disabled={loading} data-testid="auth-submit-button" className="w-full bg-[var(--dz-primary)] text-white">
             {loading ? t('common.loading') : t('auth.loginCta')}
           </Button>

@@ -3,7 +3,6 @@ import os
 import requests
 import sys
 import uuid
-from datetime import datetime
 
 BASE_URL = os.environ.get("DIPZEE_TEST_BASE_URL", "http://localhost:8000/api")
 SUPERADMIN_EMAIL = os.environ.get("SUPERADMIN_EMAIL")

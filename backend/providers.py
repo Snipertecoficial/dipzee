@@ -484,9 +484,10 @@ class PolygonProvider(DataProvider):
         if price is None:
             return None
 
-        logo = results.get("branding", {}).get("logo_url")
-        if logo and "apiKey=" not in logo:
-            logo = f"{logo}?apiKey={self._key()}"
+        # Polygon branding endpoints require the API key in the image URL.
+        # Returning that URL would persist and expose the server credential to
+        # every API/browser client, so Polygon logos are deliberately omitted.
+        logo = None
 
         return {
             "ticker": symbol,

@@ -21,7 +21,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/auth/forgot', { email, origin_url: window.location.origin });
+      await api.post('/auth/forgot', { email });
       setSent(true);
     } catch (e) {
       toast.error(t('auth.genericError'));
@@ -47,8 +47,8 @@ export default function ForgotPassword() {
             <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.forgotSubtitle')}</p>
             <form onSubmit={submit} data-testid="forgot-password-form" className="mt-6 space-y-4">
               <div className="space-y-1.5">
-                <Label>{t('auth.email')}</Label>
-                <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="forgot-email-input" />
+                <Label htmlFor="forgot-email">{t('auth.email')}</Label>
+                <Input id="forgot-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="forgot-email-input" />
               </div>
               <Button type="submit" disabled={loading} data-testid="forgot-submit-button" className="w-full bg-[var(--dz-primary)] text-white">
                 {loading ? t('common.loading') : t('auth.forgotCta')}

@@ -121,11 +121,8 @@ function SidebarBody({ collapsed, onNavigate, isMobile }) {
     loadAds();
   }, [loadAds]);
 
-  const handleAdClick = async (ad) => {
-    try {
-      await api.post(`/partner-ads/click/${ad.id}`);
-    } catch (e) { /* noop */ }
-    window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+  const handleAdClick = (ad) => {
+    api.post(`/partner-ads/click/${ad.id}`).catch(() => {});
   };
 
   const sidebarAds = ads.filter((a) => a.placement === 'sidebar');
@@ -168,12 +165,19 @@ function SidebarBody({ collapsed, onNavigate, isMobile }) {
             {t('common.sponsored')}
           </div>
           {sidebarAds.slice(0, 1).map((ad) => (
-            <div key={ad.id} className="cursor-pointer select-none" onClick={() => handleAdClick(ad)}>
+            <a
+              key={ad.id}
+              className="block cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dz-primary)]"
+              href={ad.target_url}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              onClick={() => handleAdClick(ad)}
+            >
               <p className="font-heading font-semibold text-xs text-[var(--dz-fg)] hover:underline flex items-center gap-0.5">
                 {ad.partner_name} <ExternalLink size={10} className="inline text-[var(--dz-muted)]" />
               </p>
               <p className="mt-0.5 text-[11px] text-[var(--dz-muted)] leading-tight">{ad.description}</p>
-            </div>
+            </a>
           ))}
         </div>
       )}

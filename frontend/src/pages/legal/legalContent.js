@@ -42,7 +42,7 @@ export const PRIVACY_CONTENT = {
     {
       heading: '3. Cookies e armazenamento local',
       paragraphs: [
-        'Não usamos cookies de rastreamento de terceiros nem publicidade comportamental. A sua sessão de login é mantida por armazenamento local do navegador (localStorage), não por cookies — isso é estritamente necessário para o funcionamento do serviço.',
+        'Não usamos cookies de rastreamento de terceiros nem publicidade comportamental. Para segurança, a renovação da sessão usa um cookie estritamente necessário, HttpOnly, Secure e SameSite; o token de acesso permanece apenas na memória do navegador.',
       ],
     },
     {
@@ -148,7 +148,7 @@ export const PRIVACY_CONTENT = {
     {
       heading: '3. Cookies and local storage',
       paragraphs: [
-        'We do not use third-party tracking cookies or behavioral advertising. Your login session is kept via the browser’s local storage (localStorage), not cookies — this is strictly necessary for the service to work.',
+        'We do not use third-party tracking cookies or behavioral advertising. For security, session renewal uses a strictly necessary HttpOnly, Secure and SameSite cookie; the access token remains only in browser memory.',
       ],
     },
     {
@@ -254,7 +254,7 @@ export const PRIVACY_CONTENT = {
     {
       heading: '3. Cookies y almacenamiento local',
       paragraphs: [
-        'No usamos cookies de rastreo de terceros ni publicidad conductual. Tu sesión de acceso se mantiene mediante almacenamiento local del navegador (localStorage), no mediante cookies — esto es estrictamente necesario para el funcionamiento del servicio.',
+        'No usamos cookies de rastreo de terceros ni publicidad conductual. Por seguridad, la renovación de sesión usa una cookie estrictamente necesaria, HttpOnly, Secure y SameSite; el token de acceso permanece solo en la memoria del navegador.',
       ],
     },
     {
@@ -360,7 +360,7 @@ export const PRIVACY_CONTENT = {
     {
       heading: '3. Cookies et stockage local',
       paragraphs: [
-        'Nous n’utilisons pas de cookies de suivi tiers ni de publicité comportementale. Votre session de connexion est maintenue via le stockage local du navigateur (localStorage), et non par des cookies — ceci est strictement nécessaire au fonctionnement du service.',
+        'Nous n’utilisons pas de cookies de suivi tiers ni de publicité comportementale. Pour la sécurité, le renouvellement de session utilise un cookie strictement nécessaire, HttpOnly, Secure et SameSite ; le jeton d’accès reste uniquement en mémoire du navigateur.',
       ],
     },
     {

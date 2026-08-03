@@ -67,12 +67,12 @@ export default function ResetPassword() {
             <p className="mt-1 text-sm text-[var(--dz-muted)]">{t('auth.resetSubtitle')}</p>
             <form onSubmit={submit} data-testid="reset-password-form" className="mt-6 space-y-4">
               <div className="space-y-1.5">
-                <Label>{t('auth.newPassword')}</Label>
-                <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="reset-password-input" />
+                <Label htmlFor="reset-password">{t('auth.newPassword')}</Label>
+                <Input id="reset-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="reset-password-input" />
               </div>
               <div className="space-y-1.5">
-                <Label>{t('auth.confirmPassword')}</Label>
-                <Input type="password" required minLength={6} value={confirm} onChange={(e) => setConfirm(e.target.value)} data-testid="reset-confirm-input" />
+                <Label htmlFor="reset-confirm">{t('auth.confirmPassword')}</Label>
+                <Input id="reset-confirm" type="password" autoComplete="new-password" required minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} data-testid="reset-confirm-input" />
               </div>
               <Button type="submit" disabled={loading} data-testid="reset-submit-button" className="w-full bg-[var(--dz-primary)] text-white">
                 {loading ? t('common.loading') : t('auth.resetCta')}

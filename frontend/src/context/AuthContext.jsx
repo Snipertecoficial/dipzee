@@ -1,18 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../lib/api';
+import api, { setAccessToken } from '../lib/api';
 
 const AuthContext = createContext(null);
-
-function storeTokens(data) {
-  localStorage.setItem('dz_token', data.access_token);
-  localStorage.setItem('dz_refresh_token', data.refresh_token);
-}
-
-function clearTokens() {
-  localStorage.removeItem('dz_token');
-  localStorage.removeItem('dz_refresh_token');
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -27,14 +17,12 @@ export function AuthProvider({ children }) {
   }, [i18n]);
 
   const loadMe = useCallback(async () => {
-    const token = localStorage.getItem('dz_token');
-    if (!token) { setLoading(false); return; }
     try {
       const { data } = await api.get('/auth/me');
       setUser(data);
       applyUserPrefs(data);
     } catch (e) {
-      clearTokens();
+      setAccessToken(null);
       setUser(null);
     } finally {
       setLoading(false);
@@ -43,9 +31,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { loadMe(); }, [loadMe]);
 
-  const login = async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
-    storeTokens(data);
+  const login = async (email, password, otp = undefined) => {
+    const { data } = await api.post('/auth/login', { email, password, otp });
+    setAccessToken(data.access_token);
     setUser(data.user);
     applyUserPrefs(data.user);
     return data.user;
@@ -53,25 +41,21 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post('/auth/register', payload);
-    storeTokens(data);
+    setAccessToken(data.access_token);
     setUser(data.user);
     applyUserPrefs(data.user);
     return data.user;
   };
 
   const logout = () => {
-    const refreshToken = localStorage.getItem('dz_refresh_token');
-    if (refreshToken) {
-      // Best-effort — the session must clear locally either way.
-      api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {});
-    }
-    clearTokens();
+    api.post('/auth/logout').catch(() => {});
+    setAccessToken(null);
     setUser(null);
   };
 
   const logoutAllDevices = async () => {
     await api.post('/auth/logout-all');
-    clearTokens();
+    setAccessToken(null);
     setUser(null);
   };
 
@@ -80,7 +64,7 @@ export function AuthProvider({ children }) {
       current_password: currentPassword,
       new_password: newPassword,
     });
-    storeTokens(data);
+    setAccessToken(data.access_token);
     return data;
   };
 
