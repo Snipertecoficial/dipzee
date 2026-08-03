@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 COPY package.json yarn.lock* ./
@@ -6,7 +6,7 @@ RUN yarn install --frozen-lockfile
 
 COPY . .
 
-# CRA/CRACO inlines REACT_APP_* vars into the JS bundle at build time, so it
+# Vite exposes the compatible REACT_APP_* variable at build time, so it
 # must be passed as a build ARG, not a runtime env var.
 ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
