@@ -20,7 +20,14 @@ async def ensure_indexes():
     """
     await db.users.create_index('email', unique=True)
     await db.users.create_index('id', unique=True)
-    await db.users.create_index('stripe_customer_id', unique=True, sparse=True)
+    # A sparse unique index still indexes explicit ``null`` values. Most users
+    # legitimately have no Stripe customer yet, so enforce uniqueness only for
+    # actual string identifiers and exclude their ``null`` placeholders.
+    await db.users.create_index(
+        'stripe_customer_id',
+        unique=True,
+        partialFilterExpression={'stripe_customer_id': {'$type': 'string'}},
+    )
     await db.assets.create_index('ticker', unique=True)
     await db.assets.create_index([('score', -1), ('ticker', 1)])
     await db.watchlist_items.create_index('user_id')

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 # non-secret metadata; GitHub Actions owns SSH setup and artifact retention.
 
 compose_files=(-f docker-compose.yml -f docker-compose.prod.yml)
+registry_config=
 
 die() {
   printf 'deploy error: %s\n' "$*" >&2
@@ -13,6 +14,25 @@ die() {
 
 valid_sha() {
   [[ "${1:-}" =~ ^[0-9a-f]{40}$ ]]
+}
+
+cleanup_registry_session() {
+  docker logout ghcr.io >/dev/null 2>&1 || true
+  if [[ "$registry_config" =~ ^/tmp/dipzee-registry-[0-9]+[.][A-Za-z0-9]+$ ]]; then
+    rm -f -- "$registry_config/config.json"
+    rmdir -- "$registry_config" 2>/dev/null || true
+  fi
+}
+
+start_registry_session() {
+  local ghcr_user=$1
+  local run_id=$2
+  registry_config=$(mktemp -d "/tmp/dipzee-registry-${run_id}.XXXXXX")
+  chmod 700 "$registry_config"
+  export DOCKER_CONFIG="$registry_config"
+  trap cleanup_registry_session EXIT
+  docker login ghcr.io -u "$ghcr_user" --password-stdin >/dev/null 2>&1 \
+    || die "registry login failed"
 }
 
 compose_for() {
@@ -45,8 +65,7 @@ prepare() {
     --env-file .env \
     --public-url https://dipzee.com
 
-  trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-  docker login ghcr.io -u "$ghcr_user" --password-stdin >/dev/null
+  start_registry_session "$ghcr_user" "$run_id"
   compose_for "$image_tag" pull backend frontend
   compose_for "$image_tag" run --rm --no-deps -T backend \
     python -c 'from app_config import validate_production_config; validate_production_config(); print("Application configuration validated.")'
@@ -138,8 +157,7 @@ activate() {
   [[ "$run_id" =~ ^[0-9]+$ ]] || die "invalid workflow run id"
   [[ "$(git rev-parse HEAD)" == "$image_tag" ]] || die "checkout does not match release SHA"
 
-  trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-  docker login ghcr.io -u "$ghcr_user" --password-stdin >/dev/null
+  start_registry_session "$ghcr_user" "$run_id"
 
   # Apply forward-compatible schema changes before replacing the currently
   # healthy containers. A schema/index failure leaves the old release serving
