@@ -145,7 +145,7 @@ activate() {
   # healthy containers. A schema/index failure leaves the old release serving
   # traffic and emits the precise Python/Mongo error to the protected run log.
   compose_for "$image_tag" run --rm --no-deps -T backend \
-    python scripts/preflight_schema.py
+    python -m scripts.preflight_schema
 
   local backend_id frontend_id backend_image_id frontend_image_id
   backend_id=$(docker compose "${compose_files[@]}" ps -q backend)
