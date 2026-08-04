@@ -141,6 +141,12 @@ activate() {
   trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
   docker login ghcr.io -u "$ghcr_user" --password-stdin >/dev/null
 
+  # Apply forward-compatible schema changes before replacing the currently
+  # healthy containers. A schema/index failure leaves the old release serving
+  # traffic and emits the precise Python/Mongo error to the protected run log.
+  compose_for "$image_tag" run --rm --no-deps -T backend \
+    python scripts/preflight_schema.py
+
   local backend_id frontend_id backend_image_id frontend_image_id
   backend_id=$(docker compose "${compose_files[@]}" ps -q backend)
   frontend_id=$(docker compose "${compose_files[@]}" ps -q frontend)
@@ -161,7 +167,20 @@ activate() {
       up -d --pull never --wait --wait-timeout 180
   }
 
+  report_backend_health() {
+    local failed_backend_id
+    failed_backend_id=$(docker compose "${compose_files[@]}" ps -q backend 2>/dev/null || true)
+    [[ -n "$failed_backend_id" ]] || return 0
+    docker inspect \
+      --format='backend state={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{json .State.Error}}' \
+      "$failed_backend_id" 2>/dev/null || true
+    docker inspect \
+      --format='{{range .State.Health.Log}}{{println "health exit=" .ExitCode " output=" (json .Output)}}{{end}}' \
+      "$failed_backend_id" 2>/dev/null | tail -n 8 || true
+  }
+
   if ! compose_for "$image_tag" up -d --wait --wait-timeout 180; then
+    report_backend_health
     rollback
     return 1
   fi
