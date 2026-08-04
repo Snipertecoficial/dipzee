@@ -12,9 +12,9 @@
 # builds from source as before.
 services:
   backend:
-    image: ghcr.io/snipertecoficial/dipzee-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/snipertecoficial/dipzee-backend:${BACKEND_IMAGE_TAG:-${IMAGE_TAG:-latest}}
     pull_policy: always
 
   frontend:
-    image: ghcr.io/snipertecoficial/dipzee-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/snipertecoficial/dipzee-frontend:${FRONTEND_IMAGE_TAG:-${IMAGE_TAG:-latest}}
     pull_policy: always

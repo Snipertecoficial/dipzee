@@ -1,11 +1,6 @@
 name: Deploy to VPS
 
-# Build the images IN CI, push them to GHCR, then have the VPS only PULL and
-# run them. The VPS never builds — react-scripts `yarn build` is memory-heavy
-# and OOMs on the small shared host, which is what intermittently broke the old
-# `docker compose up -d --build` deploys. This is the standard build-once /
-# deploy-many pipeline. Manual "Run workflow" button (workflow_dispatch) allows
-# an on-demand redeploy without an empty commit.
+# Images are built and tested in CI. The VPS only pulls immutable SHA tags.
 on:
   push:
     branches: [main]
@@ -31,14 +26,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate production deploy tooling
+        run: |
+          python -m unittest discover -s tests -p 'test_production_env.py'
+          bash -n scripts/remote_deploy.sh
+          bash -n scripts/unpack_production_recovery.sh
+          gpg --version >/dev/null
+
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      # --- Backend: build, then run the test suite INSIDE the built image
-      # (dummy env vars — the tests mock Mongo/Stripe and never connect out), so
-      # a red test blocks the deploy. Only push after tests pass. ---
       - name: Build backend image
-        run: docker build --build-arg GIT_SHA="${{ github.sha }}" -t "$BACKEND_IMAGE:${{ github.sha }}" -t "$BACKEND_IMAGE:latest" ./backend
+        run: docker build --build-arg GIT_SHA="${{ github.sha }}" -t "$BACKEND_IMAGE:${{ github.sha }}" ./backend
 
       - name: Run backend tests
         run: |
@@ -55,91 +54,219 @@ jobs:
             sh -c "pip install --no-cache-dir pip-audit==2.10.1 >/dev/null && python -m pip_audit -r requirements.txt"
 
       - name: Push backend image
-        run: docker push --all-tags "$BACKEND_IMAGE"
+        run: docker push "$BACKEND_IMAGE:${{ github.sha }}"
 
-      # --- Frontend: the API URL is compile-time (baked into the JS bundle), so
-      # CI must build with the real production URL, not a dummy. ---
       - name: Build and test frontend image
         run: |
           docker build \
             --target build \
+            --build-arg GIT_SHA="${{ github.sha }}" \
             --build-arg REACT_APP_BACKEND_URL="${{ vars.REACT_APP_BACKEND_URL || 'https://dipzee.com' }}" \
             -t dipzee-frontend-test:${{ github.sha }} ./frontend
           docker run --rm dipzee-frontend-test:${{ github.sha }} yarn test:ci
           docker run --rm dipzee-frontend-test:${{ github.sha }} yarn audit:ci
 
-      - name: Build & push frontend runtime image
+      - name: Build and push frontend runtime image
         run: |
           docker build \
+            --build-arg GIT_SHA="${{ github.sha }}" \
             --build-arg REACT_APP_BACKEND_URL="${{ vars.REACT_APP_BACKEND_URL || 'https://dipzee.com' }}" \
-            -t "$FRONTEND_IMAGE:${{ github.sha }}" -t "$FRONTEND_IMAGE:latest" ./frontend
-          docker push --all-tags "$FRONTEND_IMAGE"
+            -t "$FRONTEND_IMAGE:${{ github.sha }}" ./frontend
+          docker push "$FRONTEND_IMAGE:${{ github.sha }}"
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+      VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
     steps:
-      # --- Deploy over SSH (plain OpenSSH, no third-party action — this step
-      # touches production credentials). The VPS pulls the pre-built images and
-      # runs them via the prod override; it never builds. GHCR auth uses the
-      # ephemeral GITHUB_TOKEN (valid only for this run), so no long-lived
-      # registry token lives on the VPS. ---
-      - name: Deploy over SSH
+      - name: Prepare pinned SSH trust
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
-          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
         run: |
           set -euo pipefail
+          for name in VPS_HOST VPS_USER VPS_DEPLOY_PATH VPS_SSH_KEY VPS_KNOWN_HOSTS HEALTHCHECK_URL; do
+            test -n "${!name:-}" || { echo "Missing production environment secret: $name"; exit 1; }
+          done
+          [[ "$VPS_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "VPS_DEPLOY_PATH contains unsafe characters"; exit 1; }
+          [[ "$VPS_DEPLOY_PATH" != "/" && "$VPS_DEPLOY_PATH" != *"/../"* && "$VPS_DEPLOY_PATH" != *"/.." ]] || { echo "VPS_DEPLOY_PATH is too broad or contains traversal"; exit 1; }
+          [[ "$VPS_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "VPS_USER contains unsafe characters"; exit 1; }
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "VPS_HOST contains unsafe characters"; exit 1; }
+          [[ "${VPS_SSH_PORT:-22}" =~ ^[0-9]{1,5}$ ]] || { echo "VPS_SSH_PORT is invalid"; exit 1; }
+          [[ "$HEALTHCHECK_URL" == https://* ]] || { echo "HEALTHCHECK_URL must use HTTPS"; exit 1; }
           install -m 600 -D /dev/null ~/.ssh/deploy_key
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           install -m 600 -D /dev/null ~/.ssh/known_hosts
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" true
 
+      # This is a public repository. The artifact contains only a GPG recovery
+      # envelope. Its passphrase is derived from the protected deploy SSH key;
+      # raw database data and raw backup keys are never uploaded or printed.
+      - name: Create and retrieve encrypted pre-deploy backup
+        id: backup
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ssh_args=(-o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}")
+          remote_output=$(
+            printf '%s' "$GHCR_TOKEN" | ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
+              "cd '$VPS_DEPLOY_PATH' && git fetch origin main && git merge-base --is-ancestor '${{ github.sha }}' origin/main && git reset --hard '${{ github.sha }}' && bash scripts/remote_deploy.sh prepare '${{ github.sha }}' '$GHCR_USER' '${{ github.run_id }}'"
+          )
+          printf '%s\n' "$remote_output"
+
+          remote_path=$(printf '%s\n' "$remote_output" | sed -n 's/^BACKUP_REMOTE_PATH=//p')
+          key_remote_path=$(printf '%s\n' "$remote_output" | sed -n 's/^BACKUP_KEY_REMOTE_PATH=//p')
+          backup_file=$(printf '%s\n' "$remote_output" | sed -n 's/^BACKUP_FILE=//p')
+          expected_sha=$(printf '%s\n' "$remote_output" | sed -n 's/^BACKUP_SHA256=//p')
+          expected_bytes=$(printf '%s\n' "$remote_output" | sed -n 's/^BACKUP_BYTES=//p')
+          [[ "$remote_path" =~ ^/tmp/dipzee-deploy-[0-9]+[.][A-Za-z0-9]+/dipzee-backup-[0-9]{8}T[0-9]{12}Z[.]json[.]gz[.]enc$ ]]
+          [[ "$key_remote_path" =~ ^/tmp/dipzee-deploy-[0-9]+[.][A-Za-z0-9]+/recovery-key$ ]]
+          [[ "$backup_file" =~ ^dipzee-backup-[0-9]{8}T[0-9]{12}Z[.]json[.]gz[.]enc$ ]]
+          [[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$expected_bytes" =~ ^[1-9][0-9]*$ ]]
+
+          artifact_dir="$RUNNER_TEMP/dipzee-production-backup"
+          install -m 700 -d "$artifact_dir"
+          inner_path="$artifact_dir/$backup_file"
+          key_path="$artifact_dir/recovery-key"
+          printf 'remote_path=%s\n' "$remote_path" >> "$GITHUB_OUTPUT"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -P "${VPS_SSH_PORT:-22}" \
+            "$VPS_USER@$VPS_HOST:$remote_path" "$inner_path"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -P "${VPS_SSH_PORT:-22}" \
+            "$VPS_USER@$VPS_HOST:$key_remote_path" "$key_path"
+          chmod 600 "$inner_path" "$key_path"
+
+          actual_sha=$(sha256sum "$inner_path" | awk '{print $1}')
+          actual_bytes=$(wc -c < "$inner_path" | tr -d '[:space:]')
+          test "$actual_sha" = "$expected_sha"
+          test "$actual_bytes" = "$expected_bytes"
+          python -c 'import base64,sys; value=open(sys.argv[1], encoding="ascii").read(); assert len(base64.b64decode(value, validate=True)) == 32' "$key_path"
+
+          manifest="$artifact_dir/manifest.txt"
+          printf 'format=dipzee-production-recovery-v1\ncommit=%s\nbackup_file=%s\nbackup_sha256=%s\nbackup_bytes=%s\n' \
+            '${{ github.sha }}' "$backup_file" "$actual_sha" "$actual_bytes" > "$manifest"
+          chmod 600 "$manifest"
+          bundle_tar="$RUNNER_TEMP/dipzee-production-recovery.tar"
+          tar -C "$artifact_dir" -cf "$bundle_tar" "$backup_file" recovery-key manifest.txt
+          passphrase_file="$RUNNER_TEMP/dipzee-recovery-passphrase"
+          python -c 'import sys; raw=open(sys.argv[1], "rb").read().replace(b"\r\n", b"\n").strip(); sys.stdout.buffer.write(b"dipzee-production-recovery-v1\0" + raw)' ~/.ssh/deploy_key \
+            | sha256sum | awk '{print $1}' > "$passphrase_file"
+          chmod 600 "$passphrase_file"
+          local_path="$artifact_dir/dipzee-production-recovery-${{ github.run_id }}-${{ github.run_attempt }}.tar.gpg"
+          gpg --batch --yes --pinentry-mode loopback --cipher-algo AES256 --s2k-digest-algo SHA512 \
+            --passphrase-file "$passphrase_file" --symmetric --output "$local_path" "$bundle_tar"
+          chmod 600 "$local_path"
+
+          verify_tar="$RUNNER_TEMP/dipzee-production-recovery-verify.tar"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$passphrase_file" \
+            --output "$verify_tar" --decrypt "$local_path"
+          test "$(tar -tf "$verify_tar" | tr '\n' ' ')" = "$backup_file recovery-key manifest.txt "
+          test "$(tar -xOf "$verify_tar" "$backup_file" | sha256sum | awk '{print $1}')" = "$actual_sha"
+          tar -xOf "$verify_tar" recovery-key | python -c 'import base64,sys; assert len(base64.b64decode(sys.stdin.read(), validate=True)) == 32'
+          rm -f -- "$inner_path" "$key_path" "$manifest" "$bundle_tar" "$passphrase_file" "$verify_tar"
+          printf 'local_path=%s\n' "$local_path" >> "$GITHUB_OUTPUT"
+          printf 'inner_sha256=%s\n' "$expected_sha" >> "$GITHUB_OUTPUT"
+          printf 'Recovery envelope verified: sha256=%s bytes=%s\n' \
+            "$(sha256sum "$local_path" | awk '{print $1}')" "$(wc -c < "$local_path" | tr -d '[:space:]')"
+
+      - name: Retain encrypted production backup for 7 days
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dipzee-production-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.backup.outputs.local_path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Remove temporary backup copy from VPS
+        if: always() && steps.backup.outputs.remote_path != ''
+        run: |
+          set -euo pipefail
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" \
-            "cd '$VPS_DEPLOY_PATH' && \
-             git fetch origin main && \
-             git reset --hard origin/main && \
-             for key in JWT_SECRET PUBLIC_APP_URL CORS_ORIGINS APP_ENCRYPTION_KEY ADMIN_MFA_REQUIRED DATASET_SALT RESEND_API_KEY STRIPE_API_KEY STRIPE_PUBLISHABLE_KEY STRIPE_WEBHOOK_SECRET SUPERADMIN_EMAIL SUPERADMIN_PASSWORD BACKUP_ENCRYPTION_KEY BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY; do \
-               grep -Eq \"^\${key}=.+\" .env || { echo \"Missing required production setting: \${key}\"; exit 1; }; \
-             done && \
-             previous_image=\$(docker inspect --format='{{.Config.Image}}' \$(docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q backend) 2>/dev/null || true) && \
-             previous_tag=\${previous_image##*:} && \
-             printf '%s' '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USER' --password-stdin && \
-             IMAGE_TAG='${{ github.sha }}' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
-             IMAGE_TAG='${{ github.sha }}' docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps backend \
-               python -c \"import asyncio; from backup_service import create_backup; result=asyncio.run(create_backup()); assert result.get('offsite'), 'offsite backup is required before deploy'\" && \
-             if ! IMAGE_TAG='${{ github.sha }}' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait --wait-timeout 180; then \
-               echo 'New release failed readiness checks; rolling back containers.'; \
-               test -n \"\$previous_tag\" && IMAGE_TAG=\"\$previous_tag\" docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait --wait-timeout 180; \
-               exit 1; \
-             fi && \
-             docker logout ghcr.io && \
-             docker image prune -f"
+            "cd '$VPS_DEPLOY_PATH' && bash scripts/remote_deploy.sh cleanup '${{ steps.backup.outputs.remote_path }}'"
 
-      # --- Post-deploy verification: prove the live site actually answers, not
-      # just that the container process started. ---
+      - name: Activate release on VPS
+        id: activation
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | ssh \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_DEPLOY_PATH' && bash scripts/remote_deploy.sh activate '${{ github.sha }}' '$GHCR_USER' '${{ github.run_id }}'"
+
       - name: Verify deployment is live
         env:
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
+          set -euo pipefail
           for i in $(seq 1 15); do
             status=$(curl -s -o /tmp/health.json -w '%{http_code}' "$HEALTHCHECK_URL" || echo "000")
             if [ "$status" = "200" ] && jq -e --arg sha "$EXPECTED_COMMIT" '.status == "ok" and .commit == $sha' /tmp/health.json > /dev/null 2>&1; then
               echo "Healthy after attempt $i."
               exit 0
             fi
-            echo "Attempt $i/15: HTTP $status, not healthy yet — retrying in 5s..."
+            echo "Attempt $i/15: HTTP $status, not healthy yet; retrying in 5s..."
             sleep 5
           done
           echo "Deployment did not become healthy in time. Last response:"
           cat /tmp/health.json 2>/dev/null || echo "(no response body)"
           exit 1
+
+      - name: Verify frontend entry point
+        env:
+          FRONTEND_URL: ${{ vars.PUBLIC_APP_URL || 'https://dipzee.com' }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 15); do
+            status=$(curl -sS -o /tmp/dipzee-version.json -w '%{http_code}' "$FRONTEND_URL/version.json" || echo "000")
+            if [ "$status" = "200" ] && jq -e --arg sha "$EXPECTED_COMMIT" '.commit == $sha' /tmp/dipzee-version.json >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" = "15" ]; then
+              echo "Frontend release marker did not match $EXPECTED_COMMIT."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          status=$(curl -sS -o /tmp/dipzee-index.html -w '%{http_code}' "$FRONTEND_URL/")
+          test "$status" = "200"
+          test -s /tmp/dipzee-index.html
+          asset=$(grep -Eo 'src="/assets/[A-Za-z0-9._-]+[.]js"' /tmp/dipzee-index.html | head -n 1 | cut -d'"' -f2)
+          [[ "$asset" =~ ^/assets/[A-Za-z0-9._-]+[.]js$ ]]
+          status=$(curl -sS -o /dev/null -w '%{http_code}' "$FRONTEND_URL$asset")
+          test "$status" = "200"
+
+      - name: Roll back release after failed external verification
+        if: failure() && steps.activation.outcome == 'success'
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_DEPLOY_PATH' && bash scripts/remote_deploy.sh rollback '${{ github.run_id }}'"
+
+      - name: Remove rollback staging
+        if: always() && steps.activation.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" \
+            "cd '$VPS_DEPLOY_PATH' && bash scripts/remote_deploy.sh finalize '${{ github.run_id }}'"

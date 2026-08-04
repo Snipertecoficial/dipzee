@@ -1,17 +1,19 @@
 """Restore a Dipzee backup produced by backup_service.create_backup().
 
-Reads a gzipped Extended-JSON snapshot and upserts every document by its _id
-into the current database (MONGO_URL / DB_NAME from the environment — so run it
-inside the backend container, which already has the scoped credentials).
+Reads an authenticated encrypted Extended-JSON snapshot into the database
+selected by MONGO_URL / DB_NAME. The safe default accepts only an empty target
+database, preventing stale documents and migration markers from surviving a
+disaster restore.
 
 Usage:
     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-      exec backend python scripts/restore_backup.py /data/backups/dipzee-backup-XXATZ.json.gz
+      exec backend python scripts/restore_backup.py /data/backups/dipzee-backup-XXATZ.json.gz.enc
 
-Upsert-by-_id means restoring is idempotent and non-destructive: it re-creates
-missing documents and refreshes existing ones, without dropping anything the
-snapshot doesn't contain. To do a clean restore, drop the collections first.
+``--merge-existing`` is an explicit break-glass mode. It upserts by ``_id`` and
+does not delete documents absent from the snapshot, so it is not a database or
+migration rollback.
 """
+import argparse
 import asyncio
 import base64
 import gzip
@@ -60,31 +62,71 @@ def _read_payload(path: str):
                 return json_util.loads(zipped.read().decode("utf-8"))
 
 
-async def main(path: str) -> None:
+def _collections(data) -> list[tuple[str, list]]:
+    return [
+        (name, docs)
+        for name, docs in data.items()
+        if name != "_meta" and isinstance(docs, list)
+    ]
+
+
+async def _assert_empty_target(db, collection_names: list[str]) -> None:
+    occupied = []
+    for name in collection_names:
+        if await db[name].find_one({}, {"_id": 1}) is not None:
+            occupied.append(name)
+    if occupied:
+        raise RuntimeError(
+            "Target database is not empty; refusing a potentially inconsistent "
+            "restore. Use an empty/isolated database, or pass --merge-existing "
+            "only for an explicitly reviewed break-glass merge. Occupied backup "
+            "collections: " + ", ".join(sorted(occupied))
+        )
+
+
+async def main(path: str, *, merge_existing: bool = False) -> None:
     payload = _read_payload(path)
     data = payload.get("data", payload)  # tolerate a raw {collection: docs} too
+    collections = _collections(data)
+    if not collections:
+        raise RuntimeError("Backup contains no restorable collections")
 
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
     db = client[os.environ["DB_NAME"]]
+    try:
+        if not merge_existing:
+            await _assert_empty_target(db, [name for name, _ in collections])
 
-    total = 0
-    for name, docs in data.items():
-        if name == "_meta" or not isinstance(docs, list):
-            continue
-        for doc in docs:
-            _id = doc.get("_id")
-            if _id is None:
-                await db[name].insert_one(doc)
-            else:
-                await db[name].replace_one({"_id": _id}, doc, upsert=True)
-            total += 1
-        print(f"  {name}: {len(docs)} docs")
-    print(f"Restored {total} documents into {os.environ['DB_NAME']}.")
-    client.close()
+        total = 0
+        for name, docs in collections:
+            for doc in docs:
+                _id = doc.get("_id")
+                if _id is None:
+                    await db[name].insert_one(doc)
+                else:
+                    await db[name].replace_one({"_id": _id}, doc, upsert=True)
+                total += 1
+            print(f"  {name}: {len(docs)} docs")
+        print(f"Restored {total} documents into {os.environ['DB_NAME']}.")
+    finally:
+        client.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python scripts/restore_backup.py <path-to-backup.json.gz.enc>")
-        raise SystemExit(2)
-    asyncio.run(main(sys.argv[1]))
+    parser = argparse.ArgumentParser(
+        description="Restore an encrypted Dipzee snapshot into an empty database",
+    )
+    parser.add_argument("backup", help="path to dipzee-backup-*.json.gz.enc")
+    parser.add_argument(
+        "--merge-existing",
+        action="store_true",
+        help="break-glass upsert; keeps documents absent from the snapshot",
+    )
+    args = parser.parse_args()
+    if args.merge_existing:
+        print(
+            "WARNING: --merge-existing is not a migration rollback and keeps "
+            "out-of-snapshot documents.",
+            file=sys.stderr,
+        )
+    asyncio.run(main(args.backup, merge_existing=args.merge_existing))

@@ -12,12 +12,13 @@ Deploy = **push para `main`**. Não há build nem comando manual na VPS.
 1. **Build backend** (imagem Docker) com o commit carimbado (`--build-arg GIT_SHA=<sha>`).
 2. **Roda os testes DENTRO da imagem** (`pytest tests/`). Teste vermelho = **deploy abortado** (as imagens nem são publicadas).
 3. **Push das imagens** (backend + frontend) para o **GHCR** (`ghcr.io/snipertecoficial/...`).
-4. **Deploy por SSH**: a VPS só faz `pull` das imagens prontas e `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. **A VPS não builda** (o build do CRA estourava memória no host pequeno — por isso build-once/deploy-many).
-5. **Healthcheck** pós-deploy (15 tentativas até `{"status":"ok"}`).
+4. **Preflight e backup**: completa somente as novas configurações de segurança ausentes, cria um snapshot AES-GCM, autentica o conteúdo e publica um envelope GPG por 7 dias antes de tocar nos containers.
+5. **Deploy por SSH**: a VPS só faz `pull` das imagens prontas e `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. **A VPS não builda**.
+6. **Verificação externa**: confere o SHA no health do backend, no `version.json` do frontend e baixa um asset JavaScript. Falha restaura os IDs exatos das imagens anteriores.
 
 Duração típica: **~10–20 min** (build + testes + push GHCR + pull na VPS). É lento — por isso "parece que não subiu". Não é lentidão de bug; é o pipeline.
 
-A chave de deploy da VPS é **somente-leitura** (só faz `pull`). Correções **sempre** vêm por git — nunca editar na VPS à mão (o próximo `git reset --hard` apaga).
+A chave de deploy controla o checkout e os containers deste projeto na VPS; trate-a como segredo de produção. Correções **sempre** vêm por git — nunca editar na VPS à mão (o próximo `git reset --hard` apaga arquivos versionados).
 
 ## Como CONFIRMAR que subiu (1 comando)
 
@@ -45,10 +46,34 @@ Sai `0` quando o `commit` no ar == o commit esperado **e** `status=ok`; senão a
   2. rodar a importação (superadmin): `POST /api/admin/catalog/import-lse`, ou esperar o job mensal.
 - **Catálogo US:** popula sozinho no startup (busca o diretório do Nasdaq Trader). Se a VPS
   bloquear a saída para `nasdaqtrader.com`, rode `POST /api/admin/catalog/import-us` (superadmin).
-- **Nunca** definir `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` no `.env` da VPS depois que já existe
-  superadmin (o seed sobrescreve a senha no boot — já causou lockout).
+- `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` continuam obrigatórios no preflight, mas o seed atual preserva a senha armazenada de contas existentes e apenas reforça papel/plano.
+
+## Backup temporário sem S3
+
+O repositório é público. Por isso, o artifact não deve ser tratado como privado: ele contém somente um envelope GPG cifrado. A chave que abre esse envelope é derivada da chave SSH de deploy custodiada no ambiente `production`; o snapshot AES-GCM e sua chave ficam dentro do envelope.
+
+Para validar e desempacotar um artifact em uma estação segura que possua a mesma chave SSH:
+
+```bash
+bash scripts/unpack_production_recovery.sh \
+  dipzee-production-recovery-RUN-ATTEMPT.tar.gpg \
+  /caminho/seguro/vps-deploy-key \
+  /caminho/novo/recovery-output
+```
+
+O diretório resultante contém dados de produção e a `recovery-key`; mantenha modo `0700/0600`, não versione e não use para inspeção. Restaure preferencialmente em um banco vazio/isolado e valide índices e migrations antes de promover. O artifact expira em 7 dias e é apenas uma ponte até configurar S3/R2/B2.
 
 ## Rollback
 
-Sem blue-green. Para reverter: `git revert <sha> && git push` (redeploya a versão anterior),
-ou re-disparar o deploy de um commit bom via **Actions → Run workflow**.
+O workflow mantém temporariamente os IDs exatos das imagens anteriores. Se a
+ativação, o health externo ou a validação do frontend falhar, ele restaura esses
+containers e remove as tags temporárias ao finalizar.
+
+Esse rollback automático é de **aplicação**, não um rollback destrutivo do banco.
+Migrations devem continuar compatíveis com a versão N-1 (expand/contract). Para
+recuperar dados do artifact, desempacote-o em estação segura e restaure primeiro
+em um banco vazio/isolado; valide documentos, índices e migrations antes de
+qualquer promoção. O restore recusa banco não vazio por padrão.
+
+Para uma reversão planejada de código: `git revert <sha> && git push`, ou execute
+o workflow sobre um commit bom que ainda seja ancestral de `main`.
