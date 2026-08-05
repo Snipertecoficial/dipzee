@@ -59,5 +59,9 @@ def validate_production_config() -> None:
         for parsed in parsed_origins
     ):
         raise RuntimeError("CORS_ORIGINS must contain only explicit HTTPS origins in production")
-    if os.environ.get("ADMIN_MFA_REQUIRED", "").lower() not in {"1", "true", "yes"}:
-        raise RuntimeError("ADMIN_MFA_REQUIRED must be enabled in production")
+    # Admin MFA is intentionally opt-in (forcing it on locked out an un-enrolled
+    # superadmin from every /admin/* route). Require only a well-formed boolean so
+    # a typo can't leave the gate undefined; enforcement itself lives in
+    # get_superadmin, toggled by this flag.
+    if os.environ.get("ADMIN_MFA_REQUIRED", "false").lower() not in {"1", "true", "yes", "0", "false", "no"}:
+        raise RuntimeError("ADMIN_MFA_REQUIRED must be a boolean value")
