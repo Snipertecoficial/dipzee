@@ -212,12 +212,18 @@ jobs:
 
       - name: Verify deployment is live
         env:
-          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+          FRONTEND_URL: ${{ vars.PUBLIC_APP_URL || 'https://dipzee.com' }}
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
+          # Derive the health endpoint from the public app URL (same source as the
+          # frontend check) so the gate always hits /api/health — the only route
+          # that returns the deployed commit. Depending on a separate HEALTHCHECK_URL
+          # secret let it drift to /api/ (no `commit`), which failed this step for a
+          # release that was actually healthy.
+          HEALTH_URL="${FRONTEND_URL%/}/api/health"
           for i in $(seq 1 15); do
-            status=$(curl -s -o /tmp/health.json -w '%{http_code}' "$HEALTHCHECK_URL" || echo "000")
+            status=$(curl -s -o /tmp/health.json -w '%{http_code}' "$HEALTH_URL" || echo "000")
             if [ "$status" = "200" ] && jq -e --arg sha "$EXPECTED_COMMIT" '.status == "ok" and .commit == $sha' /tmp/health.json > /dev/null 2>&1; then
               echo "Healthy after attempt $i."
               exit 0
