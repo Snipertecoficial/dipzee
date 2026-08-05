@@ -50,6 +50,28 @@ compose_tags() {
     docker compose "${compose_files[@]}" "$@"
 }
 
+current_release_image() {
+  # Echo a taggable reference for a service's single RUNNING container, or
+  # nothing. Scoped to running containers (never the one-off preflight `run`
+  # container) and to one id. Prefers the bare image ID, then the creation-time
+  # image reference; both are validated to actually exist, so the caller can tag
+  # reliably across Docker's classic and containerd image stores. Never fails.
+  local service=$1 cid image_id image_ref
+  cid=$(docker compose "${compose_files[@]}" ps -q --status running "$service" 2>/dev/null | head -n1)
+  [[ -n "$cid" ]] || return 0
+  image_id=$(docker inspect --format='{{.Image}}' "$cid" 2>/dev/null || true)
+  if [[ -n "$image_id" ]] && docker image inspect "$image_id" >/dev/null 2>&1; then
+    printf '%s\n' "$image_id"
+    return 0
+  fi
+  image_ref=$(docker inspect --format='{{.Config.Image}}' "$cid" 2>/dev/null || true)
+  if [[ -n "$image_ref" ]] && docker image inspect "$image_ref" >/dev/null 2>&1; then
+    printf '%s\n' "$image_ref"
+    return 0
+  fi
+  return 0
+}
+
 prepare() {
   local image_tag=${1:-}
   local ghcr_user=${2:-}
@@ -165,21 +187,35 @@ activate() {
   compose_for "$image_tag" run --rm --no-deps -T backend \
     python -m scripts.preflight_schema
 
-  local backend_id frontend_id backend_image_id frontend_image_id
-  backend_id=$(docker compose "${compose_files[@]}" ps -q backend)
-  frontend_id=$(docker compose "${compose_files[@]}" ps -q frontend)
-  backend_image_id=$(docker inspect --format='{{.Image}}' "$backend_id")
-  frontend_image_id=$(docker inspect --format='{{.Image}}' "$frontend_id")
-
+  # Pin the images the current (healthy) release runs so a failed cutover can be
+  # reverted to them. If neither current image can be pinned (e.g. already
+  # pruned, or the container's image ID isn't taggable), skip the pre-tag and
+  # continue: the health-gated cutover below still protects the release — we just
+  # can't auto-revert to the prior image for this run. This must never abort a
+  # deploy that would otherwise be healthy.
   local rollback_backend_tag="rollback-${run_id}"
   local rollback_frontend_tag="rollback-${run_id}"
-  docker image tag "$backend_image_id" "ghcr.io/snipertecoficial/dipzee-backend:$rollback_backend_tag"
-  docker image tag "$frontend_image_id" "ghcr.io/snipertecoficial/dipzee-frontend:$rollback_frontend_tag"
   local state_file="/tmp/dipzee-rollback-${run_id}"
-  umask 077
-  printf '%s\n%s\n' "$rollback_backend_tag" "$rollback_frontend_tag" > "$state_file"
+  local rollback_ready=0
+  local backend_src frontend_src
+  backend_src=$(current_release_image backend)
+  frontend_src=$(current_release_image frontend)
+  if [[ -n "$backend_src" && -n "$frontend_src" ]] \
+    && docker image tag "$backend_src" "ghcr.io/snipertecoficial/dipzee-backend:$rollback_backend_tag" \
+    && docker image tag "$frontend_src" "ghcr.io/snipertecoficial/dipzee-frontend:$rollback_frontend_tag"; then
+    umask 077
+    printf '%s\n%s\n' "$rollback_backend_tag" "$rollback_frontend_tag" > "$state_file"
+    rollback_ready=1
+  else
+    rm -f -- "$state_file"
+    printf 'warning: could not pin the current release image(s); continuing without automatic image rollback for this run.\n' >&2
+  fi
 
   rollback() {
+    if [[ "$rollback_ready" -ne 1 ]]; then
+      printf 'Release failed readiness and no pinned previous image is available; leaving the stack for manual recovery.\n' >&2
+      return 0
+    fi
     printf 'Release failed readiness; restoring the exact previous image IDs.\n' >&2
     compose_tags "$rollback_backend_tag" "$rollback_frontend_tag" \
       up -d --pull never --wait --wait-timeout 180
@@ -222,7 +258,14 @@ rollback_release() {
   local run_id=${1:-}
   [[ "$run_id" =~ ^[0-9]+$ ]] || die "invalid workflow run id"
   local state_file="/tmp/dipzee-rollback-${run_id}"
-  [[ -f "$state_file" && ! -L "$state_file" ]] || die "rollback state is unavailable"
+  [[ -L "$state_file" ]] && die "rollback state is unavailable"
+  if [[ ! -f "$state_file" ]]; then
+    # No image was pinned for this run (activate skipped the pre-tag): there is
+    # nothing to revert to. Not an error — the deploy's own health gate already
+    # decided the outcome; surface it and leave the stack for manual recovery.
+    printf 'No pinned previous image for this run; nothing to roll back.\n' >&2
+    return 0
+  fi
   local tags
   mapfile -t tags < "$state_file"
   [[ "${#tags[@]}" -eq 2 ]] || die "rollback state is invalid"
