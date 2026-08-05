@@ -37,10 +37,12 @@ SAFE_USER_PROJECTION = {
 async def get_superadmin(request: Request, user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Superadmin access required")
-    mfa_required = os.environ.get(
-        "ADMIN_MFA_REQUIRED",
-        "true" if os.environ.get("ENV") == "production" else "false",
-    ).lower() in {"1", "true", "yes"}
+    # Admin MFA is enforced only when explicitly opted in (ADMIN_MFA_REQUIRED=true).
+    # Defaulting it on in production locked out an existing superadmin who hadn't
+    # enrolled yet — with every /admin/* route 403ing. The MFA machinery (login
+    # OTP, enrolment, session verification) stays intact; set the env var to
+    # re-enable enforcement once an authenticator is enrolled.
+    mfa_required = os.environ.get("ADMIN_MFA_REQUIRED", "false").lower() in {"1", "true", "yes"}
     if mfa_required and (not user.get("mfa_enabled") or not user.get("_session_mfa_verified")):
         raise HTTPException(
             status_code=403,

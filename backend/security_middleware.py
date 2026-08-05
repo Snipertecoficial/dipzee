@@ -18,32 +18,49 @@ logger = logging.getLogger(__name__)
 
 
 def client_ip(request) -> str:
-    """Best-effort client IP, honouring the ingress' X-Forwarded-For.
+    """Best-effort client IP for per-user rate limiting.
 
-    Deployment has exactly one trusted reverse-proxy hop (Caddy). Caddy
-    APPENDS the real peer IP to any X-Forwarded-For it receives rather than
-    replacing it, so the LAST entry is the one Caddy itself observed and the
-    only one that isn't attacker-controlled — anything a client sends before
-    that (including a spoofed leading value meant to defeat this rate
-    limiter) ends up earlier in the list. Taking the first entry, as before,
-    let any client bypass per-IP limits simply by sending its own
-    X-Forwarded-For header.
+    Forwarded headers are trusted ONLY when the immediate peer is our own
+    reverse proxy — a private/loopback address. A client connecting directly
+    can't be trusted to describe its own IP, so for such peers we key on the
+    socket address and ignore any forwarded header it may have spoofed.
+
+    Behind the proxy we key, in order of preference, on:
+      1. ``X-Dipzee-Client-Ip`` — an explicit single-value header, used if the
+         ingress is ever configured to set it (it isn't today).
+      2. ``X-Forwarded-For`` — what Caddy actually sends. Caddy APPENDS the real
+         peer it observed as the LAST entry, so that entry is the trustworthy,
+         non-spoofable client IP (leading entries can be client-supplied).
+
+    Reading the (nonexistent) X-Dipzee header alone collapsed every request onto
+    the proxy's own IP — one shared rate-limit bucket for all users, i.e. a
+    self-inflicted 429 storm. Honouring X-Forwarded-For restores per-user keys.
     """
-    # Caddy derives this header from its trusted-proxy-aware {client_ip}
-    # placeholder. The backend is not published directly in production, and
-    # we accept the private peer only (the Caddy container), never arbitrary
-    # X-Forwarded-For supplied by a browser.
-    forwarded = request.headers.get("x-dipzee-client-ip")
     peer = request.client.host if request.client else None
-    if forwarded and peer:
+    peer_private = False
+    if peer:
         try:
-            peer_ip = ipaddress.ip_address(peer)
-            client = ipaddress.ip_address(forwarded.strip())
-            if peer_ip.is_private or peer_ip.is_loopback:
-                return str(client)
+            pip = ipaddress.ip_address(peer)
+            peer_private = pip.is_private or pip.is_loopback
         except ValueError:
-            pass
-    return request.client.host if request.client else "unknown"
+            peer_private = False
+
+    if peer_private:
+        explicit = request.headers.get("x-dipzee-client-ip")
+        if explicit:
+            try:
+                return str(ipaddress.ip_address(explicit.strip()))
+            except ValueError:
+                pass
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            if parts:
+                try:
+                    return str(ipaddress.ip_address(parts[-1]))
+                except ValueError:
+                    return parts[-1]
+    return peer or "unknown"
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
