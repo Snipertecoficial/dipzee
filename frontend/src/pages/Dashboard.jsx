@@ -33,7 +33,7 @@ export default function Dashboard() {
   const loadDiscover = useCallback(async () => {
     // Fetch a bigger pool than we'll display: after removing tickers already
     // on the watchlist there needs to be enough left for a full grid.
-    try { const { data } = await api.get('/public/top-opportunities', { params: { limit: 24 } }); setDiscover(data.results || []); }
+    try { const { data } = await api.get('/public/top-opportunities', { params: { limit: 20 } }); setDiscover(data.results || []); }
     catch (e) { /* noop */ }
   }, []);
 

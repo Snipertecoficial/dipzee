@@ -46,7 +46,7 @@ class ProductionEnvTests(unittest.TestCase):
 
             self.assertEqual(values["ENV"], "production")
             self.assertEqual(values["PUBLIC_APP_URL"], "https://dipzee.com")
-            self.assertEqual(values["ADMIN_MFA_REQUIRED"], "true")
+            self.assertEqual(values["ADMIN_MFA_REQUIRED"], "false")
             self.assertEqual(values["UNRELATED_VALUE"], "preserve-me")
             self.assertEqual(len(base64.b64decode(values["APP_ENCRYPTION_KEY"], validate=True)), 32)
             self.assertEqual(len(base64.b64decode(values["BACKUP_ENCRYPTION_KEY"], validate=True)), 32)

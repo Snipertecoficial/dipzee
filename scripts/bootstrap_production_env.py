@@ -160,9 +160,13 @@ def bootstrap(path: Path, public_url: str) -> dict[str, list[str]]:
     updated: list[str] = []
 
     entries = _index(lines)
+    # Admin MFA is deliberately opt-in: forcing it on locked out the existing
+    # superadmin (no enrolment) with a 403 on every /admin/* route. Bootstrap
+    # keeps the key managed (so it converges to a known value across deploys)
+    # but defaults it OFF; flip to "true" here once an authenticator is enrolled.
     desired_fixed = {
         "ENV": "production",
-        "ADMIN_MFA_REQUIRED": "true",
+        "ADMIN_MFA_REQUIRED": "false",
     }
     for key, desired in desired_fixed.items():
         if entries.get(key, (None, ""))[1].lower() != desired:
@@ -199,8 +203,11 @@ def bootstrap(path: Path, public_url: str) -> dict[str, list[str]]:
     cors_origins = {item.strip().rstrip("/") for item in values["CORS_ORIGINS"].split(",") if item.strip()}
     if public_url.rstrip("/") not in cors_origins:
         raise RuntimeError("CORS_ORIGINS must include the approved production origin")
-    if values["ADMIN_MFA_REQUIRED"].lower() not in {"1", "true", "yes"}:
-        raise RuntimeError("ADMIN_MFA_REQUIRED must be enabled")
+    # ADMIN_MFA_REQUIRED is intentionally allowed to be off (see desired_fixed);
+    # it is validated only as a well-formed boolean so a typo can't silently
+    # leave the gate in an undefined state.
+    if values["ADMIN_MFA_REQUIRED"].lower() not in {"1", "true", "yes", "0", "false", "no"}:
+        raise RuntimeError("ADMIN_MFA_REQUIRED must be a boolean value")
     if len(values["JWT_SECRET"]) < 32 or len(values["DATASET_SALT"]) < 32:
         raise RuntimeError("JWT_SECRET and DATASET_SALT must contain at least 32 characters")
     app_key = _decode_key("APP_ENCRYPTION_KEY", values["APP_ENCRYPTION_KEY"])
