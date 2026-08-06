@@ -286,8 +286,12 @@ export function TopBar({ collapsed, setCollapsed, setMobileOpen }) {
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button data-testid="topbar-user-menu-button" className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-[var(--dz-primary)] text-white hover:brightness-110 transition-[filter]">
-                <User size={16} />
+              <button data-testid="topbar-user-menu-button" className="inline-flex items-center justify-center h-9 w-9 rounded-full overflow-hidden bg-[var(--dz-primary)] text-white hover:brightness-110 transition-[filter]">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <User size={16} />
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
