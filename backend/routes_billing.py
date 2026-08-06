@@ -29,6 +29,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app_config import public_app_url
 from database import db
+from email_service import send_email
 from plans import PLAN_RANK
 from security import get_current_user
 
@@ -84,6 +85,46 @@ async def cancel_subscription_for_deletion(sub_id: str | None) -> None:
             return
         logger.error("[stripe] account deletion cancellation failed for %s: %s", sub_id, getattr(e, "user_message", e))
         raise HTTPException(status_code=502, detail="Could not confirm subscription cancellation; account was not deleted")
+
+
+async def _notify_payment_failed(user: dict) -> None:
+    """Warn a customer their card was declined (in-app + email) so they can
+    update it before losing access. Billing is account-critical, so this bypasses
+    the market-alert channel gating and always attempts both channels. Best
+    effort: a delivery failure must never break webhook processing."""
+    if not user:
+        return
+    manage_url = f"{public_app_url().rstrip('/')}/app/settings"
+    msg = ("Não conseguimos processar o pagamento da sua assinatura Dipzee. "
+           "Atualize seu cartão em Configurações → Assinatura para manter o acesso.")
+    try:
+        await db.alert_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "ticker": None,
+            "type": "billing_payment_failed",
+            "message": msg,
+            "url": manage_url,
+            "hidden": False,
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[billing] in-app payment-failed notice failed: %s", e)
+    if user.get("email"):
+        subject = "Dipzee • Falha no pagamento da assinatura"
+        html = (
+            "<div style='font-family:Inter,Arial,sans-serif;color:#0F1424'>"
+            "<h2 style='color:#1A1F4D'>Dipzee</h2>"
+            f"<p>{msg}</p>"
+            f"<p><a href='{manage_url}' style='color:#16a34a'>Atualizar meu cartão</a></p>"
+            "<p style='color:#5B6478;font-size:12px'>Se você já atualizou o pagamento, ignore este aviso.</p>"
+            "</div>"
+        )
+        try:
+            await asyncio.to_thread(send_email, user["email"], subject, html)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[billing] payment-failed email failed: %s", e)
 
 
 def _ts_to_iso(ts) -> str | None:
@@ -946,6 +987,8 @@ async def stripe_webhook(request: Request):
         elif event_type in ("invoice.paid", "invoice.payment_failed"):
             u = await db.users.find_one({"stripe_customer_id": data_obj.get("customer")})
             sub_id = data_obj.get("subscription")
+            if event_type == "invoice.payment_failed":
+                await _notify_payment_failed(u)
             payment_intent = data_obj.get("payment_intent")
             pi_id = payment_intent.get("id") if isinstance(payment_intent, dict) else payment_intent
             invoice_id = data_obj.get("id")

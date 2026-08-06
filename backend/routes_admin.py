@@ -90,12 +90,24 @@ async def stats(admin: dict = Depends(get_superadmin)):
 
     recent_users = await db.users.find({}, SAFE_USER_PROJECTION).sort("created_at", -1).to_list(6)
 
-    # revenue from processed transactions
+    # Real revenue: ONLY money actually collected — the Stripe `invoice.paid`
+    # records (id "invoice:*", payment_status "paid", amount_cents = amount_paid).
+    # A 7-day trial charges nothing (status "trialing") and abandoned/canceled/
+    # unpaid checkouts never collected money, so none of those count as revenue,
+    # even though they carry the plan price and are marked processed.
     revenue = 0.0
-    tx_count = 0
-    async for tx in db.payment_transactions.find({"processed": True}):
+    paid_count = 0
+    async for tx in db.payment_transactions.find({"payment_status": "paid"}):
         revenue += int(tx.get("amount_cents") or 0) / 100
-        tx_count += 1
+        paid_count += 1
+
+    # Subscriber breakdown by the real Stripe subscription status, so the panel
+    # never shows a free trial or a lapsed subscription as a paying customer.
+    subscribers = {
+        "active": await db.users.count_documents({"subscription_status": "active"}),
+        "trialing": await db.users.count_documents({"subscription_status": "trialing"}),
+        "past_due": await db.users.count_documents({"subscription_status": {"$in": ["past_due", "unpaid"]}}),
+    }
 
     # top assets by score
     top_assets = await db.assets.find({"score": {"$ne": None}}, {"_id": 0}).sort("score", -1).to_list(5)
@@ -111,7 +123,8 @@ async def stats(admin: dict = Depends(get_superadmin)):
         "events_total": events_total,
         "watchlist_total": watchlist_total,
         "revenue": round(revenue, 2),
-        "paid_transactions": tx_count,
+        "paid_transactions": paid_count,
+        "subscribers": subscribers,
         "recent_users": recent_users,
         "top_assets": top_assets,
     }
