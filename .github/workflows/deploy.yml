@@ -104,8 +104,24 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           install -m 600 -D /dev/null ~/.ssh/known_hosts
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-            -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" true
+          # Retry the trust handshake: the VPS SSH port occasionally drops a
+          # connection from the runner (transient network / provider throttling),
+          # which shouldn't fail an otherwise-healthy deploy. ConnectTimeout keeps
+          # each attempt fast; back off between tries.
+          for attempt in 1 2 3 4 5; do
+            if ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+                 -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 \
+                 -i ~/.ssh/deploy_key -p "${VPS_SSH_PORT:-22}" "$VPS_USER@$VPS_HOST" true; then
+              echo "SSH trust established on attempt $attempt."
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "SSH to the VPS did not connect after 5 attempts (transient VPS/network reachability, not a code issue). Re-run the job."
+              exit 1
+            fi
+            echo "SSH attempt $attempt failed; retrying in $((attempt * 10))s..."
+            sleep "$((attempt * 10))"
+          done
 
       # This is a public repository. The artifact contains only a GPG recovery
       # envelope. Its passphrase is derived from the protected deploy SSH key;
