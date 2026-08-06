@@ -282,20 +282,25 @@ def test_import_lse_when_configured(fake_db, monkeypatch):
     import lse_service
 
     async def _fake_catalog(*a, **k):
+        # Real LSE-vendor symbols carry a venue suffix; the exchange is derived
+        # from it (London = .L, Hong Kong = .HK), never the vendor name "LSE".
         return [
-            {"symbol": "HSBA", "name": "HSBC Holdings", "category": "stock"},
-            {"symbol": "VOD", "name": "Vodafone Group", "type": "equity"},
-            {"symbol": "ISF", "name": "iShares Core FTSE 100", "category": "etf"},
+            {"symbol": "HSBA.L", "name": "HSBC Holdings", "category": "stock", "country": "United Kingdom"},
+            {"symbol": "VOD.L", "name": "Vodafone Group", "type": "equity", "country": "United Kingdom"},
+            {"symbol": "ISF.L", "name": "iShares Core FTSE 100", "category": "etf", "country": "United Kingdom"},
+            {"symbol": "0001.HK", "name": "CK Hutchison Holdings", "category": "stock", "country": "Hong Kong"},
         ]
 
     monkeypatch.setattr(lse_service, "is_configured", lambda: True)
     monkeypatch.setattr(lse_service, "catalog", _fake_catalog)
     out = _run(sm.import_lse_catalog())
-    assert out["configured"] is True and out["instruments"] == 3
+    assert out["configured"] is True and out["instruments"] == 4
     res = _run(sm.search_catalog(source="lse", advanced=True))
     by = {r["symbol"]: r for r in res["results"]}
-    assert by["HSBA"]["exchange"] == "LSE" and by["ISF"]["asset_class"] == "etf"
-    assert by["VOD"]["asset_class"] == "stock"
+    assert by["HSBA.L"]["exchange"] == "LSE" and by["ISF.L"]["asset_class"] == "etf"
+    assert by["VOD.L"]["asset_class"] == "stock"
+    # Data vendor is LSE (source), but the listing venue is the real exchange.
+    assert by["0001.HK"]["exchange"] == "HKEX" and by["0001.HK"]["source"] == "lse"
 
 
 def test_import_lse_categories_skip_and_dedupe(fake_db, monkeypatch):

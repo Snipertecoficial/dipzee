@@ -201,8 +201,21 @@ class FakeCollection:
             def __init__(self, rows):
                 self._rows = rows
 
-            def sort(self, key, direction=1):
-                self._rows.sort(key=lambda d: (d.get(key) is None, d.get(key)), reverse=direction < 0)
+            def sort(self, key_or_list, direction=1):
+                # Accept both motor forms: sort("field", dir) and
+                # sort([("f1", d1), ("f2", d2), ...]). Multi-key = stable sort
+                # from least- to most-significant key. Missing values sort like
+                # Mongo (lowest: first ascending, last descending), and a numeric
+                # placeholder for None avoids None-vs-None comparison errors.
+                if isinstance(key_or_list, (list, tuple)) and key_or_list and isinstance(key_or_list[0], (list, tuple)):
+                    keys = list(key_or_list)
+                else:
+                    keys = [(key_or_list, direction)]
+                for field, dirn in reversed(keys):
+                    self._rows.sort(
+                        key=lambda d, f=field: (d.get(f) is not None, d.get(f) if d.get(f) is not None else 0),
+                        reverse=dirn < 0,
+                    )
                 return self
 
             def skip(self, n):

@@ -280,6 +280,38 @@ _LSE_CLASS = {
     "volatility": "volatility",
 }
 
+# The LSE vendor catalog carries NO exchange field — only the ticker suffix
+# reliably identifies the listing venue. So a Hong Kong stock (`0001.HK`) must
+# not be labeled "LSE" (that is the DATA VENDOR, tracked in `source`, not the
+# exchange). Map the common Yahoo/vendor suffixes to their home exchange; London
+# (`.L`) genuinely is the LSE.
+_SUFFIX_EXCHANGE = {
+    ".L": "LSE", ".HK": "HKEX", ".KS": "KRX", ".KQ": "KOSDAQ", ".T": "TSE",
+    ".TO": "TSX", ".V": "TSXV", ".DE": "XETRA", ".F": "FRA", ".PA": "Euronext Paris",
+    ".AS": "Euronext Amsterdam", ".BR": "Euronext Brussels", ".LS": "Euronext Lisbon",
+    ".MC": "BME Madrid", ".MI": "Borsa Italiana", ".SW": "SIX Swiss", ".VI": "Wiener Börse",
+    ".ST": "Nasdaq Stockholm", ".HE": "Nasdaq Helsinki", ".CO": "Nasdaq Copenhagen",
+    ".OL": "Oslo Børs", ".IC": "Nasdaq Iceland", ".AX": "ASX", ".NZ": "NZX",
+    ".SS": "Shanghai SE", ".SZ": "Shenzhen SE", ".TW": "Taiwan SE", ".TWO": "Taipei Exchange",
+    ".NS": "NSE India", ".BO": "BSE India", ".SA": "B3 Brazil", ".MX": "BMV Mexico",
+    ".JO": "JSE", ".TA": "TASE", ".SR": "Tadawul", ".QA": "QSE", ".IS": "Borsa İstanbul",
+    ".BK": "SET Thailand", ".JK": "IDX", ".KL": "Bursa Malaysia", ".SI": "SGX",
+}
+
+
+def _lse_exchange(symbol: str, country, asset_class: str) -> str:
+    """Real listing venue for an LSE-vendor instrument, from the ticker suffix
+    (the only reliable signal). Non-equity classes carry the class as venue; an
+    unsuffixed/unknown symbol falls back to its country — never a wrong "LSE"."""
+    dot = symbol.rfind(".")
+    if dot != -1:
+        suf = symbol[dot:].upper()
+        if suf in _SUFFIX_EXCHANGE:
+            return _SUFFIX_EXCHANGE[suf]
+    if asset_class in ("crypto", "forex", "commodity", "index", "rate", "volatility"):
+        return asset_class.upper()
+    return str(country) if country else "OTC"
+
 
 async def import_lse_catalog() -> dict:
     """Ingest the licensed London Strategic Edge instrument catalog into
@@ -318,12 +350,13 @@ async def import_lse_catalog() -> dict:
         if cls == "stock" and symbol in us_syms:
             skipped_dupe += 1
             continue
+        venue = _lse_exchange(symbol, it.get("country"), cls)
         records.append({
             "symbol": symbol,
             "name": name,
             "name_lower": name.lower(),
-            "exchange": "LSE",
-            "exchange_code": "LSE",
+            "exchange": venue,
+            "exchange_code": venue,
             "asset_class": cls,
             "etf": cls == "etf",
             "source": "lse",
@@ -378,9 +411,13 @@ async def search_catalog(q: Optional[str] = None, exchange: Optional[str] = None
     page_size = min(100, max(1, int(page_size or 25)))
     query = _build_query(q, exchange, asset_class, source, advanced, min_dividend)
     total = await db.security_master.count_documents(query)
+    # Lead with the monitored, scored names (recognizable + priceable) instead of
+    # the obscure foreign symbols that sort first alphabetically; unscored rows
+    # fall to the end, ordered by symbol. (Mongo sorts missing `score` last in a
+    # descending sort.)
     rows = await (
         db.security_master.find(query, {"_id": 0, "name_lower": 0})
-        .sort("symbol", 1)
+        .sort([("score", -1), ("symbol", 1)])
         .skip((page - 1) * page_size)
         .limit(page_size)
         .to_list(page_size)
@@ -430,20 +467,31 @@ async def facets(source: Optional[str] = None, advanced: bool = False) -> dict:
 
 
 async def enrich_dividends_from_assets() -> dict:
-    """Copy verified dividend yields from the scored ``assets`` collection into
-    security_master (matched by symbol) so the "pays dividends" filter and the
-    per-row yield badge use REAL data. Coverage grows as more names get
-    refreshed; rows without data simply stay unmarked — never fabricated."""
+    """Copy verified data from the scored ``assets`` collection into
+    security_master (matched by symbol): the dividend yield (for the "pays
+    dividends" filter/badge) AND the Opportunity Score + classification, so the
+    browsable catalog can surface a real score and lead with monitored names.
+    Coverage grows as names get refreshed; unmatched rows stay unmarked — never
+    fabricated."""
     ops = []
-    async for a in db.assets.find({"dividend_yield": {"$ne": None}}, {"_id": 0, "ticker": 1, "dividend_yield": 1}):
+    async for a in db.assets.find(
+        {"$or": [{"score": {"$ne": None}}, {"dividend_yield": {"$ne": None}}]},
+        {"_id": 0, "ticker": 1, "dividend_yield": 1, "score": 1, "classification": 1},
+    ):
         sym = (a.get("ticker") or "").strip()
-        dy = a.get("dividend_yield")
-        if not sym or dy is None:
+        if not sym:
             continue
-        ops.append(UpdateOne(
-            {"symbol": sym},
-            {"$set": {"dividend_yield": float(dy), "pays_dividend": float(dy) > 0}},
-        ))
+        fields: dict = {}
+        dy = a.get("dividend_yield")
+        if dy is not None:
+            fields["dividend_yield"] = float(dy)
+            fields["pays_dividend"] = float(dy) > 0
+        if a.get("score") is not None:
+            fields["score"] = a.get("score")
+            fields["classification"] = a.get("classification")
+        if not fields:
+            continue
+        ops.append(UpdateOne({"symbol": sym}, {"$set": fields}))
     written = 0
     for i in range(0, len(ops), 1000):
         res = await db.security_master.bulk_write(ops[i:i + 1000], ordered=False)

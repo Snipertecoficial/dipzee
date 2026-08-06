@@ -60,8 +60,13 @@ function MoverCard({ r, onClick, classLabel }) {
           <div className="min-w-0">
             <span className="font-heading font-semibold text-[var(--dz-fg)] truncate block">{r.ticker}</span>
             <p className="text-xs text-[var(--dz-muted)] truncate mt-0.5">{r.name || r.ticker}</p>
-            {(r.exchange || r.dividend_yield > 0) && (
+            {(r.exchange || r.dividend_yield > 0 || r.score != null) && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                {r.score != null && (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tnum" style={{ background: 'color-mix(in srgb, var(--dz-primary) 14%, transparent)', color: 'var(--dz-primary)' }}>
+                    Score {Math.round(r.score)}
+                  </span>
+                )}
                 {r.exchange && (
                   <span className="inline-flex items-center rounded-full bg-[var(--dz-surface-2,rgba(0,0,0,0.04))] px-2 py-0.5 text-[10px] font-medium text-[var(--dz-muted)]">{r.exchange}</span>
                 )}
@@ -239,6 +244,8 @@ export default function Markets() {
         price: quotes[r.symbol]?.price, change_pct: quotes[r.symbol]?.change_pct, currency: quotes[r.symbol]?.currency,
         // Prefer the live quote's yield; fall back to the catalog's verified value.
         dividend_yield: quotes[r.symbol]?.dividend_yield ?? r.dividend_yield,
+        // Opportunity Score comes from the scored catalog row (enriched from assets).
+        score: r.score, classification: r.classification,
       })));
     } catch {
       setExRows([]); setExMeta({ total: 0, pages: 0, page: 1 });
