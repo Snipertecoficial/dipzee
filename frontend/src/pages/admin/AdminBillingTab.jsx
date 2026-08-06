@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CreditCard, CheckCircle2, Users, RefreshCw, Undo2, Download, Loader2 } from 'lucide-react';
+import { CreditCard, CheckCircle2, Users, RefreshCw, Undo2, Download, Loader2, Clock, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Metric, TH_CLASS, TD_CLASS, fmtDate } from './AdminShared';
@@ -43,10 +43,14 @@ export function AdminBillingTab({ stats, txs, busy, onSync, onRefund }) {
   return (
     <>
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          {/* Revenue and "paid" now count ONLY genuinely-charged invoices — a free
+              trial or a lapsed subscription is never reported as paid. */}
           <Metric label={t('admin.metrics.revenue')} value={`US$${(stats.revenue || 0).toFixed(2)}`} icon={CreditCard} accent="var(--dz-buy)" />
-          <Metric label={t('admin.metrics.paid')} value={stats.paid_transactions} icon={CheckCircle2} />
-          <Metric label={t('admin.planInvestor')} value={stats.plan_counts?.investor ?? 0} icon={Users} accent="var(--dz-primary)" />
+          <Metric label={t('admin.metrics.paid')} value={stats.paid_transactions ?? 0} icon={CheckCircle2} />
+          <Metric label={t('admin.metrics.subscribersActive')} value={stats.subscribers?.active ?? 0} icon={Users} accent="var(--dz-primary)" />
+          <Metric label={t('admin.metrics.subscribersTrial')} value={stats.subscribers?.trialing ?? 0} icon={Clock} accent="var(--dz-mint)" />
+          <Metric label={t('admin.metrics.subscribersPastDue')} value={stats.subscribers?.past_due ?? 0} icon={AlertTriangle} accent="var(--dz-sell)" />
         </div>
       )}
 

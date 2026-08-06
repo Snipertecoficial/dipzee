@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Check, Loader2, Sparkles, Crown, Rocket, ShieldCheck } from 'lucide-react';
@@ -212,6 +212,15 @@ export default function Upgrade() {
         </div>
       )}
       <div className="mt-8"><PricingCards onChoose={onChoose} busyPlan={busyPlan} hasActiveSub={hasActiveSub} /></div>
+      {/* Active subscribers can downgrade by picking a lower plan above; cancel/
+          manage lives on the Subscription settings (and the Stripe portal). */}
+      {hasActiveSub && (
+        <div className="mt-5 text-center">
+          <Link to="/app/settings" data-testid="upgrade-manage-subscription-link" className="text-sm font-medium text-[var(--dz-primary)] hover:underline">
+            {t('plans.manageLink')} →
+          </Link>
+        </div>
+      )}
       <div className="mt-8 flex items-center justify-center gap-2 text-xs text-[var(--dz-muted)]">
         <ShieldCheck size={14} className="text-[var(--dz-buy)]" /> {t('plans.trialNote')}
       </div>

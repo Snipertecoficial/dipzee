@@ -515,7 +515,10 @@
       "events": "Notificações enviadas",
       "watchlist": "Itens na lista",
       "revenue": "Receita",
-      "paid": "Transações pagas"
+      "paid": "Transações pagas",
+      "subscribersActive": "Assinantes pagantes",
+      "subscribersTrial": "Em teste grátis",
+      "subscribersPastDue": "Inadimplentes"
     },
     "planFree": "Grátis",
     "planPro": "Pro",
@@ -725,7 +728,8 @@
     "proF6": "Todos os 4 idiomas",
     "investorF6": "Alertas Telegram e webhook",
     "investorF7": "Exportar dados e prioridade",
-    "trialStartedToast": "Teste de 7 dias iniciado — {{plan}}"
+    "trialStartedToast": "Teste de 7 dias iniciado — {{plan}}",
+    "manageLink": "Gerenciar ou cancelar assinatura"
   },
   "markets": {
     "title": "Mercados",

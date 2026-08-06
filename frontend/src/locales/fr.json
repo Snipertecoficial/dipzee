@@ -533,7 +533,8 @@
     "proF6": "Les 4 langues",
     "investorF6": "Alertes Telegram et webhook",
     "investorF7": "Export de données et priorité",
-    "trialStartedToast": "Essai de 7 jours démarré — {{plan}}"
+    "trialStartedToast": "Essai de 7 jours démarré — {{plan}}",
+    "manageLink": "Gérer ou annuler l'abonnement"
   },
   "admin": {
     "title": "Panneau d'administration",
@@ -559,7 +560,10 @@
       "events": "Notifications envoyées",
       "watchlist": "Éléments suivis",
       "revenue": "Revenus",
-      "paid": "Transactions payées"
+      "paid": "Transactions payées",
+      "subscribersActive": "Abonnés payants",
+      "subscribersTrial": "En essai gratuit",
+      "subscribersPastDue": "Paiement en retard"
     },
     "planFree": "Gratuit",
     "planPro": "Pro",

@@ -515,7 +515,10 @@
       "events": "Notifications sent",
       "watchlist": "Watchlist items",
       "revenue": "Revenue",
-      "paid": "Paid transactions"
+      "paid": "Paid transactions",
+      "subscribersActive": "Paying subscribers",
+      "subscribersTrial": "On free trial",
+      "subscribersPastDue": "Past due"
     },
     "planFree": "Free",
     "planPro": "Pro",
@@ -725,7 +728,8 @@
     "proF6": "All 4 languages",
     "investorF6": "Telegram & webhook alerts",
     "investorF7": "Data export & priority",
-    "trialStartedToast": "7-day trial started — {{plan}}"
+    "trialStartedToast": "7-day trial started — {{plan}}",
+    "manageLink": "Manage or cancel your subscription"
   },
   "markets": {
     "title": "Markets",
